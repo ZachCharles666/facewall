@@ -1,0 +1,404 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getAzureSpeechStatus, requestTtsAudio } from "@/lib/api/client";
+import { shouldInjectClientFault } from "@/lib/dev/clientControls";
+import { demoScenario } from "@/lib/demo/scenario";
+import { azureVoiceOptions, personaSpeechDefaults } from "@/lib/speech/settings";
+import { canUseSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
+import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
+import type {
+  InterviewAnswer,
+  InterviewQuestion,
+  InterviewerStyleId,
+  SpeechTuning,
+  SttStatus,
+  TtsEngine,
+  TtsStatus,
+  VoiceOption
+} from "@/lib/types";
+import { VoiceControls } from "@/components/voice/VoiceControls";
+
+export function InterviewPanel({
+  questions,
+  answers,
+  interviewerStyleId,
+  onAnswersChange,
+  onGenerateReport
+}: {
+  questions: InterviewQuestion[];
+  answers: InterviewAnswer[];
+  interviewerStyleId: InterviewerStyleId;
+  onAnswersChange: (answers: InterviewAnswer[]) => void;
+  onGenerateReport: (answers: InterviewAnswer[]) => void;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [ttsEngine, setTtsEngine] = useState<TtsEngine>("azure");
+  const [ttsStatus, setTtsStatus] = useState<TtsStatus>("idle");
+  const [azureConfigured, setAzureConfigured] = useState(false);
+  const [azureVoices, setAzureVoices] = useState<VoiceOption[]>(azureVoiceOptions);
+  const [webVoices, setWebVoices] = useState<VoiceOption[]>([{ value: "auto", label: "自动匹配中文发音人" }]);
+  const [speechTuning, setSpeechTuning] = useState<SpeechTuning>(personaSpeechDefaults[interviewerStyleId]);
+  const [voiceMessage, setVoiceMessage] = useState("语音提问优先 Azure TTS，失败后使用浏览器 Web Speech。");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const sttSessionRef = useRef<SttSession | null>(null);
+  const currentQuestion = questions[currentIndex];
+  const currentAnswer = answers.find((answer) => answer.questionId === currentQuestion?.id);
+
+  const missingCount = useMemo(
+    () => answers.filter((answer) => !answer.answerText.trim()).length,
+    [answers]
+  );
+
+  useEffect(() => {
+    setSpeechTuning(personaSpeechDefaults[interviewerStyleId]);
+  }, [interviewerStyleId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAzureSpeechStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setAzureConfigured(status.configured);
+        setAzureVoices(status.voices.length > 0 ? status.voices : azureVoiceOptions);
+        setVoiceMessage(
+          status.configured
+            ? "Azure TTS 已配置；若播放失败会自动降级 Web Speech。"
+            : "Azure TTS 未配置；播放会自动使用 Web Speech API 兜底。"
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAzureConfigured(false);
+        setVoiceMessage("Azure TTS 状态不可用；播放会尝试 Web Speech API 兜底。");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncWebVoices() {
+      const voices = getWebSpeechVoices();
+      setWebVoices([
+        { value: "auto", label: "自动匹配中文发音人" },
+        ...voices.map((voice) => ({
+          value: voice.voiceURI,
+          label: `${voice.name}${voice.lang ? ` (${voice.lang})` : ""}${voice.default ? " / 默认" : ""}`
+        }))
+      ]);
+    }
+
+    syncWebVoices();
+    if (canUseWebSpeech()) {
+      window.speechSynthesis.onvoiceschanged = syncWebVoices;
+    }
+
+    return () => {
+      if (canUseWebSpeech()) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopTts();
+      sttSessionRef.current?.abort();
+    };
+  }, []);
+
+  function updateCurrentAnswer(answerPatch: Partial<InterviewAnswer>) {
+    if (!currentQuestion) return;
+    onAnswersChange(
+      answers.map((answer) =>
+        answer.questionId === currentQuestion.id
+          ? {
+              ...answer,
+              ...answerPatch
+            }
+          : answer
+      )
+    );
+  }
+
+  function fillSampleAnswers() {
+    onAnswersChange(
+      questions.map((question) => {
+        const sample = demoScenario.sampleAnswers.find((answer) => answer.questionId === question.id);
+        return (
+          sample ?? {
+            questionId: question.id,
+            answerText: "",
+            inputMode: "text",
+            durationSec: 0,
+            sttStatus: "manual"
+          }
+        );
+      })
+    );
+  }
+
+  async function playQuestion() {
+    if (!currentQuestion) return;
+    const text = currentQuestion.questionText;
+    stopTts();
+
+    if (ttsEngine === "azure" && azureConfigured) {
+      try {
+        setTtsStatus("loading");
+        setVoiceMessage("正在生成 Azure TTS 音频。");
+        const blob = await requestTtsAudio({
+          text,
+          styleId: interviewerStyleId,
+          voiceName: speechTuning.voiceName,
+          rate: speechTuning.rate,
+          pitch: speechTuning.pitch,
+          volume: speechTuning.volume
+        });
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audio.volume = speechTuning.volume;
+        audioRef.current = audio;
+        audioUrlRef.current = audioUrl;
+        audio.onplay = () => {
+          setTtsStatus("speaking");
+          setVoiceMessage("Azure TTS 播放中。");
+        };
+        audio.onended = () => {
+          setTtsStatus("ended");
+          setVoiceMessage("Azure TTS 播放完成。");
+          releaseAudio();
+        };
+        audio.onerror = () => {
+          setTtsStatus("failed");
+          setVoiceMessage("Azure TTS 播放失败，文本仍可继续。");
+          releaseAudio();
+        };
+        await audio.play();
+        return;
+      } catch {
+        releaseAudio();
+        setVoiceMessage("Azure TTS 不可用，正在切换 Web Speech API 兜底。");
+      }
+    }
+
+    try {
+      setTtsStatus("loading");
+      speakWithWebSpeech(text, interviewerStyleId, speechTuning, {
+        onStart: () => {
+          setTtsStatus("speaking");
+          setVoiceMessage("Web Speech API 播放中；本机发音人效果取决于浏览器和系统。");
+        },
+        onEnd: () => {
+          setTtsStatus("ended");
+          setVoiceMessage("Web Speech API 播放完成。");
+        },
+        onError: () => {
+          setTtsStatus("failed");
+          setVoiceMessage("Web Speech API 播放失败，文本仍可继续。");
+        }
+      });
+    } catch (error) {
+      setTtsStatus("unsupported");
+      setVoiceMessage(error instanceof Error ? error.message : "当前环境不支持语音播放，文本仍可继续。");
+    }
+  }
+
+  function releaseAudio() {
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    audioRef.current = null;
+  }
+
+  function stopTts() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    releaseAudio();
+    if (canUseWebSpeech()) {
+      window.speechSynthesis.cancel();
+    }
+    setTtsStatus((status) => (status === "speaking" || status === "loading" ? "ended" : status));
+  }
+
+  function startStt() {
+    if (!currentQuestion || !currentAnswer) return;
+    sttSessionRef.current?.abort();
+
+    if (shouldInjectClientFault("stt")) {
+      updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer.answerText.trim() ? "edited" : "text" });
+      setVoiceMessage("开发故障注入：STT 失败。已保留当前文本，可重试或手动编辑。");
+      return;
+    }
+
+    if (!canUseSpeechRecognition()) {
+      updateCurrentAnswer({ sttStatus: "unsupported", inputMode: currentAnswer.answerText.trim() ? "edited" : "text" });
+      setVoiceMessage("当前浏览器不支持 STT，已切换为手动编辑。");
+      return;
+    }
+
+    updateCurrentAnswer({ sttStatus: "recording", inputMode: "voice" });
+    sttSessionRef.current = startSpeechRecognition({
+      existingText: currentAnswer.answerText,
+      onStatus: (status, message) => {
+        updateCurrentAnswer({
+          sttStatus: status,
+          inputMode: status === "success" || status === "recording" ? "voice" : currentAnswer.answerText.trim() ? "edited" : "text"
+        });
+        setVoiceMessage(message);
+      },
+      onText: (text, isFinal) => {
+        updateCurrentAnswer({
+          answerText: text,
+          inputMode: isFinal ? "voice" : "edited",
+          sttStatus: "recording"
+        });
+      },
+      onDuration: (durationSec) => {
+        updateCurrentAnswer({ durationSec });
+      }
+    });
+  }
+
+  function stopStt() {
+    sttSessionRef.current?.stop();
+    sttSessionRef.current = null;
+  }
+
+  function simulateStt(status: SttStatus) {
+    if (status === "failed") {
+      updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer?.answerText.trim() ? "edited" : "text" });
+      setVoiceMessage("语音识别失败，已保留当前文本，可重试或手动编辑。");
+      return;
+    }
+
+    const sample = demoScenario.sampleAnswers.find((answer) => answer.questionId === currentQuestion?.id);
+    updateCurrentAnswer({
+      answerText: sample?.answerText ?? currentAnswer?.answerText ?? "",
+      inputMode: "voice",
+      durationSec: sample?.durationSec ?? 60,
+      sttStatus: "success"
+    });
+  }
+
+  function updateSpeechTuning(patch: Partial<SpeechTuning>) {
+    setSpeechTuning((current) => ({
+      ...current,
+      ...patch
+    }));
+  }
+
+  if (!currentQuestion || !currentAnswer) {
+    return (
+      <section className="panel">
+        <div className="status warning">还没有可答题目，请先生成 3 道面试题。</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <h2>Interview</h2>
+          <p>按 3 道题顺序作答；可跳过、编辑，报告前会提示缺失答案。</p>
+        </div>
+        <button onClick={fillSampleAnswers}>填入样例答案</button>
+      </div>
+
+      {missingCount > 0 && <div className="status warning">当前还有 {missingCount} 道题缺少答案，仍可生成报告但会标记缺失。</div>}
+
+      <div className="interview-layout">
+        <aside className="question-grid">
+          {questions.map((question, index) => (
+            <button
+              className={index === currentIndex ? "question-card active" : "question-card"}
+              key={question.id}
+              onClick={() => setCurrentIndex(index)}
+            >
+              <strong>
+                {question.id} · {question.title}
+              </strong>
+              <span>{answers.find((answer) => answer.questionId === question.id)?.answerText.trim() ? "已作答" : "未作答"}</span>
+            </button>
+          ))}
+        </aside>
+
+        <div>
+          <article className="question-card active">
+            <strong>
+              第 {currentIndex + 1} 题 · {currentQuestion.title}
+            </strong>
+            <p>{currentQuestion.questionText}</p>
+            <p className="helper">Intent: {currentQuestion.intent}</p>
+            <p className="helper">Expected: {currentQuestion.expectedSignals.join(" / ")}</p>
+          </article>
+
+          <VoiceControls
+            azureConfigured={azureConfigured}
+            azureVoices={azureVoices}
+            message={voiceMessage}
+            speechTuning={speechTuning}
+            sttStatus={currentAnswer.sttStatus}
+            ttsEngine={ttsEngine}
+            ttsStatus={ttsStatus}
+            webVoices={webVoices}
+            onPlay={playQuestion}
+            onSpeechTuningChange={updateSpeechTuning}
+            onSimulateSttFailure={() => simulateStt("failed")}
+            onStartStt={startStt}
+            onStopStt={stopStt}
+            onStopTts={stopTts}
+            onTtsEngineChange={setTtsEngine}
+          />
+
+          {(currentAnswer.sttStatus === "failed" || currentAnswer.sttStatus === "unsupported") && (
+            <div className="status error">STT 识别失败。已保留当前文本，可重试识别或直接手动编辑。</div>
+          )}
+
+          <div className="field">
+            <label htmlFor="answerText">答案文本</label>
+            <textarea
+              className="answer-editor"
+              id="answerText"
+              value={currentAnswer.answerText}
+              onChange={(event) =>
+                updateCurrentAnswer({
+                  answerText: event.target.value,
+                  inputMode: currentAnswer.sttStatus === "success" ? "edited" : "text",
+                  sttStatus: currentAnswer.sttStatus === "idle" ? "manual" : currentAnswer.sttStatus,
+                  durationSec: Math.max(currentAnswer.durationSec, 30)
+                })
+              }
+              placeholder="可以手动输入，也可以先模拟语音识别后再编辑。"
+            />
+          </div>
+
+          <div className="inline-actions">
+            <button onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
+              上一题
+            </button>
+            <button
+              onClick={() => {
+                updateCurrentAnswer({ answerText: "", inputMode: "text", sttStatus: "manual", durationSec: 0 });
+                setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1));
+              }}
+            >
+              跳过本题
+            </button>
+            <button onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))} disabled={currentIndex === questions.length - 1}>
+              下一题
+            </button>
+            <button className="primary" onClick={() => onGenerateReport(answers)}>
+              生成复盘报告
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

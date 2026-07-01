@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 面试官 TTS 动效 Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f7fb;
+        --panel: #ffffff;
+        --panel-soft: #eef4ff;
+        --text: #172033;
+        --muted: #64748b;
+        --line: #d7e0ed;
+        --blue: #2563eb;
+        --blue-dark: #1d4ed8;
+        --green: #0f9f6e;
+        --amber: #b7791f;
+        --rose: #be123c;
+        --shadow: 0 18px 48px rgba(23, 32, 51, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          system-ui,
+          sans-serif;
+        background:
+          radial-gradient(circle at 18% 12%, rgba(37, 99, 235, 0.14), transparent 30%),
+          linear-gradient(145deg, #f8fbff 0%, #edf4fb 54%, #f7f3ed 100%);
+        color: var(--text);
+      }
+
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      .app {
+        width: min(1160px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 36px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: #172033;
+        color: #ffffff;
+        font-weight: 800;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .brand p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .support-pill {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 8px 12px;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+
+      .support-pill.ok {
+        color: #047857;
+        border-color: rgba(15, 159, 110, 0.32);
+        background: rgba(236, 253, 245, 0.88);
+      }
+
+      .support-pill.warn {
+        color: #9f1239;
+        border-color: rgba(190, 18, 60, 0.26);
+        background: rgba(255, 241, 242, 0.9);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(310px, 0.9fr) minmax(420px, 1.35fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(215, 224, 237, 0.9);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+      }
+
+      .interviewer-panel {
+        padding: 22px;
+        display: grid;
+        align-content: start;
+        gap: 22px;
+        overflow: hidden;
+      }
+
+      .stage {
+        min-height: 310px;
+        display: grid;
+        place-items: center;
+        position: relative;
+        border-radius: 14px;
+        background:
+          linear-gradient(145deg, rgba(23, 32, 51, 0.96), rgba(32, 50, 76, 0.95)),
+          #172033;
+        color: #ffffff;
+      }
+
+      .stage-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        mask-image: radial-gradient(circle at center, black 0%, transparent 72%);
+      }
+
+      .interviewer {
+        width: 190px;
+        height: 190px;
+        position: relative;
+        display: grid;
+        place-items: center;
+      }
+
+      .avatar {
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        position: relative;
+        z-index: 2;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 34%),
+          linear-gradient(135deg, var(--voice-accent), var(--voice-deep));
+        box-shadow:
+          0 0 34px rgba(255, 255, 255, 0.12),
+          0 0 72px rgba(37, 99, 235, 0.35);
+        animation: breathe 2.6s ease-in-out infinite;
+      }
+
+      .avatar-label {
+        text-align: center;
+      }
+
+      .avatar-label strong {
+        display: block;
+        font-size: 30px;
+        letter-spacing: 0;
+      }
+
+      .avatar-label span {
+        display: block;
+        margin-top: 3px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.76);
+      }
+
+      .ring {
+        position: absolute;
+        inset: 35px;
+        border-radius: 50%;
+        border: 1px solid color-mix(in srgb, var(--voice-accent), white 18%);
+        opacity: 0;
+      }
+
+      .speaking .ring-1 {
+        animation: pulse-ring 1.45s ease-out infinite;
+      }
+
+      .speaking .ring-2 {
+        animation: pulse-ring 1.45s ease-out infinite 0.34s;
+      }
+
+      .speaking .ring-3 {
+        animation: pulse-ring 1.45s ease-out infinite 0.68s;
+      }
+
+      .scanline {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        top: 50%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--voice-accent), transparent);
+        opacity: 0.8;
+        transform: translateY(-50%);
+      }
+
+      .speaking .scanline {
+        animation: scan 1.2s ease-in-out infinite;
+      }
+
+      .wave-bars {
+        position: absolute;
+        left: 50%;
+        bottom: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transform: translateX(-50%);
+        height: 32px;
+        z-index: 3;
+      }
+
+      .wave-bars span {
+        width: 5px;
+        height: 14px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--voice-accent), white 12%);
+        opacity: 0.42;
+      }
+
+      .speaking .wave-bars span {
+        opacity: 1;
+        animation: wave 0.78s ease-in-out infinite;
+      }
+
+      .speaking .wave-bars span:nth-child(2) {
+        animation-delay: 0.08s;
+      }
+
+      .speaking .wave-bars span:nth-child(3) {
+        animation-delay: 0.16s;
+      }
+
+      .speaking .wave-bars span:nth-child(4) {
+        animation-delay: 0.24s;
+      }
+
+      .speaking .wave-bars span:nth-child(5) {
+        animation-delay: 0.32s;
+      }
+
+      .speaking .wave-bars span:nth-child(6) {
+        animation-delay: 0.4s;
+      }
+
+      .status-card {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: rgba(255, 255, 255, 0.74);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+        background: var(--voice-accent);
+        box-shadow: 0 0 16px var(--voice-accent);
+      }
+
+      .style-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .style-button {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        color: var(--text);
+        border-radius: 12px;
+        padding: 13px 14px;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          transform 160ms ease,
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .style-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(37, 99, 235, 0.42);
+        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.1);
+      }
+
+      .style-button.active {
+        border-color: var(--voice-accent);
+        background: color-mix(in srgb, var(--voice-accent), white 91%);
+        box-shadow: 0 10px 26px color-mix(in srgb, var(--voice-accent), transparent 76%);
+      }
+
+      .style-button strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .style-button span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .voice-controls {
+        display: grid;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+        background: #fbfdff;
+      }
+
+      .control-row {
+        display: grid;
+        gap: 7px;
+      }
+
+      .control-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .control-value {
+        color: var(--voice-accent);
+        font-variant-numeric: tabular-nums;
+      }
+
+      select {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: var(--text);
+        background: #ffffff;
+        outline: none;
+      }
+
+      select:focus {
+        border-color: rgba(37, 99, 235, 0.58);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--voice-accent);
+      }
+
+      .voice-meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .content-panel {
+        padding: 22px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .question-box {
+        display: grid;
+        gap: 10px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 142px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 15px;
+        line-height: 1.7;
+        color: var(--text);
+        background: #fbfdff;
+        outline: none;
+      }
+
+      textarea:focus {
+        border-color: rgba(37, 99, 235, 0.58);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+        font-size: 14px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .button {
+        border: 0;
+        border-radius: 12px;
+        padding: 11px 15px;
+        cursor: pointer;
+        font-weight: 700;
+        transition:
+          transform 160ms ease,
+          opacity 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      .button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .button.primary {
+        color: #ffffff;
+        background: var(--voice-accent);
+        box-shadow: 0 12px 24px color-mix(in srgb, var(--voice-accent), transparent 72%);
+      }
+
+      .button.secondary {
+        color: var(--text);
+        background: #eef2f7;
+      }
+
+      .readout {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel-soft);
+        padding: 16px;
+      }
+
+      .readout-label {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .sentence-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .sentence {
+        padding: 9px 10px;
+        border-radius: 10px;
+        line-height: 1.6;
+        background: rgba(255, 255, 255, 0.64);
+        border: 1px solid rgba(215, 224, 237, 0.86);
+        color: #334155;
+      }
+
+      .sentence.active {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--voice-accent), white 42%);
+        background: color-mix(in srgb, var(--voice-accent), white 88%);
+        box-shadow: inset 4px 0 0 var(--voice-accent);
+      }
+
+      @keyframes breathe {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.04);
+        }
+      }
+
+      @keyframes pulse-ring {
+        0% {
+          transform: scale(0.78);
+          opacity: 0.68;
+        }
+        100% {
+          transform: scale(1.68);
+          opacity: 0;
+        }
+      }
+
+      @keyframes wave {
+        0%,
+        100% {
+          transform: scaleY(0.55);
+        }
+        50% {
+          transform: scaleY(2.05);
+        }
+      }
+
+      @keyframes scan {
+        0%,
+        100% {
+          transform: translateY(-44px);
+          opacity: 0.32;
+        }
+        50% {
+          transform: translateY(44px);
+          opacity: 0.92;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .app {
+          width: min(100% - 20px, 680px);
+          padding-top: 18px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .stage {
+          min-height: 270px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app" style="--voice-accent: #2563eb; --voice-deep: #172033">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">AI</div>
+          <div>
+            <h1>AI 面试官 TTS 动效 Demo</h1>
+            <p>本地 H5 演示，Web Speech API + CSS 状态动画</p>
+          </div>
+        </div>
+        <div id="supportPill" class="support-pill">检测语音能力中</div>
+      </header>
+
+      <section class="layout">
+        <aside class="panel interviewer-panel">
+          <div class="stage">
+            <div class="stage-grid"></div>
+            <div id="interviewer" class="interviewer">
+              <div class="ring ring-1"></div>
+              <div class="ring ring-2"></div>
+              <div class="ring ring-3"></div>
+              <div class="scanline"></div>
+              <div class="avatar">
+                <div class="avatar-label">
+                  <strong>AI</strong>
+                  <span id="avatarText">大厂 HR</span>
+                </div>
+              </div>
+              <div class="wave-bars" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="status-card">
+              <span><i class="dot"></i><span id="statusText">待播放</span></span>
+              <span id="voiceName">默认语音</span>
+            </div>
+          </div>
+
+          <div>
+            <h2 class="section-title">面试官风格</h2>
+            <p class="subtitle">切换风格会改变头像色彩、语速、音调和读题状态。</p>
+          </div>
+
+          <div class="style-list" id="styleList">
+            <button class="style-button active" data-style="strictHr" type="button">
+              <strong>大厂严厉 HR</strong>
+              <span>语速稍快、音调偏低，强调压迫感和职业化审视。</span>
+            </button>
+            <button class="style-button" data-style="techBro" type="button">
+              <strong>技术老哥</strong>
+              <span>语速平稳、音调中低，突出技术深挖和项目细节。</span>
+            </button>
+            <button class="style-button" data-style="gentleSister" type="button">
+              <strong>温柔大姐姐</strong>
+              <span>语速稍慢、音调偏高，适合鼓励式和引导式提问。</span>
+            </button>
+          </div>
+
+          <div class="voice-controls">
+            <div class="control-row">
+              <label class="control-head" for="engineSelect">
+                <span>TTS 引擎</span>
+                <span id="engineStatus" class="control-value">检测中</span>
+              </label>
+              <select id="engineSelect">
+                <option value="azure">Azure Neural TTS</option>
+                <option value="web">Web Speech API</option>
+              </select>
+              <p class="voice-meta" id="engineMeta">
+                Azure 模式走本地 API 代理，不会把 key 暴露到浏览器；Web 模式使用系统默认语音。
+              </p>
+            </div>
+
+            <div class="control-row">
+              <label class="control-head" for="voiceSelect">
+                <span>发音人</span>
+                <span id="voiceCount" class="control-value">0 个可用</span>
+              </label>
+              <select id="voiceSelect">
+                <option value="auto">自动匹配中文发音人</option>
+              </select>
+              <p class="voice-meta" id="voiceMeta">
+                默认从浏览器可用 voice 列表中选择；如果只有一个中文 voice，三种人设会共用它。
+              </p>
+            </div>
+
+            <div class="control-row">
+              <div class="control-head">
+                <span>语速 rate</span>
+                <span id="rateValue" class="control-value">1.12</span>
+              </div>
+              <input id="rateInput" type="range" min="0.6" max="1.5" step="0.01" value="1.12" />
+            </div>
+
+            <div class="control-row">
+              <div class="control-head">
+                <span>音调 pitch</span>
+                <span id="pitchValue" class="control-value">0.82</span>
+              </div>
+              <input id="pitchInput" type="range" min="0.01" max="1.5" step="0.01" value="0.82" />
+            </div>
+
+            <div class="control-row">
+              <div class="control-head">
+                <span>音量 volume</span>
+                <span id="volumeValue" class="control-value">1.00</span>
+              </div>
+              <input id="volumeInput" type="range" min="0" max="1" step="0.01" value="1" />
+            </div>
+
+            <button id="resetParamsButton" class="button secondary" type="button">恢复当前人设推荐参数</button>
+          </div>
+        </aside>
+
+        <section class="panel content-panel">
+          <div>
+            <h2 class="section-title">读题演示</h2>
+            <p class="subtitle">
+              手机 H5 和桌面浏览器都可以试。若浏览器不支持 TTS，主流程仍展示文本，视觉状态不会阻塞。
+            </p>
+          </div>
+
+          <label class="question-box">
+            <span class="readout-label">面试题文本</span>
+            <textarea id="questionInput">请结合你过去最有代表性的一个项目，说明你当时面对的核心问题是什么，你具体采取了哪些行动，以及最终结果如何量化体现？</textarea>
+          </label>
+
+          <div class="toolbar">
+            <button id="playButton" class="button primary" type="button">播放题目</button>
+            <button id="stopButton" class="button secondary" type="button">停止</button>
+            <button id="simulateButton" class="button secondary" type="button">只看动效</button>
+          </div>
+
+          <div class="readout">
+            <p class="readout-label">逐句高亮预览</p>
+            <div id="sentenceList" class="sentence-list"></div>
+          </div>
+
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const styles = {
+        strictHr: {
+          label: "大厂 HR",
+          rate: 1.12,
+          pitch: 0.82,
+          volume: 1,
+          azureVoice: "zh-CN-XiaoxiaoNeural",
+          accent: "#be123c",
+          deep: "#451225",
+        },
+        techBro: {
+          label: "技术老哥",
+          rate: 1.02,
+          pitch: 0.12,
+          volume: 1,
+          azureVoice: "zh-CN-YunxiNeural",
+          accent: "#2563eb",
+          deep: "#172033",
+        },
+        gentleSister: {
+          label: "温柔姐姐",
+          rate: 0.94,
+          pitch: 1.14,
+          volume: 1,
+          azureVoice: "zh-CN-XiaoyiNeural",
+          accent: "#0f9f6e",
+          deep: "#143d32",
+        },
+      };
+
+      const app = document.querySelector(".app");
+      const supportPill = document.getElementById("supportPill");
+      const interviewer = document.getElementById("interviewer");
+      const statusText = document.getElementById("statusText");
+      const avatarText = document.getElementById("avatarText");
+      const voiceName = document.getElementById("voiceName");
+      const engineSelect = document.getElementById("engineSelect");
+      const engineStatus = document.getElementById("engineStatus");
+      const engineMeta = document.getElementById("engineMeta");
+      const voiceSelect = document.getElementById("voiceSelect");
+      const voiceCount = document.getElementById("voiceCount");
+      const voiceMeta = document.getElementById("voiceMeta");
+      const rateInput = document.getElementById("rateInput");
+      const pitchInput = document.getElementById("pitchInput");
+      const volumeInput = document.getElementById("volumeInput");
+      const rateValue = document.getElementById("rateValue");
+      const pitchValue = document.getElementById("pitchValue");
+      const volumeValue = document.getElementById("volumeValue");
+      const questionInput = document.getElementById("questionInput");
+      const playButton = document.getElementById("playButton");
+      const stopButton = document.getElementById("stopButton");
+      const simulateButton = document.getElementById("simulateButton");
+      const resetParamsButton = document.getElementById("resetParamsButton");
+      const sentenceList = document.getElementById("sentenceList");
+      const styleButtons = [...document.querySelectorAll(".style-button")];
+
+      let currentStyle = "strictHr";
+      let highlightTimer = null;
+      let simulationTimer = null;
+      let selectedVoice = null;
+      let availableVoices = [];
+      let azureConfigured = false;
+      let azureVoices = [];
+      let currentAudio = null;
+
+      function canSpeak() {
+        return "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+      }
+
+      function splitSentences(text) {
+        const normalized = text.trim().replace(/\s+/g, " ");
+        if (!normalized) return [];
+        return normalized
+          .split(/(?<=[。！？?!；;])/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function renderSentences(activeIndex = -1) {
+        const parts = splitSentences(questionInput.value);
+        sentenceList.innerHTML = "";
+        if (parts.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "sentence";
+          empty.textContent = "输入面试题后，这里会展示逐句高亮效果。";
+          sentenceList.appendChild(empty);
+          return;
+        }
+        parts.forEach((part, index) => {
+          const node = document.createElement("div");
+          node.className = `sentence ${index === activeIndex ? "active" : ""}`;
+          node.textContent = part;
+          sentenceList.appendChild(node);
+        });
+      }
+
+      function setSpeaking(value, label) {
+        interviewer.classList.toggle("speaking", value);
+        statusText.textContent = label || (value ? "正在读题" : "待播放");
+      }
+
+      function clearTimers() {
+        window.clearInterval(highlightTimer);
+        window.clearTimeout(simulationTimer);
+        highlightTimer = null;
+        simulationTimer = null;
+      }
+
+      function stopAll() {
+        clearTimers();
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+          currentAudio = null;
+        }
+        if (canSpeak()) {
+          window.speechSynthesis.cancel();
+        }
+        setSpeaking(false, "已停止");
+        renderSentences(-1);
+      }
+
+      function startHighlightLoop() {
+        clearTimers();
+        const parts = splitSentences(questionInput.value);
+        if (parts.length === 0) {
+          renderSentences(-1);
+          return;
+        }
+
+        let index = 0;
+        renderSentences(index);
+        highlightTimer = window.setInterval(() => {
+          index = (index + 1) % parts.length;
+          renderSentences(index);
+        }, 1700);
+      }
+
+      function formatVoiceLabel(voice) {
+        const flags = [voice.lang, voice.default ? "默认" : "", voice.localService ? "本地" : ""]
+          .filter(Boolean)
+          .join(" / ");
+        return `${voice.name}${flags ? ` (${flags})` : ""}`;
+      }
+
+      function scoreVoiceForPersona(voice, persona) {
+        const name = voice.name.toLowerCase();
+        if (persona === "strictHr") {
+          return /male|yunxi|kangkang|huihui|男|康康|云希|慧慧/i.test(name) ? 2 : 0;
+        }
+        if (persona === "techBro") {
+          return /male|yunxi|kangkang|xiaoyi|男|康康|云希|晓伊/i.test(name) ? 2 : 0;
+        }
+        if (persona === "gentleSister") {
+          return /female|xiaoxiao|huihui|xiaoyi|tingting|女|晓晓|慧慧|晓伊|婷婷/i.test(name)
+            ? 2
+            : 0;
+        }
+        return 0;
+      }
+
+      function populateVoiceSelect() {
+        const previousValue = voiceSelect.value || "auto";
+        voiceSelect.innerHTML = "";
+
+        if (engineSelect.value === "azure") {
+          for (const voice of azureVoices) {
+            const option = document.createElement("option");
+            option.value = voice.value;
+            option.textContent = voice.label;
+            voiceSelect.appendChild(option);
+          }
+          const hasPrevious = [...voiceSelect.options].some((option) => option.value === previousValue);
+          voiceSelect.value = hasPrevious ? previousValue : "auto";
+          voiceCount.textContent = `${Math.max(azureVoices.length - 1, 0)} 个云端音色`;
+          return;
+        }
+
+        if (!canSpeak()) return;
+        availableVoices = window.speechSynthesis.getVoices();
+        voiceSelect.innerHTML = "";
+
+        const autoOption = document.createElement("option");
+        autoOption.value = "auto";
+        autoOption.textContent = "自动匹配中文发音人";
+        voiceSelect.appendChild(autoOption);
+
+        availableVoices.forEach((voice) => {
+          const option = document.createElement("option");
+          option.value = voice.voiceURI;
+          option.textContent = formatVoiceLabel(voice);
+          voiceSelect.appendChild(option);
+        });
+
+        const hasPrevious = [...voiceSelect.options].some((option) => option.value === previousValue);
+        voiceSelect.value = hasPrevious ? previousValue : "auto";
+        voiceCount.textContent = `${availableVoices.length} 个可用`;
+      }
+
+      function getPersonaParams() {
+        return {
+          rate: Number(rateInput.value),
+          pitch: Number(pitchInput.value),
+          volume: Number(volumeInput.value),
+        };
+      }
+
+      function syncParamLabels() {
+        rateValue.textContent = Number(rateInput.value).toFixed(2);
+        pitchValue.textContent = Number(pitchInput.value).toFixed(2);
+        volumeValue.textContent = Number(volumeInput.value).toFixed(2);
+      }
+
+      function setParamsFromStyle(styleKey) {
+        const style = styles[styleKey] || styles.strictHr;
+        rateInput.value = style.rate;
+        pitchInput.value = style.pitch;
+        volumeInput.value = style.volume;
+        syncParamLabels();
+      }
+
+      function chooseVoice() {
+        if (engineSelect.value === "azure") {
+          const selected = azureVoices.find((voice) => voice.value === voiceSelect.value) || azureVoices[0];
+          const autoVoice = selected?.value === "auto" ? styles[currentStyle].azureVoice : selected?.value;
+          voiceName.textContent = autoVoice || "Azure 自动音色";
+          voiceMeta.textContent = `当前使用 Azure：${selected?.label || "按人设自动选择"}。参数：rate ${Number(rateInput.value).toFixed(2)} / pitch ${Number(pitchInput.value).toFixed(2)} / volume ${Number(volumeInput.value).toFixed(2)}`;
+          return selected || null;
+        }
+
+        if (!canSpeak()) return null;
+        if (availableVoices.length === 0) {
+          populateVoiceSelect();
+        }
+
+        if (voiceSelect.value !== "auto") {
+          selectedVoice =
+            availableVoices.find((voice) => voice.voiceURI === voiceSelect.value) ||
+            availableVoices[0] ||
+            null;
+        } else {
+          const zhVoices = availableVoices.filter((voice) => voice.lang.startsWith("zh"));
+          const candidates = zhVoices.length ? zhVoices : availableVoices;
+          selectedVoice =
+            [...candidates].sort((a, b) => scoreVoiceForPersona(b, currentStyle) - scoreVoiceForPersona(a, currentStyle))[0] ||
+            candidates.find((voice) => voice.default) ||
+            candidates[0] ||
+            null;
+        }
+
+        voiceName.textContent = selectedVoice ? selectedVoice.name : "默认语音";
+        voiceMeta.textContent = selectedVoice
+          ? `当前使用：${formatVoiceLabel(selectedVoice)}。参数：rate ${Number(rateInput.value).toFixed(2)} / pitch ${Number(pitchInput.value).toFixed(2)} / volume ${Number(volumeInput.value).toFixed(2)}`
+          : "当前没有可用发音人；可以继续展示视觉动效。";
+        return selectedVoice;
+      }
+
+      async function updateSupport() {
+        try {
+          const response = await fetch("/api/azure-status", { cache: "no-store" });
+          if (response.ok) {
+            const data = await response.json();
+            azureConfigured = Boolean(data.configured);
+            azureVoices = data.voices || [];
+          }
+        } catch {
+          azureConfigured = false;
+          azureVoices = [{ value: "auto", label: "按人设自动选择" }];
+        }
+
+        if (engineSelect.value === "azure") {
+          engineStatus.textContent = azureConfigured ? "Azure 已配置" : "Azure 未配置";
+          engineMeta.textContent = azureConfigured
+            ? "Azure 模式会通过本地代理生成 MP3，声音更自然。"
+            : "Azure 未配置或当前不是本地服务访问；可切换 Web Speech API。";
+          supportPill.textContent = azureConfigured ? "Azure TTS 可用" : "Azure TTS 未配置";
+          supportPill.className = azureConfigured ? "support-pill ok" : "support-pill warn";
+          playButton.disabled = !azureConfigured;
+          populateVoiceSelect();
+          chooseVoice();
+          return;
+        }
+
+        engineStatus.textContent = canSpeak() ? "Web 可用" : "Web 不可用";
+        engineMeta.textContent = "Web Speech API 使用浏览器/系统语音包，免费但声音可能偏机械。";
+
+        if (canSpeak()) {
+          supportPill.textContent = "TTS 可用";
+          supportPill.className = "support-pill ok";
+          playButton.disabled = false;
+          populateVoiceSelect();
+          chooseVoice();
+        } else {
+          supportPill.textContent = "当前浏览器不支持 TTS";
+          supportPill.className = "support-pill warn";
+          playButton.disabled = true;
+          voiceName.textContent = "无可用语音";
+        }
+      }
+
+      function applyStyle(styleKey) {
+        const style = styles[styleKey] || styles.strictHr;
+        currentStyle = styleKey;
+        app.style.setProperty("--voice-accent", style.accent);
+        app.style.setProperty("--voice-deep", style.deep);
+        avatarText.textContent = style.label;
+        setParamsFromStyle(styleKey);
+        styleButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.style === styleKey);
+        });
+        chooseVoice();
+      }
+
+      async function speak() {
+        const text = questionInput.value.trim();
+        if (!text) return;
+
+        stopAll();
+        if (engineSelect.value === "azure") {
+          if (!azureConfigured) return;
+          const params = getPersonaParams();
+          setSpeaking(true, "正在生成语音");
+          startHighlightLoop();
+          try {
+            const response = await fetch("/api/tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text,
+                persona: currentStyle,
+                voice: voiceSelect.value,
+                rate: params.rate,
+                pitch: params.pitch,
+                volume: params.volume,
+              }),
+            });
+            if (!response.ok) {
+              let message = "Azure 语音生成失败";
+              try {
+                const errorData = await response.json();
+                message = errorData.detail || errorData.error || message;
+              } catch {}
+              throw new Error(message);
+            }
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            currentAudio = new Audio(audioUrl);
+            currentAudio.volume = params.volume;
+            currentAudio.onplay = () => setSpeaking(true, "正在读题");
+            currentAudio.onended = () => {
+              URL.revokeObjectURL(audioUrl);
+              currentAudio = null;
+              clearTimers();
+              setSpeaking(false, "播放完成");
+              renderSentences(-1);
+            };
+            currentAudio.onerror = () => {
+              URL.revokeObjectURL(audioUrl);
+              currentAudio = null;
+              clearTimers();
+              setSpeaking(false, "播放失败");
+              renderSentences(-1);
+            };
+            await currentAudio.play();
+          } catch (error) {
+            clearTimers();
+            setSpeaking(false, "Azure 播放失败");
+            renderSentences(-1);
+            window.alert(error.message);
+          }
+          return;
+        }
+
+        if (!canSpeak()) return;
+        const params = getPersonaParams();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "zh-CN";
+        utterance.rate = params.rate;
+        utterance.pitch = params.pitch;
+        utterance.volume = params.volume;
+
+        const voice = chooseVoice();
+        if (voice) utterance.voice = voice;
+
+        utterance.onstart = () => {
+          setSpeaking(true, "正在读题");
+          startHighlightLoop();
+        };
+        utterance.onend = () => {
+          clearTimers();
+          setSpeaking(false, "播放完成");
+          renderSentences(-1);
+        };
+        utterance.onerror = () => {
+          clearTimers();
+          setSpeaking(false, "播放失败");
+          renderSentences(-1);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function simulateMotion() {
+        stopAll();
+        setSpeaking(true, "动效预览中");
+        startHighlightLoop();
+        simulationTimer = window.setTimeout(() => {
+          clearTimers();
+          setSpeaking(false, "预览完成");
+          renderSentences(-1);
+        }, 7000);
+      }
+
+      styleButtons.forEach((button) => {
+        button.addEventListener("click", () => applyStyle(button.dataset.style));
+      });
+
+      playButton.addEventListener("click", speak);
+      stopButton.addEventListener("click", stopAll);
+      simulateButton.addEventListener("click", simulateMotion);
+      resetParamsButton.addEventListener("click", () => {
+        setParamsFromStyle(currentStyle);
+        chooseVoice();
+      });
+      questionInput.addEventListener("input", () => renderSentences(-1));
+      engineSelect.addEventListener("change", () => updateSupport());
+      voiceSelect.addEventListener("change", () => chooseVoice());
+      [rateInput, pitchInput, volumeInput].forEach((input) => {
+        input.addEventListener("input", () => {
+          syncParamLabels();
+          chooseVoice();
+        });
+      });
+
+      if (canSpeak()) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          populateVoiceSelect();
+          chooseVoice();
+        };
+      }
+
+      applyStyle(currentStyle);
+      renderSentences(-1);
+      updateSupport();
+    </script>
+  </body>
+</html>
