@@ -116,6 +116,32 @@ export const demoScenario: DemoScenario = {
         content: "简历提到任务完成率和测试反馈，但样本量较小，必须避免夸大商业化结果。"
       }
     ],
+    sourceMatches: [
+      {
+        resumeText: "AI 简历助手课程项目",
+        jdText: "AI 工具类产品",
+        reason: "简历项目方向和 JD 要求的 AI 工具产品类型一致。",
+        confidence: 0.92
+      },
+      {
+        resumeText: "用户访谈、竞品拆解、需求列表、低保真原型",
+        jdText: "需求调研、用户访谈、竞品分析、PRD 撰写、原型沟通",
+        reason: "候选人的项目动作覆盖 JD 的核心产品实习职责。",
+        confidence: 0.9
+      },
+      {
+        resumeText: "基础数据看板维护",
+        jdText: "数据复盘",
+        reason: "简历中的数据看板经历可迁移到 JD 的复盘和指标意识要求。",
+        confidence: 0.78
+      },
+      {
+        resumeText: "基础 SQL",
+        jdText: "SQL 或数据分析能力",
+        reason: "简历技能和 JD 加分项直接对应。",
+        confidence: 0.86
+      }
+    ],
     suggestedSupplements: ["AI 简历助手的任务完成率口径", "个人负责的 PRD 或原型链接", "一次需求取舍或跨团队沟通案例"]
   },
   questions: [

@@ -42,12 +42,20 @@ export interface EvidenceMaterial {
   content: string;
 }
 
+export interface SourceMatch {
+  resumeText: string;
+  jdText: string;
+  reason: string;
+  confidence: number;
+}
+
 export interface CandidateProfile {
   summary: string;
   matchedPoints: string[];
   riskPoints: string[];
   keywords: string[];
   evidenceMaterials: EvidenceMaterial[];
+  sourceMatches: SourceMatch[];
   suggestedSupplements: string[];
 }
 

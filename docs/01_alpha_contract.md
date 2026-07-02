@@ -50,7 +50,7 @@
 | 结构 | 必填字段 |
 | --- | --- |
 | `InterviewerStyle` | `id`, `label`, `description`, `voice`, `ttsParams`, `promptTone` |
-| `CandidateProfile` | `summary`, `matchedPoints`, `riskPoints`, `keywords`, `evidenceMaterials` |
+| `CandidateProfile` | `summary`, `matchedPoints`, `riskPoints`, `keywords`, `evidenceMaterials`, `sourceMatches` |
 | `InterviewQuestion` | `id`, `type`, `title`, `questionText`, `intent`, `expectedSignals`, `difficulty` |
 | `AnswerRecord` | `questionId`, `answerText`, `inputMode`, `durationSec`, `sttStatus` |
 | `QuestionReport` | `questionId`, `score`, `dimensionScores`, `riskTags`, `fatalIssue`, `diagnosis`, `optimizedAnswer`, `oralVersion60s` |

@@ -251,14 +251,37 @@
 
 ## Phase 9 - Figma Visual Integration
 
-- [ ] 接收并审查 Figma 页面和状态覆盖
-- [ ] 建立最终 design token 映射
-- [ ] 替换 setup 视觉
-- [ ] 替换 profile/questions/interview 视觉
-- [ ] 替换 report 视觉和对比展示
-- [ ] 做桌面端最终截图/录屏
-- [ ] 做手机 H5 最终截图/录屏
-- [ ] 验证视觉替换未修改状态机、API 契约、schema 和 `questionId`
+- [x] 接收并审查 Figma 页面和状态覆盖
+- [x] 建立最终 design token 映射
+- [x] 替换 setup 视觉
+- [x] 替换 profile/questions/interview 视觉
+- [x] 替换 report 视觉和对比展示
+- [x] 做桌面端最终截图/录屏
+- [x] 做手机 H5 最终截图/录屏
+- [x] 验证视觉替换未修改状态机、API 契约、schema 和 `questionId`
+
+## Phase 9 验证记录 - 2026-07-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma Coverage Review | Partial Pass | 新 Figma 链接可访问；画布可见 `home/input/Select/interview/Report` happy path。未明确看到独立 profile/questions 页面和 loading/error/empty/unsupported/copy success/copy failed 全量异常态，已按现有契约保留最小可用状态承载。 |
+| Design Token Mapping | Pass | `app/globals.css` 已将颜色、字体、间距、圆角、阴影和动效映射为深色紫粉视觉方向；未改 API/schema/type。 |
+| Setup Visual Integration | Pass | Setup 保留简历/JD textarea、TXT/PDF/DOCX 上传解析、一键填充、填充并生成画像、三种面试官风格；视觉替换为深色卡片和高亮 CTA。 |
+| Profile / Questions Visual Integration | Pass | Profile 保留候选人画像、简历/JD 原文、sourceMatches 高亮、匹配原因和置信度；Questions 保留 3 题、intent、expectedSignals 和进入答题入口。 |
+| Interview Visual Integration | Pass | Interview 保留 TTS/STT 控制、失败重试、手动编辑、答案保留；`VoiceControls` 新增状态驱动头像和声波视觉，不改变语音逻辑。 |
+| Report Visual Integration | Pass | Report 保留流式生成、非流式兜底、整份复制、单题复制、单题重新生成、剪贴板失败兜底；报告卡片和分数展示改为深色视觉。 |
+| Desktop / Mobile Evidence | Pass | 已保存 `outputs/phase9/desktop-setup.png`、`outputs/phase9/mobile-report.png`；浏览器桌面完整跑通 setup -> profile -> questions -> interview -> report。 |
+| Mobile H5 | Pass | 390x844 viewport 下 setup 和 report 均为 `scrollWidth=375`、`viewportWidth=375`，无横向溢出，长文本和按钮不重叠。 |
+
+### Phase 9 实际验证
+
+- `npm run typecheck`：Pass。
+- `npm run smoke:contract -- http://localhost:3001`：Pass，覆盖 profile sourceMatches、questions、report schema、SSE、单题重新生成、copyText、缺失/过短/跑题、LLM/TTS fault。
+- `npm run smoke:file-parse -- http://localhost:3001`：Pass，覆盖 TXT、DOCX、PDF 解析。
+- `npm run security:check`：Pass，扫描 56 个源码/文档/脚本/示例文件，明确排除 `.env.local`。
+- `npm run build`：Pass。
+- 浏览器主流程：Pass，使用“填充并生成画像”走到报告页；Report 包含 3 道题报告、优化答案、60 秒版、整份复制和单题操作。
+- Figma 缺口：异常态和 profile/questions 独立视觉未在画布中明确覆盖，当前按合同保留现有最小状态 UI；Phase 10 需记录为 Known Risk 或由设计补齐。
 
 ## Phase 10 - Release Freeze & Acceptance
 
@@ -270,21 +293,80 @@
 - [ ] 汇总最终 Hackathon Demo 交付记录
 - [ ] 明确 Deferred / Known Risks
 
+## Preview / Internal Review 本地验收记录 - 2026-07-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Static / Build | Pass | `npm run typecheck`、`npm run security:check`、`npm run build` 均通过；安全扫描 53 个源码/文档/脚本/示例文件，不读取 `.env.local`。 |
+| Contract Smoke | Pass | `npm run smoke:contract -- http://localhost:3000` 通过，覆盖 profile/questions/report、SSE、单题重新生成、copyText、缺失/过短/跑题、LLM/TTS fault。 |
+| Desktop Demo Flow | Pass | 浏览器从 setup -> profile -> questions -> interview -> report 完整闭环；报告包含 3 个致命问题、优化答案和 60 秒版。 |
+| Copy Fallback | Pass | in-app browser 阻止剪贴板写入时进入手动复制兜底；兜底文本 657 字，包含“优化答案”和“复盘报告”；应用 console error 为 0。 |
+| Fault Controls | Pass | `Demo Ops` 可清空控制；LLM 失败后进入演示兜底画像；STT 失败后保留答案文本，并显示可重试/手动编辑提示。 |
+| Mobile H5 | Pass | 390x844 viewport 下完整报告页 `scrollWidth=375`、`viewportWidth=375`，无横向溢出，报告和复制入口可见。 |
+| Azure TTS | Pass with transient retry | `/api/azure-status` 返回 `configured=true`、7 个 voice 且无敏感字段；三风格 TTS 复跑均返回 `200 audio/mpeg`。首次 `strictHr` 曾出现一次瞬时 502，重试恢复，Preview 需保留 Web Speech/文本兜底。 |
+
+### Preview 结论
+
+- 可以发布为 **Preview / Internal Review** 低保真版本，供产品调 prompt、验证 Demo 样例、报告文案和 copyText。
+- 不建议标为最终正式 Demo；Phase 9 Figma 视觉替换和 Phase 10 prompt 冻结/真实 LLM 三风格人工质量抽查仍未完成。
+- 发布云端前需在平台环境变量中配置真实 key，不上传 `.env.local`；云端部署后复跑 `npm run smoke:contract -- <preview-url>` 或等价接口验收。
+
+## Profile 源文本匹配展示记录 - 2026-07-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Demo Text Source | Pass | 默认按钮文案、默认简历和默认 JD 均来自 `lib/demo/scenario.ts` 的 `demoScenario.label/resumeText/jdText`。 |
+| Profile Source Review | Pass | Profile 页新增“简历 / JD 匹配来源”，展示本次生成画像所使用的简历和 JD 原文。 |
+| Match Highlight | Pass | 基于 `CandidateProfile.keywords/matchedPoints/evidenceMaterials` 提取可在原文命中的词语或短语；简历命中和 JD 命中使用不同颜色，并过滤纯数字片段。 |
+| Verification | Pass | `npm run typecheck` 和 `npm run smoke:contract -- http://localhost:3000` 均通过；浏览器验证 Profile 页出现两列原文和命中高亮。 |
+
+## Phase 9 Home 视觉细调记录 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Home layer mapping | Updated | `theme=figma` 的 home 页已按 Figma layer 语义拆为页面底图、`home / Comp` 圆球、`toolbar` 文本输入区、`toolbar / frame4 / frame1` 上传按钮、`toolbar / frame4 / group1` Continue 按钮。 |
+| Asset slots | Ready | 新增 `public/figma/home/README.md`，约定 `home-bg@2x.png`、`comp@2x.png`、`toolbar@2x.png`、`frame4-frame1-upload@2x.png`、`frame4-group1-continue@2x.png`；素材缺失时保留 CSS fallback。 |
+| Business flow | Preserved | Resume textarea、TXT/PDF/DOCX 上传解析、一键 demo resume、Continue 到 JD 的流程均保留；未改 API、schema、状态机、LLM/STT/TTS/report 逻辑。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；浏览器点击 `Use demo resume` 后进入 `Input JD` 页。 |
+| Next visual step | Pending | 继续按页面逐个核对 `input jd`、`profile`、`select interviewer`、`select interviewer_2`、`interview`、`report`，并替换真实 2x 导出素材。 |
+
+## Profile LLM 匹配证据契约扩展 - 2026-07-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| API Contract | Pass | `CandidateProfile` 新增必填 `sourceMatches`，包含 `resumeText/jdText/reason/confidence`；已更新 `docs/04_api_contracts.md`、types 和 runtime schema。 |
+| Prompt Contract | Pass | `buildProfilePrompt` 要求 LLM 返回 2-5 条结构化匹配证据，优先使用简历/JD 原文连续短语，不编造硬事实。 |
+| Demo Fallback | Pass | `demoScenario.candidateProfile.sourceMatches` 已补 4 条 AI 产品经理实习场景匹配证据，支持无 LLM 时完整展示。 |
+| Profile UI | Pass | Profile 页高亮优先使用 `sourceMatches.resumeText/jdText`，并展示匹配原因与置信度；缺少精确命中时仍保留文本展示。 |
+| Verification | Pass | `npm run typecheck`、`npm run smoke:contract -- http://localhost:3000` 通过；浏览器验证 4 个匹配卡片、简历 10 处高亮、JD 6 处高亮、应用 console error 为 0。 |
+
+## Setup 文件上传解析记录 - 2026-07-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Upload API | Pass | 新增 `POST /api/files/parse`，支持上传 `.txt`、`.pdf`、`.docx` 提取纯文本，最大 8MB；解析失败返回 `FILE_PARSE_FAILED`。 |
+| Setup UI | Pass | 简历文本和 JD 文本各新增上传入口，上传成功后回填对应 textarea，失败时保留已有输入。 |
+| TXT / DOCX / PDF | Pass | `npm run smoke:file-parse -- http://localhost:3000` 通过，覆盖 TXT、现代 Word `.docx` 和可复制文本 PDF。 |
+| Limitation | Noted | 旧版 `.doc` 和扫描件 PDF OCR 暂不支持；用户需另存为 `.docx`、`.pdf`、`.txt` 或先 OCR。 |
+| Verification | Pass | `npm run typecheck` 通过；文件解析接口不调用 LLM，不输出上传文件全文日志。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |
 | --- | --- | --- | --- |
 | LLM 供应商/模型未冻结 | High | Dev | 先封装 provider，保持 schema 稳定 |
 | Prompt 尚未经过产品确认 | High | Product + Dev | 已建立 `docs/13_prompt_handoff.md`；Phase 6 已补 AI PM、过短/跑题、300 字和事实边界规则，Phase 10 前完成产品 review、调整和冻结 |
-| Figma 未到位 | Medium | Design | 先低保真骨架，等待替换 |
+| Figma 异常态覆盖不完整 | Medium | Design + Dev | Phase 9 已按可访问画布完成 happy path 视觉替换；未明确覆盖的 loading/error/empty/unsupported/copy success/copy failed 按现有契约保留最小状态，Phase 10 需作为 Known Risk 或由设计补齐。 |
 | PRD 与当前契约存在差异 | Medium | Product + Dev | 流式报告已按 `docs/04_api_contracts.md` 实现并保留非流式兜底；题目 `weight` Phase 7 决定暂不入 schema，若产品坚持展示权重需走契约变更 |
 | 移动端 STT 兼容不稳定 | Medium | Dev | 支持重试和手动编辑 |
 | Web Speech 本机发音人差异 | Medium | Dev | Azure TTS 优先，Web 仅兜底 |
 | Demo 网络不稳定 | High | Dev | 演示兜底样例包 |
+| Azure TTS 偶发 provider 失败 | Medium | Dev | 本地验收曾出现一次 `strictHr` 502，重试后恢复；Preview 保留 Web Speech/文本兜底并在云端复验三风格。 |
+| 扫描件 PDF 无法直接解析 | Medium | Dev | 当前文件解析支持可复制文本 PDF，不做 OCR；提示用户先 OCR 或手动复制。 |
 
 ## 当前下一步建议
 
-1. 等 Figma 到位后执行 Phase 9：先审查状态覆盖，再按 design tokens 替换 setup/interview/report 视觉，不改状态机和接口结构。
-2. Phase 10 作为发布冻结：用真实 LLM key 对三种面试官风格各跑一次端到端人工验收，完成 prompt 产品 review 和最终证据。
+1. 进入 Phase 10 - Release Freeze & Acceptance：用真实 LLM key 对三种面试官风格各跑一次端到端人工验收，完成 prompt 产品 review、调整和冻结。
+2. Phase 10 复验真实 Azure TTS / Web Speech fallback，并覆盖 LLM、TTS、STT、clipboard 故障注入。
 3. 若产品要求题目权重展示，再单独做 `weight` 契约变更，不在当前 schema 中隐式增加字段。
 4. 保留 `tts-demo` 作为 Azure/Web Speech 对照验证样板，不迁移或删除。

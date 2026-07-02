@@ -55,11 +55,59 @@
       "content": "string"
     }
   ],
+  "sourceMatches": [
+    {
+      "resumeText": "简历原文中的连续短语",
+      "jdText": "JD 原文中的连续短语",
+      "reason": "为什么这两段内容匹配",
+      "confidence": 0.86
+    }
+  ],
   "suggestedSupplements": ["string"]
 }
 ```
 
-## 3. POST /api/questions/generate
+### Source Match Rules
+
+- `sourceMatches` 用于 Profile 页原文高亮和匹配解释，必须返回 2 到 5 条。
+- `resumeText` 应尽量是 `resumeText` 请求原文中的连续短语；`jdText` 应尽量是 `jdText` 请求原文中的连续短语。
+- `reason` 解释匹配逻辑，不能编造简历或 JD 中不存在的硬事实。
+- `confidence` 是 0 到 1 的数字；弱匹配应降低置信度，并在 `suggestedSupplements` 中提示需要补充材料。
+- 前端可以基于 `sourceMatches` 精准高亮；如果某个短语无法在原文中找到，只展示匹配说明，不强行涂色。
+
+## 3. POST /api/files/parse
+
+用于 Setup 页上传简历或 JD 文件后提取纯文本并回填输入框。本接口不调用 LLM，不存储文件，不输出文件正文日志。
+
+### Request
+
+`multipart/form-data`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `file` | File | Yes | 支持 `.txt`、`.pdf`、`.docx`，最大 8MB |
+
+### Response data
+
+```json
+{
+  "text": "string",
+  "fileName": "resume.docx",
+  "fileType": "txt|pdf|docx",
+  "charCount": 1200,
+  "warnings": ["string"]
+}
+```
+
+### Rules
+
+- `.txt` 支持 UTF-8、UTF-8 BOM 和 UTF-16LE BOM。
+- `.docx` 解析 `word/document.xml` 中的正文文本；旧版 `.doc` 暂不支持，需另存为 `.docx`。
+- `.pdf` 支持常见可复制文本 PDF；扫描件或复杂字体编码 PDF 可能提取不到文本，需要先 OCR 或手动复制。
+- 解析失败返回 `FILE_PARSE_FAILED`，前端必须保留用户已有输入。
+- 不允许在日志、错误信息或文档中输出上传文件全文。
+
+## 4. POST /api/questions/generate
 
 ### Request
 
@@ -89,7 +137,7 @@
 }
 ```
 
-## 4. POST /api/report/generate
+## 5. POST /api/report/generate
 
 当前稳定保底接口：非流式 JSON 响应。即使后续新增流式接口，本接口也必须保留，用于本地兜底、浏览器不支持流式、LLM 流式失败后的重试保底和自动化验收。
 
@@ -144,7 +192,7 @@
 }
 ```
 
-## 4.1 POST /api/report/generate-stream
+## 5.1 POST /api/report/generate-stream
 
 优先体验接口：流式报告生成。该接口后续实现时必须和 `POST /api/report/generate` 使用同一套 request payload，并最终产出同构的 `InterviewReport`。
 
@@ -178,7 +226,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 - 不允许在流式 chunk 中输出 `.env.local` 密钥或 provider 原始错误详情。
 - 如果后续选择 NDJSON 而不是 SSE，必须先更新本节。
 
-## 4.2 POST /api/report/regenerate-question
+## 5.2 POST /api/report/regenerate-question
 
 单题嘴替答案重新生成接口。该接口用于 Report 页只刷新目标 `questionId` 的题目报告，不清空其他题报告、答案或整份报告复制入口。
 
@@ -226,7 +274,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 - 该接口可复用完整报告生成能力，但响应只返回目标 `QuestionReport`。
 - 非流式整份报告接口仍是稳定保底。
 
-## 5. POST /api/tts
+## 6. POST /api/tts
 
 当前 `server.js` 已有本地 Azure TTS 代理。正式应用复用该语义即可。
 
@@ -247,7 +295,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 
 返回 `audio/mpeg` 或 `audio/wav` 二进制音频。
 
-## 6. Stable Enums
+## 7. Stable Enums
 
 | Enum | Values |
 | --- | --- |
@@ -257,7 +305,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 | `ttsStatus` | `idle`, `loading`, `speaking`, `ended`, `failed`, `unsupported` |
 | `sessionStep` | `setup`, `profile`, `questions`, `interview`, `report` |
 
-## 7. Prompt Output Rules
+## 8. Prompt Output Rules
 
 - LLM 返回必须能被 JSON 解析。
 - 不得编造用户未提供的硬事实，例如公司名、数据指标、获奖经历。

@@ -35,9 +35,11 @@ export function VoiceControls({
 }) {
   const voiceOptions = ttsEngine === "azure" ? azureVoices : webVoices;
   const isRecording = sttStatus === "recording";
+  const avatarState = isRecording ? "recording" : ttsStatus === "speaking" ? "speaking" : "";
 
   return (
-    <div className="panel">
+    <div className="panel voice-console">
+      <div className={`voice-avatar ${avatarState}`} aria-hidden="true" />
       <div className="panel-header">
         <div>
           <h3>语音控制</h3>
@@ -46,6 +48,14 @@ export function VoiceControls({
         <div className="helper">
           TTS: {ttsStatus} / STT: {sttStatus}
         </div>
+      </div>
+
+      <div className="voice-wave" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
       </div>
 
       <div className="voice-settings-grid">

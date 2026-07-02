@@ -7,6 +7,7 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "smoke:contract": "node scripts/contract-smoke.mjs",
+    "smoke:file-parse": "node scripts/file-parse-smoke.mjs",
     "security:check": "node scripts/security-check.mjs"
   },
   "dependencies": {

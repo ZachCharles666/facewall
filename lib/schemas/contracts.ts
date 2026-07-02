@@ -10,6 +10,7 @@ import type {
   QuestionDifficulty,
   QuestionReport,
   QuestionType,
+  SourceMatch,
   SttStatus
 } from "@/lib/types";
 
@@ -99,6 +100,7 @@ export function validateCandidateProfile(value: unknown): value is CandidateProf
     isStringArray(profile.riskPoints) &&
     isStringArray(profile.keywords, 1) &&
     validateEvidenceMaterials(profile.evidenceMaterials) &&
+    validateSourceMatches(profile.sourceMatches) &&
     isStringArray(profile.suggestedSupplements)
   );
 }
@@ -106,7 +108,8 @@ export function validateCandidateProfile(value: unknown): value is CandidateProf
 function validateEvidenceMaterials(value: unknown): value is EvidenceMaterial[] {
   return (
     Array.isArray(value) &&
-    value.length > 0 &&
+    value.length >= 2 &&
+    value.length <= 5 &&
     value.every((item) => {
       if (!isRecord(item)) return false;
       return (
@@ -114,6 +117,22 @@ function validateEvidenceMaterials(value: unknown): value is EvidenceMaterial[] 
         typeof item.source === "string" &&
         evidenceSources.includes(item.source) &&
         isNonEmptyString(item.content)
+      );
+    })
+  );
+}
+
+function validateSourceMatches(value: unknown): value is SourceMatch[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => {
+      if (!isRecord(item)) return false;
+      return (
+        isNonEmptyString(item.resumeText) &&
+        isNonEmptyString(item.jdText) &&
+        isNonEmptyString(item.reason) &&
+        isNumberInRange(item.confidence, 0, 1)
       );
     })
   );

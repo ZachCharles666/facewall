@@ -21,6 +21,13 @@ export function buildProfilePrompt(input: { resumeText: string; jdText: string; 
       content: JSON.stringify(
         {
           task: "根据简历和 JD 生成 CandidateProfile。",
+          rules: [
+            "sourceMatches 必须返回 2 到 5 条简历和 JD 的结构化匹配证据。",
+            "sourceMatches.resumeText 必须尽量使用简历原文中的连续短语；sourceMatches.jdText 必须尽量使用 JD 原文中的连续短语。",
+            "sourceMatches.reason 说明两段文本为什么匹配；confidence 是 0 到 1 的数字。",
+            "如果只能弱匹配，confidence 降低，并在 suggestedSupplements 中提示需要补充材料。",
+            "不得为了匹配而编造简历或 JD 中不存在的硬事实。"
+          ],
           interviewerStyle: styleLabel(input.interviewerStyleId),
           outputShape: {
             summary: "string",
@@ -28,6 +35,14 @@ export function buildProfilePrompt(input: { resumeText: string; jdText: string; 
             riskPoints: ["string"],
             keywords: ["string"],
             evidenceMaterials: [{ title: "string", source: "resume|jd|inferred", content: "string" }],
+            sourceMatches: [
+              {
+                resumeText: "简历原文中的连续短语",
+                jdText: "JD 原文中的连续短语",
+                reason: "匹配原因",
+                confidence: 0.85
+              }
+            ],
             suggestedSupplements: ["string"]
           },
           resumeText: input.resumeText,

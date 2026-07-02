@@ -86,7 +86,8 @@
 - B-001, B-002, B-003, B-004
 
 ### Contract Constraints
-- 输出必须包含 `summary/matchedPoints/riskPoints/keywords/evidenceMaterials/suggestedSupplements`。
+- 输出必须包含 `summary/matchedPoints/riskPoints/keywords/evidenceMaterials/sourceMatches/suggestedSupplements`。
+- `sourceMatches` 必须提供简历原文短语、JD 原文短语、匹配原因和 0 到 1 的置信度，用于 Profile 页高亮和解释。
 - 信息不足时写 `suggestedSupplements`，不能编造。
 
 ### Edge And Failure Scenarios

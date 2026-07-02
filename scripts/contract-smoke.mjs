@@ -72,6 +72,13 @@ async function run() {
   assert(profileResult.response.ok && profileResult.body.ok, "profile fallback request failed");
   const profile = profileResult.body.data;
   assert(Array.isArray(profile.matchedPoints) && profile.matchedPoints.length >= 1, "profile missing matchedPoints");
+  assert(Array.isArray(profile.sourceMatches) && profile.sourceMatches.length >= 2, "profile missing sourceMatches");
+  for (const match of profile.sourceMatches) {
+    assert(typeof match.resumeText === "string" && match.resumeText.trim(), "sourceMatch missing resumeText");
+    assert(typeof match.jdText === "string" && match.jdText.trim(), "sourceMatch missing jdText");
+    assert(typeof match.reason === "string" && match.reason.trim(), "sourceMatch missing reason");
+    assert(typeof match.confidence === "number" && match.confidence >= 0 && match.confidence <= 1, "sourceMatch confidence out of range");
+  }
 
   const questionsResult = await postJson(
     "/api/questions/generate",
@@ -253,6 +260,7 @@ async function run() {
         baseUrl,
         checks: [
           "profile fallback",
+          "profile sourceMatches",
           "questions fallback",
           "report schema",
           "report stream events",

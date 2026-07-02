@@ -55,12 +55,14 @@
 - `riskPoints`
 - `keywords`
 - `evidenceMaterials`
+- `sourceMatches`
 - `suggestedSupplements`
 
 产品重点 review：
 - 匹配点是否像面试准备，而不是简历摘要。
 - 风险点是否足够可行动。
 - 补充建议是否能帮助用户补材料。
+- `sourceMatches` 是否使用简历/JD 原文短语，并能解释为什么匹配。
 
 ### 3.3 题目生成 Prompt
 
