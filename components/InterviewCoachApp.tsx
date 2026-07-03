@@ -1,7 +1,15 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { generateQuestions, generateReport, generateReportStream, parseProfile, regenerateQuestionReport } from "@/lib/api/client";
+import {
+  generateQuestions,
+  generateReport,
+  generateReportStream,
+  getActivePromptOverrides,
+  parseProfile,
+  regenerateQuestionReport,
+  saveActivePromptOverrides
+} from "@/lib/api/client";
 import { buildFallbackReport } from "@/lib/demo/fallback";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES, SESSION_STEPS } from "@/lib/state/constants";
@@ -17,6 +25,7 @@ import type {
 } from "@/lib/types";
 import { InterviewPanel } from "@/components/interview/InterviewPanel";
 import { DevOpsPanel } from "@/components/dev/DevOpsPanel";
+import { cloneDefaultPromptOverrides, PromptDebugPanel } from "@/components/dev/PromptDebugPanel";
 import { ReportPanel } from "@/components/report/ReportPanel";
 import { SetupPanel } from "@/components/setup/SetupPanel";
 
@@ -29,10 +38,19 @@ const stepLabels: Record<SessionStep, string> = {
 };
 
 type VisualTheme = "figma" | "classic";
+type FigmaSetupStep = "home" | "jd";
+
+function formatPromptTimestamp(value: string | null) {
+  if (!value) return "未保存";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
 
 export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVisualTheme?: VisualTheme }) {
   const isFigmaTheme = initialVisualTheme === "figma";
   const [step, setStep] = useState<SessionStep>("setup");
+  const [figmaSetupInitialStep, setFigmaSetupInitialStep] = useState<FigmaSetupStep>("home");
   const [figmaProfileStage, setFigmaProfileStage] = useState<"profile" | "selectInterviewer" | "confirmInterviewer">("profile");
   const [form, setForm] = useState<SetupForm>({
     resumeText: "",
@@ -57,6 +75,12 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     kind: "idle",
     message: "等待输入简历和 JD。"
   });
+  const [promptOverrides, setPromptOverrides] = useState(cloneDefaultPromptOverrides);
+  const [promptStoreUpdatedAt, setPromptStoreUpdatedAt] = useState<string | null>(null);
+  const [promptSaveState, setPromptSaveState] = useState<{
+    kind: "idle" | "loading" | "success" | "error";
+    message: string;
+  }>({ kind: "idle", message: "当前为本页草稿；保存后会成为 figma 主题和全局接口默认 Prompt。" });
 
   const selectedStyle = useMemo(
     () => INTERVIEWER_STYLES.find((style) => style.id === form.interviewerStyleId) ?? INTERVIEWER_STYLES[0],
@@ -69,6 +93,77 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       delete document.body.dataset.visualTheme;
     };
   }, [initialVisualTheme]);
+
+  useEffect(() => {
+    if (isFigmaTheme || typeof window === "undefined") return;
+
+    let cancelled = false;
+    async function loadActivePrompt() {
+      try {
+        const snapshot = await getActivePromptOverrides();
+        if (cancelled) return;
+        setPromptOverrides(snapshot.promptOverrides);
+        setPromptStoreUpdatedAt(snapshot.updatedAt);
+        setPromptSaveState({
+          kind: "success",
+          message: snapshot.updatedAt
+            ? `已加载全局 Prompt，保存时间：${formatPromptTimestamp(snapshot.updatedAt)}`
+            : "尚未保存过全局 Prompt，当前加载产品默认 Prompt。"
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setPromptSaveState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "读取全局 Prompt 失败，当前使用产品默认 Prompt。"
+        });
+      }
+    }
+
+    loadActivePrompt();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFigmaTheme]);
+
+  const activePromptOverrides = isFigmaTheme ? undefined : promptOverrides;
+
+  async function handleSaveGlobalPrompt() {
+    try {
+      setPromptSaveState({ kind: "loading", message: "正在保存为全局 Prompt..." });
+      const snapshot = await saveActivePromptOverrides(promptOverrides);
+      setPromptOverrides(snapshot.promptOverrides);
+      setPromptStoreUpdatedAt(snapshot.updatedAt);
+      setPromptSaveState({
+        kind: "success",
+        message: `已保存为全局 Prompt。figma 主题和后续 LLM 请求会默认使用这份 Prompt。保存时间：${formatPromptTimestamp(snapshot.updatedAt)}`
+      });
+    } catch (error) {
+      setPromptSaveState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "保存全局 Prompt 失败。"
+      });
+    }
+  }
+
+  async function handleReloadGlobalPrompt() {
+    try {
+      setPromptSaveState({ kind: "loading", message: "正在重新加载全局 Prompt..." });
+      const snapshot = await getActivePromptOverrides();
+      setPromptOverrides(snapshot.promptOverrides);
+      setPromptStoreUpdatedAt(snapshot.updatedAt);
+      setPromptSaveState({
+        kind: "success",
+        message: snapshot.updatedAt
+          ? `已重新加载全局 Prompt，保存时间：${formatPromptTimestamp(snapshot.updatedAt)}`
+          : "尚未保存过全局 Prompt，已恢复产品默认 Prompt。"
+      });
+    } catch (error) {
+      setPromptSaveState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "重新加载全局 Prompt 失败。"
+      });
+    }
+  }
 
   function resetDownstream(nextForm: SetupForm) {
     setForm(nextForm);
@@ -122,7 +217,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
 
     try {
       setStatus({ kind: "loading", message: "正在生成候选人画像..." });
-      const nextProfile = await parseProfile(nextForm);
+      const nextProfile = await parseProfile({ ...nextForm, promptOverrides: activePromptOverrides });
       setProfile(nextProfile);
       setFigmaProfileStage("profile");
       setStep("profile");
@@ -145,7 +240,8 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       const data = await generateQuestions({
         candidateProfile: sourceProfile,
         interviewerStyleId: form.interviewerStyleId,
-        questionCount: 3
+        questionCount: 3,
+        promptOverrides: activePromptOverrides
       });
       setQuestions(data.questions);
       setAnswers(
@@ -185,7 +281,8 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       const data = await generateQuestions({
         candidateProfile: sourceProfile,
         interviewerStyleId: form.interviewerStyleId,
-        questionCount: 3
+        questionCount: 3,
+        promptOverrides: activePromptOverrides
       });
       setQuestions(data.questions);
       setAnswers(
@@ -224,7 +321,8 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     const reportPayload = {
       candidateProfile: sourceProfile,
       questions: sourceQuestions,
-      answers: nextAnswers
+      answers: nextAnswers,
+      promptOverrides: activePromptOverrides
     };
 
     try {
@@ -257,7 +355,8 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     reportPayload = {
       candidateProfile: profile ?? demoScenario.candidateProfile,
       questions: questions.length === 3 ? questions : demoScenario.questions,
-      answers
+      answers,
+      promptOverrides: activePromptOverrides
     },
     successMessage = "已使用非流式保底生成报告。"
   ) {
@@ -306,7 +405,8 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         candidateProfile: sourceProfile,
         questions: sourceQuestions,
         answers,
-        questionId
+        questionId,
+        promptOverrides: activePromptOverrides
       });
       const nextReport = mergeQuestionReport(previousReport, nextQuestionReport);
       setReport(nextReport);
@@ -356,9 +456,25 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
 
       <DevOpsPanel />
 
+      {!isFigmaTheme && (
+        <PromptDebugPanel
+          value={promptOverrides}
+          saveState={promptSaveState}
+          updatedAt={promptStoreUpdatedAt}
+          onChange={setPromptOverrides}
+          onReload={handleReloadGlobalPrompt}
+          onReset={() => {
+            setPromptOverrides(cloneDefaultPromptOverrides());
+            setPromptSaveState({ kind: "idle", message: "已恢复为产品默认 Prompt 草稿；点击保存后才会覆盖全局 Prompt。" });
+          }}
+          onSave={handleSaveGlobalPrompt}
+        />
+      )}
+
       {step === "setup" && (
         <SetupPanel
           form={form}
+          initialFigmaStep={figmaSetupInitialStep}
           visualTheme={initialVisualTheme}
           onChange={resetDownstream}
           onFillDemo={fillDemo}
@@ -387,6 +503,11 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           resumeText={form.resumeText}
           currentStep={step}
           onGenerateQuestions={handleGenerateQuestions}
+          onFigmaBack={() => {
+            setFigmaSetupInitialStep("jd");
+            setFigmaProfileStage("profile");
+            setStep("setup");
+          }}
           onFigmaNext={() => setFigmaProfileStage("selectInterviewer")}
           onStartInterview={() => setStep("interview")}
         />
@@ -461,6 +582,7 @@ function PreparationPanel({
   resumeText,
   currentStep,
   onGenerateQuestions,
+  onFigmaBack,
   onFigmaNext,
   onStartInterview
 }: {
@@ -471,6 +593,7 @@ function PreparationPanel({
   resumeText: string;
   currentStep: SessionStep;
   onGenerateQuestions: () => void;
+  onFigmaBack: () => void;
   onFigmaNext: () => void;
   onStartInterview: () => void;
 }) {
@@ -479,6 +602,18 @@ function PreparationPanel({
       <section className="panel">
         <div className="status warning">画像为空。请返回 setup 重新生成，或使用演示兜底样例。</div>
       </section>
+    );
+  }
+
+  if (visualTheme === "figma" && currentStep === "profile") {
+    return (
+      <FigmaProfilePanel
+        jdText={jdText}
+        profile={profile}
+        resumeText={resumeText}
+        onBack={onFigmaBack}
+        onNext={onFigmaNext}
+      />
     );
   }
 
@@ -549,6 +684,159 @@ function PreparationPanel({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function FigmaProfilePanel({
+  jdText,
+  profile,
+  resumeText,
+  onBack,
+  onNext
+}: {
+  jdText: string;
+  profile: CandidateProfile;
+  resumeText: string;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <section className="figma-phone-stage" aria-label="Candidate profile">
+      <div className="figma-phone-card figma-home-card figma-profile-card">
+        <div className="figma-statusbar">
+          <span>9:41</span>
+          <span>Facewall</span>
+        </div>
+        <button className="figma-jd-back-button figma-profile-back-button" aria-label="返回 JD 输入" onClick={onBack}>
+          <span aria-hidden="true" />
+        </button>
+        <div className="figma-profile-navbar">
+          <span>候选人画像</span>
+        </div>
+        <div
+          className="figma-home-comp figma-profile-comp"
+          aria-hidden="true"
+          data-figma-layer="profile / Comp 1024 1"
+        >
+          <img className="figma-home-comp-asset" src="/figma/home/comp-1024-1@2x.png?v=2026070302" alt="" />
+        </div>
+        <div className="figma-profile-scroll">
+          <section className="figma-profile-hero">
+            <p>{profile.summary}</p>
+          </section>
+
+          <section className="figma-profile-section">
+            <h3>匹配概览</h3>
+            <div className="figma-profile-metrics">
+              <article>
+                <strong>匹配点</strong>
+                <span>{profile.matchedPoints.length}</span>
+              </article>
+              <article>
+                <strong>风险点</strong>
+                <span>{profile.riskPoints.length}</span>
+              </article>
+              <article>
+                <strong>关键词</strong>
+                <span>{profile.keywords.length}</span>
+              </article>
+            </div>
+          </section>
+
+          <section className="figma-profile-section">
+            <h3>核心匹配</h3>
+            <div className="figma-profile-list">
+              {profile.matchedPoints.map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          </section>
+
+          <section className="figma-profile-section">
+            <h3>面试风险</h3>
+            <div className="figma-profile-list figma-profile-risk-list">
+              {profile.riskPoints.map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          </section>
+
+          <FigmaProfileSourceReview profile={profile} resumeText={resumeText} jdText={jdText} />
+
+          <section className="figma-profile-section">
+            <h3>建议补充</h3>
+            <div className="figma-profile-suggestion-list">
+              {profile.suggestedSupplements.map((item) => (
+                <article key={item}>{item}</article>
+              ))}
+            </div>
+          </section>
+
+          <button className="figma-profile-next-button" aria-label="确认画像，选择面试官" onClick={onNext}>
+            <span aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FigmaProfileSourceReview({
+  profile,
+  resumeText,
+  jdText
+}: {
+  profile: CandidateProfile;
+  resumeText: string;
+  jdText: string;
+}) {
+  const [activeSourceTab, setActiveSourceTab] = useState<"resume" | "jd">("resume");
+  const activeText = activeSourceTab === "resume" ? resumeText.trim() : jdText.trim();
+  const activeTitle = activeSourceTab === "resume" ? "候选人简历" : "目标 JD";
+  const activeEvidenceLabel = activeSourceTab === "resume" ? "简历命中" : "JD 命中";
+  const activeEvidence = profile.sourceMatches.map((match) =>
+    activeSourceTab === "resume" ? match.resumeText : match.jdText
+  );
+
+  return (
+    <section className="figma-profile-section figma-source-frame15">
+      <h3>对比简历 / JD 匹配来源</h3>
+      <div className="figma-source-tabs" role="tablist" aria-label="匹配来源切换">
+        <button
+          className={activeSourceTab === "resume" ? "active" : ""}
+          onClick={() => setActiveSourceTab("resume")}
+          role="tab"
+          aria-selected={activeSourceTab === "resume"}
+        >
+          简历
+        </button>
+        <button
+          className={activeSourceTab === "jd" ? "active" : ""}
+          onClick={() => setActiveSourceTab("jd")}
+          role="tab"
+          aria-selected={activeSourceTab === "jd"}
+        >
+          JD
+        </button>
+      </div>
+      <div className="figma-source-tab-panel" role="tabpanel">
+        <article className="figma-source-text-card">
+          <strong>{activeTitle}</strong>
+          <p>{activeText}</p>
+        </article>
+        <div className="figma-source-match-stack">
+          {activeEvidence.map((evidence, index) => (
+            <article key={`${activeSourceTab}-${evidence}-${index}`}>
+              <div>
+                <span>{activeEvidenceLabel}</span>
+                <span>{evidence}</span>
+              </div>
+              <p>{profile.sourceMatches[index]?.reason}</p>
+            </article>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

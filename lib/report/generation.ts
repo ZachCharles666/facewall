@@ -2,13 +2,15 @@ import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErro
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { buildFallbackReport } from "@/lib/demo/fallback";
 import { buildReportPrompt } from "@/lib/prompts/interview";
+import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { validateReportOutput } from "@/lib/schemas/contracts";
-import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, QuestionReport } from "@/lib/types";
+import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, PromptOverrides, QuestionReport } from "@/lib/types";
 
 export interface ReportGenerationPayload {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
+  promptOverrides?: PromptOverrides;
 }
 
 export class ReportGenerationError extends Error {
@@ -36,7 +38,8 @@ export async function generateInterviewReport(payload: ReportGenerationPayload, 
 
   const timeout = createTimeoutSignal();
   try {
-    const result = await generateJsonWithRetry(buildReportPrompt(payload), { signal: timeout.signal });
+    const promptOverrides = await resolvePromptOverrides(payload);
+    const result = await generateJsonWithRetry(buildReportPrompt(payload, promptOverrides), { signal: timeout.signal });
     return validateReportOutput(
       result.json,
       payload.questions.map((question) => question.id)

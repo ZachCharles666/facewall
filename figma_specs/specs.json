@@ -1,0 +1,142 @@
+[
+  {
+    "node_id": "116:776",
+    "name": "Frame 15",
+    "specs": [
+      {
+        "node_id": "116:776",
+        "name": "Frame 15",
+        "type": "FRAME",
+        "x": 5649.0,
+        "y": 785.0,
+        "width": 375.0,
+        "height": 1197.0,
+        "corner_radius": "无",
+        "fill": "无",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=0 right=16.0 bottom=0 left=16.0",
+        "gap": 32.0,
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "面试题目"
+      }
+    ]
+  },
+  {
+    "node_id": "115:760",
+    "name": "Q1",
+    "specs": [
+      {
+        "node_id": "115:760",
+        "name": "Q1",
+        "type": "TEXT",
+        "x": 5707.0,
+        "y": 702.0,
+        "width": 22.0,
+        "height": 25.0,
+        "corner_radius": "无",
+        "fill": "#FFFFFF",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "无",
+        "padding": "-",
+        "gap": "-",
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "Q1"
+      }
+    ]
+  },
+  {
+    "node_id": "115:761",
+    "name": "Q2",
+    "specs": [
+      {
+        "node_id": "115:761",
+        "name": "Q2",
+        "type": "TEXT",
+        "x": 5846.0,
+        "y": 702.0,
+        "width": 25.0,
+        "height": 25.0,
+        "corner_radius": "无",
+        "fill": "#FFFFFF",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "无",
+        "padding": "-",
+        "gap": "-",
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "Q2"
+      }
+    ]
+  },
+  {
+    "node_id": "115:762",
+    "name": "Q3",
+    "specs": [
+      {
+        "node_id": "115:762",
+        "name": "Q3",
+        "type": "TEXT",
+        "x": 5944.0,
+        "y": 702.0,
+        "width": 25.0,
+        "height": 25.0,
+        "corner_radius": "无",
+        "fill": "#FFFFFF",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "无",
+        "padding": "-",
+        "gap": "-",
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "Q3"
+      }
+    ]
+  },
+  {
+    "node_id": "81:662",
+    "name": "Frame 6",
+    "specs": [
+      {
+        "node_id": "81:662",
+        "name": "Frame 6",
+        "type": "FRAME",
+        "x": 2878.0,
+        "y": 1112.0,
+        "width": 184.0,
+        "height": 44.0,
+        "corner_radius": 22.0,
+        "fill": "#4733FF",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "HORIZONTAL, primary_align=CENTER, counter_align=CENTER",
+        "padding": "top=12.0 right=64.0 bottom=12.0 left=64.0",
+        "gap": 10.0,
+        "font_family": "PingFang SC",
+        "font_size": 14.0,
+        "font_weight": 400,
+        "line_height": 19.600000381469727,
+        "letter_spacing": 0.0,
+        "text_sample": "开始面试"
+      }
+    ]
+  }
+]

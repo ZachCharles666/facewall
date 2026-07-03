@@ -3,6 +3,7 @@ import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErro
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { buildFallbackQuestions } from "@/lib/demo/fallback";
 import { buildQuestionsPrompt } from "@/lib/prompts/interview";
+import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { errorResponse, okResponse, validateQuestionRequest, validateQuestionsOutput } from "@/lib/schemas/contracts";
 import type { InterviewQuestion } from "@/lib/types";
 
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
 
   const timeout = createTimeoutSignal();
   try {
-    const result = await generateJsonWithRetry(buildQuestionsPrompt(payload), { signal: timeout.signal });
+    const promptOverrides = await resolvePromptOverrides(payload);
+    const result = await generateJsonWithRetry(buildQuestionsPrompt(payload, promptOverrides), { signal: timeout.signal });
     const data = validateQuestionsOutput(result.json);
     return NextResponse.json(okResponse(data));
   } catch (error) {

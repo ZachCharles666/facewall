@@ -5,6 +5,8 @@ import type {
   InterviewQuestion,
   InterviewReport,
   InterviewerStyleId,
+  PromptOverrides,
+  PromptStoreSnapshot,
   QuestionReport,
   VoiceOption
 } from "@/lib/types";
@@ -32,6 +34,7 @@ export function parseProfile(payload: {
   resumeText: string;
   jdText: string;
   interviewerStyleId: InterviewerStyleId;
+  promptOverrides?: PromptOverrides;
 }) {
   return postJson<CandidateProfile, typeof payload>("/api/profile/parse", payload, "llm");
 }
@@ -40,6 +43,7 @@ export function generateQuestions(payload: {
   candidateProfile: CandidateProfile;
   interviewerStyleId: InterviewerStyleId;
   questionCount: 3;
+  promptOverrides?: PromptOverrides;
 }) {
   return postJson<{ questions: InterviewQuestion[] }, typeof payload>("/api/questions/generate", payload, "llm");
 }
@@ -48,6 +52,7 @@ export function generateReport(payload: {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
+  promptOverrides?: PromptOverrides;
 }) {
   return postJson<InterviewReport, typeof payload>("/api/report/generate", payload, "llm");
 }
@@ -67,6 +72,7 @@ export async function generateReportStream(
     candidateProfile: CandidateProfile;
     questions: InterviewQuestion[];
     answers: InterviewAnswer[];
+    promptOverrides?: PromptOverrides;
   },
   handlers: ReportStreamHandlers = {}
 ) {
@@ -148,8 +154,27 @@ export function regenerateQuestionReport(payload: {
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
   questionId: string;
+  promptOverrides?: PromptOverrides;
 }) {
   return postJson<QuestionReport, typeof payload>("/api/report/regenerate-question", payload, "llm");
+}
+
+export async function getActivePromptOverrides() {
+  const response = await fetch("/api/prompts/active", {
+    method: "GET",
+    cache: "no-store"
+  });
+  const body = (await response.json()) as CommonResponse<PromptStoreSnapshot>;
+
+  if (!body.ok) {
+    throw new Error(body.error.message);
+  }
+
+  return body.data;
+}
+
+export function saveActivePromptOverrides(promptOverrides: PromptOverrides) {
+  return postJson<PromptStoreSnapshot, { promptOverrides: PromptOverrides }>("/api/prompts/active", { promptOverrides });
 }
 
 export async function requestTtsAudio(payload: {

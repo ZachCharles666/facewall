@@ -1,5 +1,6 @@
 import { INTERVIEWER_STYLES } from "@/lib/state/constants";
-import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewerStyleId } from "@/lib/types";
+import { defaultPromptOverrides, normalizePromptOverrides } from "@/lib/prompts/productPromptSuite";
+import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewerStyleId, PromptOverrides } from "@/lib/types";
 
 function styleLabel(styleId: InterviewerStyleId) {
   return INTERVIEWER_STYLES.find((style) => style.id === styleId)?.label ?? styleId;
@@ -13,14 +14,24 @@ const systemRules = [
   "所有字段必须符合调用方给出的 JSON shape。"
 ].join("\n");
 
-export function buildProfilePrompt(input: { resumeText: string; jdText: string; interviewerStyleId: InterviewerStyleId }) {
+function buildSystemContent(promptOverrides?: Partial<PromptOverrides>) {
+  const overrides = normalizePromptOverrides(promptOverrides);
+  return [systemRules, "产品可调系统指令：", overrides.system].join("\n\n");
+}
+
+export function buildProfilePrompt(
+  input: { resumeText: string; jdText: string; interviewerStyleId: InterviewerStyleId },
+  promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides
+) {
+  const overrides = normalizePromptOverrides(promptOverrides);
   return [
-    { role: "system" as const, content: systemRules },
+    { role: "system" as const, content: buildSystemContent(overrides) },
     {
       role: "user" as const,
       content: JSON.stringify(
         {
           task: "根据简历和 JD 生成 CandidateProfile。",
+          productPrompt: overrides.profile,
           rules: [
             "sourceMatches 必须返回 2 到 5 条简历和 JD 的结构化匹配证据。",
             "sourceMatches.resumeText 必须尽量使用简历原文中的连续短语；sourceMatches.jdText 必须尽量使用 JD 原文中的连续短语。",
@@ -59,14 +70,16 @@ export function buildQuestionsPrompt(input: {
   candidateProfile: CandidateProfile;
   interviewerStyleId: InterviewerStyleId;
   questionCount: 3;
-}) {
+}, promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides) {
+  const overrides = normalizePromptOverrides(promptOverrides);
   return [
-    { role: "system" as const, content: systemRules },
+    { role: "system" as const, content: buildSystemContent(overrides) },
     {
       role: "user" as const,
       content: JSON.stringify(
         {
           task: "生成 3 道可回答、可评分的中文面试题。",
+          productPrompt: overrides.questions,
           rules: [
             "固定返回 questions 数组，长度必须为 3。",
             "id 必须稳定为 q1/q2/q3。",
@@ -101,14 +114,24 @@ export function buildReportPrompt(input: {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
-}) {
+}, promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides) {
+  const overrides = normalizePromptOverrides(promptOverrides);
   return [
-    { role: "system" as const, content: systemRules },
+    { role: "system" as const, content: buildSystemContent(overrides) },
     {
       role: "user" as const,
       content: JSON.stringify(
         {
           task: "基于画像、问题和答案生成非流式复盘报告。",
+          productPrompt: overrides.report,
+          scoringWeights: {
+            jobRelevance: "25%",
+            structure: "20%",
+            evidence: "20%",
+            professionalExpression: "15%",
+            truthBoundary: "10%",
+            completeness: "10%"
+          },
           rules: [
             "questionReports 必须与输入 questions 的 questionId 一一对应。",
             "每题必须包含 6 个评分维度，维度分数 0 到 20，总分 0 到 100。",

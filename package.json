@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "smoke:contract": "node scripts/contract-smoke.mjs",
     "smoke:file-parse": "node scripts/file-parse-smoke.mjs",

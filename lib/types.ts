@@ -110,6 +110,18 @@ export interface InterviewReport {
   finalReport: FinalReport;
 }
 
+export interface PromptOverrides {
+  system: string;
+  profile: string;
+  questions: string;
+  report: string;
+}
+
+export interface PromptStoreSnapshot {
+  promptOverrides: PromptOverrides;
+  updatedAt: string | null;
+}
+
 export interface DemoScenario {
   scenarioId: string;
   label: string;

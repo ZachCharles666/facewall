@@ -3,6 +3,7 @@ import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErro
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { demoScenario } from "@/lib/demo/scenario";
 import { buildProfilePrompt } from "@/lib/prompts/interview";
+import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { errorResponse, okResponse, validateProfileOutput, validateSetupPayload } from "@/lib/schemas/contracts";
 import type { CandidateProfile } from "@/lib/types";
 
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
   const timeout = createTimeoutSignal();
   try {
     logProfileMode("llm_request", getSafeLlmRuntimeInfo());
-    const result = await generateJsonWithRetry(buildProfilePrompt(payload), { signal: timeout.signal });
+    const promptOverrides = await resolvePromptOverrides(payload);
+    const result = await generateJsonWithRetry(buildProfilePrompt(payload, promptOverrides), { signal: timeout.signal });
     const profile = validateProfileOutput(result.json);
     logProfileMode("llm_success", {
       sourceMatches: profile.sourceMatches.length,
