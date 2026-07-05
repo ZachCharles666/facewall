@@ -1062,6 +1062,27 @@
 | Layout spacing | Pass | 扩高后的 Frame 11 下方正文区从 `top:358px` 下移到 `top:568px`，toast 同步下移，避免新增内容覆盖 Q tab 和单题详情。 |
 | Verification | Pass | `npm run typecheck` 通过；启动 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 检查报告页 statusbar 子元素数为 1，Frame 11 computed width `343px`、min-height `92px`、实际内容高约 `287px`，评分 computed font-size `96px`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
 
+## Figma Report Page_2 头像镜像和 Frame 11 下移修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar mirror | Pass | `Report Page_2` 头像 `.figma-report-person` 增加水平镜像，入场动画 `figma-report-person-in` 同步保持 `scaleX(-1)`，避免动画结束后恢复原方向。 |
+| Frame position | Pass | `Group 8 / Frame 11` 从 `top:204px` 下移到 `top:292px`，位于头像底部下方；源码仍保持 `width:343px`、`min-height:92px`、`border-radius:16px`、`padding:16px`。 |
+| Content hierarchy | Pass | Frame 11 内部改为 `display:grid`，section 使用独立 grid/gap，列表补充 line-height 和 overflow-wrap，避免“最终报告 / Top 风险 / 行动项”上下拥挤或遮盖。 |
+| Layout spacing | Pass | 报告正文区同步下移到 `top:672px`，toast 下移到 `top:638px`，给扩高后的 Frame 11 留出垂直空间。 |
+| Verification | Pass | `npm run typecheck` 通过；启动 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 重新走到报告页检测到头像 transform 为 `matrix(-1, 0, 0, 1, 0, 0)`、Frame 11 `display:grid`、`gap:14px`、头像底部与 Frame 11 重叠值 `0px`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 最终报告和风险行动双卡修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Final report card | Pass | `Group 8 / Frame 11` 拆为上方 `.figma-report-final-card` 和下方 `.figma-report-risk-action-card`；最终报告卡包含 `最终报告`、`总分`、`finalReport.summary` 和已作答/缺失答案状态，缺失答案不再单独占用浮层提示。 |
+| Avatar overlap | Pass | 最终报告卡栈保持 `top:250px`，浏览器测得头像底部与最终报告卡顶部重叠 `20px`，符合“超过头像下方边缘并上移 20px”的要求。 |
+| Risk/action card | Pass | `Top 风险` 和 `行动项` 统一放入下方同一个视觉卡片；修复行动项误落到无样式 section 的层级问题，浏览器测得风险行动卡 `childCount=4` 且文本包含“行动项”。 |
+| Text flow | Pass | 修复 `.figma-report-score-hero p` 误影响报告卡段落的问题，卡片内部 `p` 恢复 `position:static`，框体高度随内容自然撑开，避免“最终报告 / 总分 / 已作答”上下遮盖。 |
+| Layout spacing | Pass | 两个卡片之间保持 `16px`；Q1/Q2/Q3 内容区调整为 `top:800px`、`min-height:751px`，浏览器测得风险行动卡底部到 Q tabs 顶部约 `68px`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 走到报告页复测最终报告卡高度 `157px`、风险行动卡高度 `262px`、缺失答案文本已集成到最终报告卡、独立 missing-answer toast 不再出现。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |

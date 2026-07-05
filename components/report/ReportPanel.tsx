@@ -192,6 +192,10 @@ export function ReportPanel({
       ...(selectedQuestionReport?.riskTags ?? [])
     ].filter(Boolean).slice(0, 3);
     const optimizationText = report.finalReport.actionItems[0] || selectedQuestionReport?.optimizedAnswer || report.finalReport.summary;
+    const figmaAnswerStatusText =
+      missingAnswers.length > 0
+        ? `已作答 ${answeredCount} / ${questions.length}；缺失答案：${missingAnswers.map((question) => question.id).join(" / ")}`
+        : `已作答 ${answeredCount} / ${questions.length}`;
 
     return (
       <section className="figma-phone-stage figma-report-stage" aria-label="Report">
@@ -204,20 +208,22 @@ export function ReportPanel({
             <div className="figma-report-person" aria-hidden="true" />
             <p>面试评分</p>
             <h2>{report.finalReport.overallScore}</h2>
-            <div className="figma-report-summary-card">
-              <section>
+            <div className="figma-report-card-stack">
+              <section className="figma-report-summary-card figma-report-final-card">
                 <h3>最终报告</h3>
+                <p className="figma-report-final-score">总分：{report.finalReport.overallScore}</p>
                 <p>{report.finalReport.summary}</p>
+                <p className={missingAnswers.length > 0 ? "figma-report-answer-status warning" : "figma-report-answer-status"}>
+                  {figmaAnswerStatusText}
+                </p>
               </section>
-              <section>
+              <section className="figma-report-summary-card figma-report-risk-action-card">
                 <h3>Top 风险</h3>
                 <ul>
                   {report.finalReport.topRisks.map((risk) => (
                     <li key={risk}>{risk}</li>
                   ))}
                 </ul>
-              </section>
-              <section>
                 <h3>行动项</h3>
                 <ul>
                   {report.finalReport.actionItems.map((item) => (
@@ -228,13 +234,11 @@ export function ReportPanel({
             </div>
           </section>
 
-          {(state.usedFallback || missingAnswers.length > 0 || copyState !== "idle") && (
+          {(state.usedFallback || copyState !== "idle") && (
             <div className={copyState === "success" ? "figma-report-toast success" : "figma-report-toast warning"}>
               {copyState !== "idle"
                 ? copyMessage
-                : state.usedFallback
-                  ? "当前展示演示兜底报告。"
-                  : `缺失答案：${missingAnswers.map((question) => question.id).join(" / ")}`}
+                : "当前展示演示兜底报告。"}
             </div>
           )}
 

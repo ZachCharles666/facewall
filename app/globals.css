@@ -2388,19 +2388,33 @@ input[type="range"] {
   height: 270px;
   background: url("/figma/interviewers/gentle-hr-sister@2x.png") center top / 188px auto no-repeat;
   filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.34));
+  transform: scaleX(-1);
   animation: figma-report-person-in 620ms ease both;
 }
 
-.figma-report-summary-card {
+.figma-report-card-stack {
   position: absolute;
   left: 0;
-  top: 204px;
+  top: 250px;
   z-index: 4;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  width: 343px;
+}
+
+.figma-report-summary-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  align-content: start;
   width: 343px;
   min-height: 92px;
   border-radius: 16px;
   padding: 16px;
-  background: linear-gradient(180deg, rgba(50, 46, 56, 0.72), #322e38);
+  overflow: visible;
+  background: linear-gradient(180deg, rgba(50, 46, 56, 0.9), #322e38);
   color: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   font-size: 14px;
@@ -2409,12 +2423,8 @@ input[type="range"] {
   animation: figma-report-block-in 520ms ease 220ms both;
 }
 
-.figma-report-summary-card section + section {
-  margin-top: 14px;
-}
-
 .figma-report-summary-card h3 {
-  margin: 0 0 6px;
+  margin: 0;
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
   font-weight: 500;
@@ -2426,20 +2436,58 @@ input[type="range"] {
   margin: 0;
 }
 
+.figma-report-score-hero .figma-report-summary-card p {
+  position: static;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  animation: none;
+}
+
+.figma-report-final-score {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.figma-report-answer-status {
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.figma-report-answer-status.warning {
+  color: #ffe0a3 !important;
+}
+
+.figma-report-risk-action-card {
+  gap: 8px;
+}
+
+.figma-report-risk-action-card h3:not(:first-child) {
+  margin-top: 8px;
+}
+
 .figma-report-summary-card ul {
   display: grid;
   gap: 6px;
   padding-left: 16px;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 20px;
 }
 
 .figma-report-summary-card li {
   padding-left: 2px;
+  overflow-wrap: anywhere;
 }
 
 .figma-report-toast {
   position: absolute;
   left: 16px;
-  top: 535px;
+  top: 762px;
   z-index: 6;
   width: 343px;
   border-radius: 12px;
@@ -2457,10 +2505,10 @@ input[type="range"] {
 .figma-report-body {
   position: absolute;
   left: 0;
-  top: 568px;
+  top: 800px;
   z-index: 3;
   width: 375px;
-  min-height: 983px;
+  min-height: 751px;
   background: #322e38;
   animation: figma-report-body-in 520ms ease both;
 }
@@ -3647,11 +3695,11 @@ button.question-card {
 @keyframes figma-report-person-in {
   from {
     opacity: 0;
-    transform: translateX(16px) scale(0.98);
+    transform: translateX(16px) scaleX(-1) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateX(0) scaleX(-1) scale(1);
   }
 }
 
@@ -3700,6 +3748,7 @@ button.question-card {
   .figma-report-score-hero p,
   .figma-report-score-hero h2,
   .figma-report-person,
+  .figma-report-card-stack,
   .figma-report-summary-card,
   .figma-report-body,
   .figma-report-tabs button,
