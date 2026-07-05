@@ -1083,6 +1083,76 @@
 | Layout spacing | Pass | 两个卡片之间保持 `16px`；Q1/Q2/Q3 内容区调整为 `top:800px`、`min-height:751px`，浏览器测得风险行动卡底部到 Q tabs 顶部约 `68px`。 |
 | Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 走到报告页复测最终报告卡高度 `157px`、风险行动卡高度 `262px`、缺失答案文本已集成到最终报告卡、独立 missing-answer toast 不再出现。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
 
+## Figma Report Page_2 字号、描边和 Q Tab 样式修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Summary typography | Pass | `最终报告 / Top 风险 / 行动项` 标题从 `12px` 增加到 `16px`；最终报告正文和风险/行动项列表从 `14px/20px` 调整为 `16px/22px`，缺失答案状态从 `13px/18px` 调整为 `15px/21px`。 |
+| Title colors | Pass | 最终报告标题单独提亮为纯白 `#ffffff` 并增加轻微紫色辉光；`Top 风险` 使用与候选人画像“关键词”一致的淡紫色 `#ddd6fe`，`行动项` 使用薄荷绿 `#98ead3`，和当前深紫灰报告背景保持一致。 |
+| Card edge style | Pass | 上下两个报告信息卡统一为 `1px rgba(219,213,233,.22)` 描边、顶部内高光和轻阴影，替代旧的单一 inset 描边，使边缘质感与当前样例卡一致。 |
+| Q tabs visual | Pass | Q1/Q2/Q3 从旧的三个透明文字按钮改为图片 2 风格的连体顶部 tab：外层深色圆角底座、当前 tab 深紫选中块和右侧斜切过渡；tab 字号调整为 `24px`。 |
+| Spacing | Pass | 字号放大后将 Q tabs 内容区从 `top:836px` 收紧到 `top:812px`，使 `Top 风险/行动项` 卡下方到 Q1/Q2/Q3 区域的间距接近双卡之间的 `16px` 节奏。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Q Tab 效果图对齐 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab shape | Pass | Q1/Q2/Q3 区域按用户效果图重新校准：tab 底座高度从 `112px` 增至 `150px`，顶部底座 `365×82px`，选中态右侧斜切从 `64px` 扩为 `92px`，让 Q1 到 Q2 的过渡更接近效果图。 |
+| Tab layout | Pass | Q1/Q2/Q3 的水平位置调整为 `left:10/142/268px`，选中态 Q1 更宽，Q2/Q3 分布更贴近效果图的宽间距布局。 |
+| Detail typography | Pass | Q 区正文从旧小字号放大：详情标题从 `18px/25px` 调整为 `28px/34px`，正文从 `14px/20px` 调整为 `20px/29px` 且加粗到 `600`，对齐效果图的大字重排版。 |
+| Detail spacing | Pass | 详情内容左边距从 `16px` 调整为 `34px`、顶部从 `124px` 调整为 `156px`，问题块最小高度从 `121px` 增至 `190px`，避免放大后内容贴边。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 报告标题和缺失答案颜色修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Final title color | Pass | “最终报告”标题从纯白调整为金色 `#f3c766`，并使用同色轻微辉光提高识别度。 |
+| Answer status color | Pass | `已作答 x / 3` 拆成独立 span；当 `missingAnswers.length === 0` 时沿用普通说明色，当少一题或更多时切换为与候选人画像“风险点”一致的红色 `#ffb4c8`。 |
+| Missing answer color | Pass | `缺失答案：q1 / q2 / q3` 单独渲染为画像“风险点”红色 `#ffb4c8`，不再与整行状态共用黄色 warning 样式。 |
+| Risk title color | Pass | `Top 风险` 标题恢复为候选人画像“关键词”淡紫色 `#ddd6fe`；`行动项` 保留薄荷绿以区分信息层级。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉和状态文案 span 结构，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 信息卡渐变描边修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Gradient border | Pass | `最终报告` 卡和 `Top 风险 / 行动项` 卡的描边改为共享伪元素渐变描边：顶部高亮，左右两侧由下到上逐渐变亮，底部渐隐为透明。 |
+| Card body | Pass | 卡片背景、圆角、内高光和阴影保留；原实线 `border` 改为透明占位，避免布局尺寸变化。 |
+| Scope | Pass | 仅调整 `.figma-report-summary-card` 视觉层 CSS，未改报告 schema、状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 单题 Tab 内容结构重排 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Module order | Pass | `theme=figma` 单题 tab 从旧的指标卡/避坑/回答/优化方向结构，重排为：面试题目、单个题目分数、面试题目详情、六维能力图、三枚风险标签、致命问题、诊断、60 秒口述版。 |
+| Ability chart | Pass | 新增 `FigmaAbilityRadar`，直接读取 `questionReport.dimensionScores` 绘制六维雷达/六边形能力图；6 个维度为岗位相关、结构表达、证据力度、职业表达、事实边界、完整度，分数仍来自既有 report schema。 |
+| Risk tags | Pass | 风险标签限制展示前三个，用独立底图卡片框出，颜色复用候选人画像“风险点”语义色。 |
+| Oral copy | Pass | 60 秒口述版改为独立内容卡，卡内加入通用复制图标按钮，复用既有 `copyQuestion(questionReport, "oral")` 逻辑。 |
+| Page height | Pass | `Report Page_2` 长页高度从 `1565px` 扩展到 `2380px`，移动端覆盖同步更新，避免新增单题模块被底部 Home Indicator 截断。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 单题内容底部裁切修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 单题 tab 新增详情、六维图、风险标签、致命问题、诊断和 60 秒口述版后，实际内容高度超过上一版固定 `2380px` 画布；`.figma-report-page-card` 又设置 `overflow:hidden`，因此底部诊断/口述版会在 Home Indicator 附近被裁掉。 |
+| Page height | Pass | `Report Page_2` 长页高度从 `2380px` 扩展到 `3200px`，移动端同名覆盖同步更新。 |
+| Body height | Pass | `.figma-report-body` 底板从 `min-height:1554px` 扩展到 `2374px`，为动态题目详情、诊断和 60 秒口述版留出底部空间。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页高度，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 动态高度和缺失评分修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Dynamic page height | Pass | `Report Page_2` 不再依赖固定 `3200px` 高度；`ReportPanel` 使用 `ResizeObserver` 测量当前 Q tab 内容高度，并通过 `--figma-report-page-height` 驱动报告页和内容底板高度，整体高度随当前内容增长。 |
+| Question score layout | Pass | 单题 tab 顶部从“面试题目 + 单个题目分数独立框”调整为“本题分数 + 分数/暂无评分”同行展示；移除独立分数框，题目正文降为 `16px/24px`，避免当前问题文字过大。 |
+| Missing score logic | Pass | 演示兜底报告中缺失答案题从 `score:35` 改为 `score:0`，六维评分全部为 `0`；总分取消 `Math.max(40, 平均分)` 下限，改为按题目分真实平均，避免 3 道缺失题显示 40 分。 |
+| Missing ability display | Pass | `theme=figma` 单题详情在缺失答案时不渲染六维雷达图，改为“缺失答案，暂不评估六维能力”，避免让用户误以为无回答也能得出六维评分。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://localhost:3000` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改接口字段、状态名、报告 schema、`tts-demo` 或 `.env.local`。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |

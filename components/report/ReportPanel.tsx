@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
-import type { InterviewAnswer, InterviewQuestion, InterviewReport, QuestionReport } from "@/lib/types";
+import type { DimensionScores, InterviewAnswer, InterviewQuestion, InterviewReport, QuestionReport } from "@/lib/types";
 
-const dimensionLabels: Record<string, string> = {
+const dimensionOrder: Array<keyof DimensionScores> = [
+  "jobRelevance",
+  "structure",
+  "evidence",
+  "professionalExpression",
+  "truthBoundary",
+  "completeness"
+];
+
+const dimensionLabels: Record<keyof DimensionScores, string> = {
   jobRelevance: "岗位相关",
   structure: "结构表达",
   evidence: "证据力度",
@@ -25,6 +34,56 @@ function FigmaReportClock() {
     return () => window.clearInterval(timer);
   }, []);
   return <span suppressHydrationWarning>{time ?? "9:41"}</span>;
+}
+
+function FigmaAbilityRadar({ scores }: { scores: DimensionScores }) {
+  const center = 92;
+  const radius = 58;
+  const labelRadius = 78;
+  const pointFor = (index: number, valueRadius: number) => {
+    const angle = -Math.PI / 2 + (index * Math.PI * 2) / dimensionOrder.length;
+    return {
+      x: center + Math.cos(angle) * valueRadius,
+      y: center + Math.sin(angle) * valueRadius
+    };
+  };
+  const axisPoints = dimensionOrder.map((_, index) => pointFor(index, radius));
+  const scorePoints = dimensionOrder.map((key, index) => pointFor(index, radius * Math.max(0, Math.min(20, scores[key])) / 20));
+  const labelPoints = dimensionOrder.map((_, index) => pointFor(index, labelRadius));
+  const polygonPoints = scorePoints.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <div className="figma-report-radar" aria-label="能力象限图">
+      <svg viewBox="0 0 184 184" role="img" aria-label="六维能力评分图">
+        {[0.33, 0.66, 1].map((scale) => (
+          <polygon
+            className="figma-report-radar-grid"
+            key={scale}
+            points={axisPoints.map((point) => `${center + (point.x - center) * scale},${center + (point.y - center) * scale}`).join(" ")}
+          />
+        ))}
+        {axisPoints.map((point, index) => (
+          <line className="figma-report-radar-axis" key={dimensionOrder[index]} x1={center} y1={center} x2={point.x} y2={point.y} />
+        ))}
+        <polygon className="figma-report-radar-score" points={polygonPoints} />
+        {scorePoints.map((point, index) => (
+          <circle className="figma-report-radar-dot" key={dimensionOrder[index]} cx={point.x} cy={point.y} r="3" />
+        ))}
+        {labelPoints.map((point, index) => (
+          <text className="figma-report-radar-label" key={dimensionOrder[index]} x={point.x} y={point.y}>
+            {dimensionLabels[dimensionOrder[index]]}
+          </text>
+        ))}
+      </svg>
+      <div className="figma-report-radar-scores">
+        {dimensionOrder.map((key) => (
+          <span key={key}>
+            {dimensionLabels[key]} {scores[key]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function ReportPanel({
@@ -60,6 +119,8 @@ export function ReportPanel({
   const [manualCopyText, setManualCopyText] = useState("");
   const [figmaReportQuestionIndex, setFigmaReportQuestionIndex] = useState(0);
   const copyTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const figmaQuestionDetailRef = useRef<HTMLElement | null>(null);
+  const [figmaReportPageHeight, setFigmaReportPageHeight] = useState(1565);
 
   function fallbackCopy(text: string) {
     const textarea = document.createElement("textarea");
@@ -136,6 +197,39 @@ export function ReportPanel({
     (question) => !answers.find((answer) => answer.questionId === question.id)?.answerText.trim()
   );
 
+  useEffect(() => {
+    if (visualTheme !== "figma" || !report) {
+      return;
+    }
+
+    const element = figmaQuestionDetailRef.current;
+    if (!element) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const updateHeight = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const bodyTop = 812;
+        const bottomPadding = 96;
+        const nextHeight = Math.max(1565, Math.ceil(bodyTop + element.offsetTop + element.scrollHeight + bottomPadding));
+        setFigmaReportPageHeight((currentHeight) => (currentHeight === nextHeight ? currentHeight : nextHeight));
+      });
+    };
+
+    updateHeight();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeight);
+    resizeObserver?.observe(element);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [answers, figmaReportQuestionIndex, report, streamedQuestionReports, visualTheme]);
+
   if (visualTheme === "figma") {
     if (!report) {
       return (
@@ -186,20 +280,18 @@ export function ReportPanel({
           ? "进阶练习 / 中级候选人"
           : "基础练习 / 初次面试";
     const intentText = selectedQuestion?.intent || selectedQuestionReport?.diagnosis || "考察候选人是否能用真实证据支撑判断。";
-    const pitfallItems = [
-      selectedQuestionReport?.fatalIssue,
-      selectedQuestionReport?.diagnosis,
-      ...(selectedQuestionReport?.riskTags ?? [])
-    ].filter(Boolean).slice(0, 3);
-    const optimizationText = report.finalReport.actionItems[0] || selectedQuestionReport?.optimizedAnswer || report.finalReport.summary;
-    const figmaAnswerStatusText =
-      missingAnswers.length > 0
-        ? `已作答 ${answeredCount} / ${questions.length}；缺失答案：${missingAnswers.map((question) => question.id).join(" / ")}`
-        : `已作答 ${answeredCount} / ${questions.length}`;
+    const figmaRiskTags = selectedQuestionReport?.riskTags.slice(0, 3) ?? [];
+    const missingAnswerIds = missingAnswers.map((question) => question.id).join(" / ");
+    const selectedAnswerText = selectedAnswer?.answerText.trim() ?? "";
+    const isSelectedQuestionMissing = !selectedAnswerText || selectedQuestionReport?.riskTags.includes("缺失答案");
+    const selectedQuestionScoreText = isSelectedQuestionMissing ? "暂无评分" : `${selectedQuestionReport?.score ?? 0}`;
+    const figmaReportPageStyle = {
+      "--figma-report-page-height": `${figmaReportPageHeight}px`
+    } as CSSProperties;
 
     return (
       <section className="figma-phone-stage figma-report-stage" aria-label="Report">
-        <div className="figma-phone-card figma-home-card figma-report-card figma-report-page-card">
+        <div className="figma-phone-card figma-home-card figma-report-card figma-report-page-card" style={figmaReportPageStyle}>
           <div className="figma-statusbar">
             <FigmaReportClock />
           </div>
@@ -213,8 +305,16 @@ export function ReportPanel({
                 <h3>最终报告</h3>
                 <p className="figma-report-final-score">总分：{report.finalReport.overallScore}</p>
                 <p>{report.finalReport.summary}</p>
-                <p className={missingAnswers.length > 0 ? "figma-report-answer-status warning" : "figma-report-answer-status"}>
-                  {figmaAnswerStatusText}
+                <p className="figma-report-answer-status">
+                  <span className={missingAnswers.length > 0 ? "warning" : undefined}>
+                    已作答 {answeredCount} / {questions.length}
+                  </span>
+                  {missingAnswers.length > 0 && (
+                    <>
+                      <span className="warning">；</span>
+                      <span className="warning">缺失答案：{missingAnswerIds}</span>
+                    </>
+                  )}
                 </p>
               </section>
               <section className="figma-report-summary-card figma-report-risk-action-card">
@@ -257,54 +357,79 @@ export function ReportPanel({
               ))}
             </div>
 
-            <article className="figma-report-question-detail" key={selectedQuestionReport?.questionId ?? selectedQuestion?.id ?? figmaReportQuestionIndex}>
+            <article
+              className="figma-report-question-detail"
+              key={selectedQuestionReport?.questionId ?? selectedQuestion?.id ?? figmaReportQuestionIndex}
+              ref={figmaQuestionDetailRef}
+            >
               <section className="figma-report-detail-block question">
-                <h3>面试题目</h3>
+                <div className="figma-report-question-score-line">
+                  <h3>本题分数</h3>
+                  <strong className={isSelectedQuestionMissing ? "empty" : undefined}>{selectedQuestionScoreText}</strong>
+                </div>
                 <p>{selectedQuestion?.questionText ?? selectedQuestion?.title ?? "暂无题目内容。"}</p>
               </section>
 
-              <section className="figma-report-metric-cards" aria-label="题目评估信息">
+              <section className="figma-report-detail-card">
+                <h3>面试题目详情</h3>
+                <dl>
+                  <div>
+                    <dt>考察维度</dt>
+                    <dd>{dimensionSummary}</dd>
+                  </div>
+                  <div>
+                    <dt>适用职级</dt>
+                    <dd>{seniorityText}</dd>
+                  </div>
+                  <div>
+                    <dt>出题意图</dt>
+                    <dd>{intentText}</dd>
+                  </div>
+                  <div>
+                    <dt>您的回答</dt>
+                    <dd>{selectedAnswer?.answerText.trim() || "本题暂无有效回答，报告会保守标记为缺失答案。"}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              {selectedQuestionReport && !isSelectedQuestionMissing ? (
+                <FigmaAbilityRadar scores={selectedQuestionReport.dimensionScores} />
+              ) : (
+                <section className="figma-report-radar unavailable">
+                  <h3>六维能力评估</h3>
+                  <p>缺失答案，暂不评估六维能力。</p>
+                </section>
+              )}
+
+              <section className="figma-report-risk-tags">
+                <h3>风险标签</h3>
                 <div>
-                  <h4>考察维度</h4>
-                  <p>{dimensionSummary}</p>
-                </div>
-                <div>
-                  <h4>适用职级</h4>
-                  <p>{seniorityText}</p>
-                </div>
-                <div>
-                  <h4>出题意图</h4>
-                  <p>{intentText}</p>
+                  {(figmaRiskTags.length > 0 ? figmaRiskTags : ["暂无风险标签"]).map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
                 </div>
               </section>
 
-              <section className="figma-report-detail-block pitfalls">
-                <h3>面试官避坑指南</h3>
-                <p className="figma-report-small">如果候选人在回答时踩中以下雷区，需要谨慎评估：</p>
-                {pitfallItems.map((item, index) => (
-                  <p key={`${item}-${index}`}>
-                    <strong>{index === 0 ? "关键雷区：" : index === 1 ? "表达雷区：" : "风险标签："}</strong>
-                    {item}
-                  </p>
-                ))}
+              <section className="figma-report-text-card fatal">
+                <h3>致命问题</h3>
+                <p>{selectedQuestionReport?.fatalIssue ?? "暂无致命问题。"}</p>
               </section>
 
-              <section className="figma-report-detail-block answer">
-                <h3>您的回答</h3>
-                <p>{selectedAnswer?.answerText.trim() || "本题暂无有效回答，报告会保守标记为缺失答案。"}</p>
-              </section>
-
-              <section className="figma-report-optimization">
-                <h3>优化方向</h3>
-                <p>{optimizationText}</p>
+              <section className="figma-report-text-card diagnosis">
+                <h3>诊断</h3>
+                <p>{selectedQuestionReport?.diagnosis ?? "暂无诊断。"}</p>
               </section>
 
               {selectedQuestionReport && (
-                <div className="figma-report-page-actions">
-                  <button onClick={() => copyReport()}>复制整份报告</button>
-                  <button onClick={() => copyQuestion(selectedQuestionReport, "optimized")}>复制优化答案</button>
-                  <button onClick={() => onRegenerateQuestion(selectedQuestionReport.questionId)}>重生成</button>
-                </div>
+                <section className="figma-report-text-card oral">
+                  <div className="figma-report-card-title-row">
+                    <h3>60 秒口述版</h3>
+                    <button className="figma-report-copy-icon-button" onClick={() => copyQuestion(selectedQuestionReport, "oral")} aria-label="复制 60 秒口述版">
+                      <span aria-hidden="true" />
+                    </button>
+                  </div>
+                  <p>{selectedQuestionReport.oralVersion60s}</p>
+                </section>
               )}
             </article>
 
@@ -429,7 +554,7 @@ export function ReportPanel({
               <div className="metric-grid">
                 {Object.entries(questionReport.dimensionScores).map(([name, score]) => (
                   <div className="metric" key={name}>
-                    <span className="helper">{dimensionLabels[name] ?? name}</span>
+                    <span className="helper">{dimensionLabels[name as keyof DimensionScores] ?? name}</span>
                     <strong>{score}</strong>
                   </div>
                 ))}

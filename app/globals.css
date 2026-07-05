@@ -2223,8 +2223,8 @@ input[type="range"] {
 
 .figma-report-card.figma-report-page-card {
   width: 375px;
-  height: 1565px;
-  min-height: 1565px;
+  height: var(--figma-report-page-height, 1565px);
+  min-height: var(--figma-report-page-height, 1565px);
   overflow: hidden;
   border-radius: 24px;
   background: #161316;
@@ -2414,21 +2414,55 @@ input[type="range"] {
   border-radius: 16px;
   padding: 16px;
   overflow: visible;
-  background: linear-gradient(180deg, rgba(50, 46, 56, 0.9), #322e38);
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(55, 51, 65, 0.96), rgba(47, 43, 55, 0.96));
   color: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
-  font-size: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 18px 36px rgba(0, 0, 0, 0.22);
+  font-size: 16px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: 22px;
   animation: figma-report-block-in 520ms ease 220ms both;
+}
+
+.figma-report-summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(238, 232, 255, 0.56) 0%,
+    rgba(221, 214, 254, 0.28) 42%,
+    rgba(221, 214, 254, 0.08) 72%,
+    rgba(221, 214, 254, 0) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
 }
 
 .figma-report-summary-card h3 {
   margin: 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 17px;
+  color: #ddd6fe;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.figma-report-final-card h3 {
+  color: #f3c766;
+  font-weight: 700;
+  text-shadow: 0 0 14px rgba(243, 199, 102, 0.46);
 }
 
 .figma-report-summary-card p,
@@ -2442,9 +2476,9 @@ input[type="range"] {
   top: auto;
   z-index: auto;
   color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: 22px;
   animation: none;
 }
 
@@ -2455,16 +2489,25 @@ input[type="range"] {
 
 .figma-report-answer-status {
   color: rgba(255, 255, 255, 0.72) !important;
-  font-size: 13px !important;
-  line-height: 18px !important;
+  font-size: 15px !important;
+  line-height: 21px !important;
 }
 
-.figma-report-answer-status.warning {
-  color: #ffe0a3 !important;
+.figma-report-answer-status .warning {
+  color: #ffb4c8;
+  font-weight: 700;
 }
 
 .figma-report-risk-action-card {
   gap: 8px;
+}
+
+.figma-report-risk-action-card h3:first-child {
+  color: #ddd6fe;
+}
+
+.figma-report-risk-action-card h3:nth-of-type(2) {
+  color: #98ead3;
 }
 
 .figma-report-risk-action-card h3:not(:first-child) {
@@ -2476,7 +2519,7 @@ input[type="range"] {
   gap: 6px;
   padding-left: 16px;
   color: rgba(255, 255, 255, 0.92);
-  line-height: 20px;
+  line-height: 22px;
 }
 
 .figma-report-summary-card li {
@@ -2487,7 +2530,7 @@ input[type="range"] {
 .figma-report-toast {
   position: absolute;
   left: 16px;
-  top: 762px;
+  top: 776px;
   z-index: 6;
   width: 343px;
   border-radius: 12px;
@@ -2505,10 +2548,10 @@ input[type="range"] {
 .figma-report-body {
   position: absolute;
   left: 0;
-  top: 800px;
+  top: 812px;
   z-index: 3;
   width: 375px;
-  min-height: 751px;
+  min-height: calc(var(--figma-report-page-height, 1565px) - 826px);
   background: #322e38;
   animation: figma-report-body-in 520ms ease both;
 }
@@ -2518,59 +2561,64 @@ input[type="range"] {
   left: 0;
   top: 0;
   width: 375px;
-  height: 178px;
-  background: #28252d;
+  height: 150px;
+  overflow: hidden;
+  background: transparent;
 }
 
 .figma-report-tabs::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: 10px;
   top: 0;
-  width: 160px;
-  height: 62px;
-  border-radius: 0 0 28px 0;
-  background: #322e38;
+  width: 365px;
+  height: 82px;
+  border-radius: 22px 22px 0 0;
+  background: #28252d;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
 .figma-report-tabs::after {
   content: "";
   position: absolute;
-  left: 255px;
-  top: 67px;
-  width: 1px;
-  height: 27px;
-  background: rgba(255, 255, 255, 0.1);
+  left: 10px;
+  top: 80px;
+  width: 365px;
+  height: 70px;
+  border-radius: 0 18px 0 0;
+  background: #322e38;
 }
 
 .figma-report-tabs button {
   position: absolute;
-  top: 10px;
+  top: 0;
   z-index: 2;
-  width: 88px;
-  min-height: 40px;
+  width: 124px;
+  min-height: 82px;
   border: 0;
-  border-radius: 0;
+  border-radius: 22px 22px 0 0;
   padding: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.72);
   box-shadow: none;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 25px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 30px;
   transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
 }
 
 .figma-report-tabs button:nth-child(1) {
-  left: 46px;
+  left: 10px;
 }
 
 .figma-report-tabs button:nth-child(2) {
-  left: 166px;
+  left: 142px;
 }
 
 .figma-report-tabs button:nth-child(3) {
-  left: 280px;
+  left: 268px;
 }
 
 .figma-report-tabs button.active,
@@ -2581,36 +2629,331 @@ input[type="range"] {
   transform: translateY(-1px);
 }
 
+.figma-report-tabs button.active {
+  background: #383340;
+}
+
+.figma-report-tabs button.active::after {
+  content: "";
+  position: absolute;
+  right: -52px;
+  bottom: 0;
+  z-index: -1;
+  width: 92px;
+  height: 82px;
+  border-radius: 0 22px 0 0;
+  background: #383340;
+  transform: skewX(44deg);
+  transform-origin: left bottom;
+}
+
 .figma-report-question-detail {
   position: absolute;
-  left: 16px;
-  top: 100px;
+  left: 24px;
+  top: 156px;
   z-index: 4;
-  width: 343px;
+  display: grid;
+  gap: 18px;
+  width: 327px;
   color: #ffffff;
   animation: figma-report-detail-in 360ms ease both;
 }
 
 .figma-report-detail-block h3,
 .figma-report-optimization h3 {
-  margin: 0 0 22px;
+  margin: 0 0 24px;
   color: #ffffff;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 25px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
 }
 
 .figma-report-detail-block p,
 .figma-report-optimization p {
   margin: 0;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 29px;
 }
 
 .figma-report-detail-block.question {
-  min-height: 121px;
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.figma-report-detail-block.question h3 {
+  margin: 0;
+  color: #ddd6fe;
+  font-size: 18px;
+  line-height: 25px;
+}
+
+.figma-report-detail-block.question p {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.figma-report-question-score-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.figma-report-question-score-line strong {
+  color: #f3c766;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 32px;
+}
+
+.figma-report-question-score-line strong.empty {
+  color: #ffb4c8;
+  font-size: 18px;
+  line-height: 25px;
+}
+
+.figma-report-question-score {
+  display: none;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  min-height: 76px;
+  border-radius: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, rgba(63, 58, 73, 0.98), rgba(48, 44, 57, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.figma-report-question-score span {
+  color: #ddd6fe;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.figma-report-question-score strong {
+  color: #f3c766;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.figma-report-detail-card,
+.figma-report-text-card,
+.figma-report-risk-tags,
+.figma-report-radar {
+  border-radius: 16px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(63, 58, 73, 0.96), rgba(45, 41, 53, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.18);
+}
+
+.figma-report-detail-card h3,
+.figma-report-text-card h3,
+.figma-report-risk-tags h3 {
+  margin: 0 0 14px;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.figma-report-detail-card dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.figma-report-detail-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.figma-report-detail-card dt {
+  color: #ddd6fe;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.figma-report-detail-card dd,
+.figma-report-text-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.figma-report-radar {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.figma-report-radar.unavailable {
+  justify-items: start;
+}
+
+.figma-report-radar.unavailable h3 {
+  margin: 0;
+  color: #ddd6fe;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.figma-report-radar.unavailable p {
+  margin: 0;
+  color: #ffb4c8;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.figma-report-radar svg {
+  width: 184px;
+  height: 184px;
+  overflow: visible;
+}
+
+.figma-report-radar-grid {
+  fill: rgba(255, 255, 255, 0.025);
+  stroke: rgba(221, 214, 254, 0.2);
+  stroke-width: 1;
+}
+
+.figma-report-radar-axis {
+  stroke: rgba(221, 214, 254, 0.18);
+  stroke-width: 1;
+}
+
+.figma-report-radar-score {
+  fill: rgba(191, 244, 208, 0.28);
+  stroke: #bff4d0;
+  stroke-width: 2;
+}
+
+.figma-report-radar-dot {
+  fill: #f3c766;
+  stroke: rgba(22, 19, 22, 0.8);
+  stroke-width: 1;
+}
+
+.figma-report-radar-label {
+  fill: rgba(255, 255, 255, 0.86);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.figma-report-radar-scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  width: 100%;
+}
+
+.figma-report-radar-scores span {
+  min-height: 28px;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.figma-report-risk-tags div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.figma-report-risk-tags span {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  border-radius: 14px;
+  padding: 8px;
+  border: 1px solid rgba(255, 180, 200, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 180, 200, 0.14), rgba(255, 180, 200, 0.05)),
+    rgba(50, 46, 56, 0.92);
+  color: #ffb4c8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.figma-report-text-card.fatal h3 {
+  color: #ffb4c8;
+}
+
+.figma-report-text-card.diagnosis h3 {
+  color: #ddd6fe;
+}
+
+.figma-report-text-card.oral {
+  background:
+    linear-gradient(180deg, rgba(82, 122, 88, 0.86), rgba(48, 72, 54, 0.92)),
+    #527a58;
+}
+
+.figma-report-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.figma-report-card-title-row h3 {
+  margin: 0;
+}
+
+.figma-report-copy-icon-button {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.figma-report-copy-icon-button span,
+.figma-report-copy-icon-button span::before {
+  position: absolute;
+  width: 12px;
+  height: 14px;
+  border: 1.5px solid #ffffff;
+  border-radius: 3px;
+}
+
+.figma-report-copy-icon-button span {
+  left: 12px;
+  top: 9px;
+}
+
+.figma-report-copy-icon-button span::before {
+  content: "";
+  left: -5px;
+  top: 4px;
+  opacity: 0.58;
 }
 
 .figma-report-metric-cards {
@@ -3815,8 +4158,8 @@ button.question-card {
   }
 
   .theme-figma .figma-report-card.figma-report-page-card {
-    height: 1565px;
-    min-height: 1565px;
+    height: var(--figma-report-page-height, 1565px);
+    min-height: var(--figma-report-page-height, 1565px);
     border-radius: 0;
     overflow: hidden;
   }
