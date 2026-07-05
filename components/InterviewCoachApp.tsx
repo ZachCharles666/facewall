@@ -47,6 +47,22 @@ function formatPromptTimestamp(value: string | null) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+// Status-bar clock: renders the "9:41" placeholder on the server and first client
+// render (so hydration matches), then shows the real system time and ticks it.
+function StatusBarClock() {
+  const [time, setTime] = useState<string | null>(null);
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setTime(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`);
+    };
+    update();
+    const timer = window.setInterval(update, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <span suppressHydrationWarning>{time ?? "9:41"}</span>;
+}
+
 export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVisualTheme?: VisualTheme }) {
   const isFigmaTheme = initialVisualTheme === "figma";
   const [step, setStep] = useState<SessionStep>("setup");
@@ -194,7 +210,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     resetDownstream({
       resumeText: demoScenario.resumeText,
       jdText: demoScenario.jdText,
-      interviewerStyleId: demoScenario.defaultInterviewerStyleId
+      interviewerStyleId: form.interviewerStyleId
     });
     setStatus({ kind: "success", message: "已填入演示兜底样例，可直接开始生成画像。" });
   }
@@ -203,7 +219,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     const nextForm: SetupForm = {
       resumeText: demoScenario.resumeText,
       jdText: demoScenario.jdText,
-      interviewerStyleId: demoScenario.defaultInterviewerStyleId
+      interviewerStyleId: form.interviewerStyleId
     };
     resetDownstream(nextForm);
     await handleParseProfile(nextForm);
@@ -518,6 +534,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           answers={answers}
           interviewerStyleId={form.interviewerStyleId}
           questions={questions}
+          visualTheme={initialVisualTheme}
           onAnswersChange={setAnswers}
           onGenerateReport={handleGenerateReport}
         />
@@ -530,6 +547,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           questions={questions.length === 3 ? questions : demoScenario.questions}
           state={reportState}
           streamedQuestionReports={streamedQuestionReports}
+          visualTheme={initialVisualTheme}
           onRetry={() => handleGenerateReport()}
           onUseNonStreamingFallback={() => handleGenerateReportNonStreaming()}
           onUseFallback={handleUseFallbackReport}
@@ -705,7 +723,7 @@ function FigmaProfilePanel({
     <section className="figma-phone-stage" aria-label="Candidate profile">
       <div className="figma-phone-card figma-home-card figma-profile-card">
         <div className="figma-statusbar">
-          <span>9:41</span>
+          <StatusBarClock />
           <span>Facewall</span>
         </div>
         <button className="figma-jd-back-button figma-profile-back-button" aria-label="返回 JD 输入" onClick={onBack}>
@@ -855,27 +873,28 @@ function FigmaInterviewerPanel({
   onStart: () => void;
 }) {
   const selectedStyle = INTERVIEWER_STYLES.find((style) => style.id === selectedStyleId) ?? INTERVIEWER_STYLES[0];
+  const selectedOption = getFigmaInterviewerOption(selectedStyle.id);
 
   if (stage === "confirmInterviewer") {
     return (
       <section className="figma-phone-stage" aria-label="Selected interviewer">
-        <div className="figma-phone-card figma-confirm-card">
+        <div className="figma-phone-card figma-home-card figma-interviewer-card figma-confirm-card">
           <div className="figma-statusbar">
-            <span>9:41</span>
-            <span>Selected</span>
+            <StatusBarClock />
+            <span>Facewall</span>
           </div>
-          <div className={`figma-interviewer-hero hero-${selectedStyle.id}`} aria-hidden="true" />
-          <div className="figma-copy centered">
-            <p className="figma-kicker">Your interviewer</p>
-            <h2>{selectedStyle.label}</h2>
-            <p>{selectedStyle.description}</p>
+          <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="重新选择面试官" onClick={onBack}>
+            <span aria-hidden="true" />
+          </button>
+          <div className={`figma-interviewer-portrait figma-interviewer-portrait-detail hero-${selectedStyle.id}`} aria-hidden="true" />
+          <div className="figma-interviewer-detail-copy">
+            <h2>{selectedOption.name}</h2>
+            <p className="figma-interviewer-role">{selectedOption.role}</p>
+            <p className="figma-interviewer-description">{selectedStyle.description}</p>
           </div>
-          <div className="figma-actions figma-actions-stacked">
-            <button className="primary" onClick={onStart}>
-              开始面试
-            </button>
-            <button onClick={onBack}>重新选择</button>
-          </div>
+          <button className="figma-interviewer-start-button" onClick={onStart}>
+            开始面试
+          </button>
         </div>
       </section>
     );
@@ -883,37 +902,48 @@ function FigmaInterviewerPanel({
 
   return (
     <section className="figma-phone-stage" aria-label="Select interviewer">
-      <div className="figma-phone-card figma-select-card">
+      <div className="figma-phone-card figma-home-card figma-interviewer-card figma-select-card">
         <div className="figma-statusbar">
-          <span>9:41</span>
-          <span>Select</span>
+          <StatusBarClock />
+          <span>Facewall</span>
         </div>
-        <div className="figma-copy">
-          <p className="figma-kicker">Choose Interviewer</p>
-          <h2>Select interviewer</h2>
-          <p>选择本轮面试官风格，系统会基于画像生成对应的 3 道题。</p>
+        <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="返回候选人画像" onClick={onBack}>
+          <span aria-hidden="true" />
+        </button>
+        <div className="figma-interviewer-title">
+          <h2>Hey Dark !</h2>
+          <p>请选择面试官</p>
         </div>
-        <div className="figma-interviewer-grid" role="radiogroup" aria-label="面试官风格">
-          {INTERVIEWER_STYLES.map((style) => (
+        <div className="figma-interviewer-grid" role="list" aria-label="面试官风格">
+          {INTERVIEWER_STYLES.map((style, index) => {
+            const option = getFigmaInterviewerOption(style.id);
+            return (
             <button
-              className={selectedStyleId === style.id ? `figma-interviewer selected hero-${style.id}` : `figma-interviewer hero-${style.id}`}
+              className={`figma-interviewer option-${index + 1} hero-${style.id}`}
               key={style.id}
               onClick={() => onSelect(style.id)}
-              role="radio"
-              aria-checked={selectedStyleId === style.id}
+              role="listitem"
             >
-              <span className="figma-avatar" aria-hidden="true" />
-              <strong>{style.label}</strong>
-              <span>{style.description}</span>
+              <span className={`figma-interviewer-portrait hero-${style.id}`} aria-hidden="true" />
+              <strong>{option.name}</strong>
+              <span>{option.role}</span>
             </button>
-          ))}
-        </div>
-        <div className="figma-actions">
-          <button onClick={onBack}>Back</button>
+            );
+          })}
         </div>
       </div>
     </section>
   );
+}
+
+function getFigmaInterviewerOption(styleId: InterviewerStyleId) {
+  const options: Record<InterviewerStyleId, { name: string; role: string }> = {
+    strictHr: { name: "温柔HR小姐姐", role: "HR" },
+    techBro: { name: "技术老哥", role: "Tech Lead" },
+    gentleSister: { name: "资深业务大佬", role: "业务负责人" }
+  };
+
+  return options[styleId];
 }
 
 function ProfileSourceReview({

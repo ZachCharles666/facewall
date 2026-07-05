@@ -17,16 +17,53 @@ import type {
 } from "@/lib/types";
 import { VoiceControls } from "@/components/voice/VoiceControls";
 
+type VisualTheme = "classic" | "figma";
+type FigmaAnswerPhase = "prompt" | "recording";
+
+function FigmaInterviewClock() {
+  const [time, setTime] = useState<string | null>(null);
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setTime(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`);
+    };
+    update();
+    const timer = window.setInterval(update, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <span suppressHydrationWarning>{time ?? "9:41"}</span>;
+}
+
+function formatSttStatus(status: SttStatus) {
+  const labels: Record<SttStatus, string> = {
+    idle: "待作答",
+    recording: "识别中",
+    success: "已识别",
+    failed: "识别失败",
+    unsupported: "手动输入",
+    manual: "手动输入"
+  };
+  return labels[status];
+}
+
+function formatDuration(seconds: number) {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const remainingSeconds = Math.floor(seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${remainingSeconds}`;
+}
+
 export function InterviewPanel({
   questions,
   answers,
   interviewerStyleId,
+  visualTheme = "classic",
   onAnswersChange,
   onGenerateReport
 }: {
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
   interviewerStyleId: InterviewerStyleId;
+  visualTheme?: VisualTheme;
   onAnswersChange: (answers: InterviewAnswer[]) => void;
   onGenerateReport: (answers: InterviewAnswer[]) => void;
 }) {
@@ -38,6 +75,8 @@ export function InterviewPanel({
   const [webVoices, setWebVoices] = useState<VoiceOption[]>([{ value: "auto", label: "自动匹配中文发音人" }]);
   const [speechTuning, setSpeechTuning] = useState<SpeechTuning>(personaSpeechDefaults[interviewerStyleId]);
   const [voiceMessage, setVoiceMessage] = useState("语音提问优先 Azure TTS，失败后使用浏览器 Web Speech。");
+  const [figmaAnswerPhase, setFigmaAnswerPhase] = useState<FigmaAnswerPhase>("prompt");
+  const [figmaElapsedSec, setFigmaElapsedSec] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const sttSessionRef = useRef<SttSession | null>(null);
@@ -52,6 +91,21 @@ export function InterviewPanel({
   useEffect(() => {
     setSpeechTuning(personaSpeechDefaults[interviewerStyleId]);
   }, [interviewerStyleId]);
+
+  useEffect(() => {
+    setFigmaAnswerPhase("prompt");
+    setFigmaElapsedSec(0);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (figmaAnswerPhase !== "recording") return;
+
+    const startedAt = Date.now() - figmaElapsedSec * 1000;
+    const timer = window.setInterval(() => {
+      setFigmaElapsedSec(Math.max(1, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [figmaAnswerPhase, figmaElapsedSec]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,18 +162,20 @@ export function InterviewPanel({
     };
   }, []);
 
-  function updateCurrentAnswer(answerPatch: Partial<InterviewAnswer>) {
-    if (!currentQuestion) return;
-    onAnswersChange(
-      answers.map((answer) =>
-        answer.questionId === currentQuestion.id
-          ? {
-              ...answer,
-              ...answerPatch
-            }
-          : answer
-      )
+  function getPatchedAnswers(answerPatch: Partial<InterviewAnswer>) {
+    if (!currentQuestion) return answers;
+    return answers.map((answer) =>
+      answer.questionId === currentQuestion.id
+        ? {
+            ...answer,
+            ...answerPatch
+          }
+        : answer
     );
+  }
+
+  function updateCurrentAnswer(answerPatch: Partial<InterviewAnswer>) {
+    onAnswersChange(getPatchedAnswers(answerPatch));
   }
 
   function fillSampleAnswers() {
@@ -269,6 +325,33 @@ export function InterviewPanel({
     sttSessionRef.current = null;
   }
 
+  function startFigmaAnswer() {
+    setFigmaAnswerPhase("recording");
+    setFigmaElapsedSec(0);
+    startStt();
+  }
+
+  function finishFigmaAnswer() {
+    if (!currentAnswer) return;
+    stopStt();
+    const durationSec = Math.max(currentAnswer.durationSec, figmaElapsedSec, currentAnswer.answerText.trim() ? 30 : 0);
+    const nextAnswers = getPatchedAnswers({
+      durationSec,
+      inputMode: currentAnswer.sttStatus === "recording" || currentAnswer.sttStatus === "success" ? "voice" : currentAnswer.inputMode,
+      sttStatus: currentAnswer.sttStatus === "recording" ? "success" : currentAnswer.sttStatus
+    });
+    onAnswersChange(nextAnswers);
+    setFigmaAnswerPhase("prompt");
+    setFigmaElapsedSec(0);
+
+    if (currentIndex < questions.length - 1) {
+      window.setTimeout(() => setCurrentIndex((index) => Math.min(questions.length - 1, index + 1)), 360);
+      return;
+    }
+
+    window.setTimeout(() => onGenerateReport(nextAnswers), 360);
+  }
+
   function simulateStt(status: SttStatus) {
     if (status === "failed") {
       updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer?.answerText.trim() ? "edited" : "text" });
@@ -296,6 +379,112 @@ export function InterviewPanel({
     return (
       <section className="panel">
         <div className="status warning">还没有可答题目，请先生成 3 道面试题。</div>
+      </section>
+    );
+  }
+
+  if (visualTheme === "figma") {
+    const isRecording = figmaAnswerPhase === "recording";
+    const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
+    const interviewerName =
+      interviewerStyleId === "strictHr" ? "温柔HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
+    const interviewerRole =
+      interviewerStyleId === "strictHr" ? "HR" : interviewerStyleId === "techBro" ? "Tech Lead" : "业务负责人";
+    const compSrc = isRecording
+      ? "/figma/home/comp-1024-1-response@2x.png?v=2026070501"
+      : "/figma/home/comp-1024-1-interview@2x.png?v=2026070501";
+
+    return (
+      <section className="figma-phone-stage" aria-label="Interview response">
+        <div className="figma-phone-card figma-home-card figma-interview-card">
+          <div className="figma-statusbar">
+            <FigmaInterviewClock />
+            <span>Facewall</span>
+          </div>
+
+          <div className="figma-interview-persona">
+            <div className={`figma-interview-persona-avatar hero-${interviewerStyleId}`} aria-hidden="true" />
+            <div>
+              <strong>{interviewerName}</strong>
+              <span>{interviewerRole}</span>
+            </div>
+          </div>
+
+          <div className={isRecording ? "figma-interview-comp recording" : "figma-interview-comp"} aria-hidden="true">
+            <img className="figma-home-comp-asset" src={compSrc} alt="" />
+          </div>
+
+          <section className={isRecording ? "figma-interview-prompt answering" : "figma-interview-prompt"}>
+            <h2>{isRecording ? "正在回答 ..." : "Hey Dark !"}</h2>
+            <p>{currentQuestion.questionText}</p>
+          </section>
+
+          {(currentAnswer.sttStatus === "failed" || currentAnswer.sttStatus === "unsupported") && (
+            <div className="figma-interview-error" role="alert">
+              识别失败，已保留当前状态，可重试或继续下一题。
+            </div>
+          )}
+
+          <p className="figma-interview-progress">
+            第 {currentIndex + 1} / {questions.length} 题 · {formatDuration(answerSeconds)}
+          </p>
+
+          <div className="figma-interview-dots" aria-label="题目进度">
+            {questions.map((question, index) => {
+              const answer = answers.find((item) => item.questionId === question.id);
+              return (
+                <button
+                  className={index === currentIndex ? "active" : answer?.answerText.trim() ? "done" : ""}
+                  key={question.id}
+                  onClick={() => {
+                    if (!isRecording) setCurrentIndex(index);
+                  }}
+                  aria-label={`切换到第 ${index + 1} 题`}
+                />
+              );
+            })}
+          </div>
+
+          {isRecording && (
+            <div className="figma-interview-listening-rings" aria-hidden="true">
+              <span className="ring ring-outer" />
+              <span className="ring ring-large" />
+              <span className="ring ring-medium" />
+              <span className="ring ring-small" />
+            </div>
+          )}
+
+          <div className={isRecording ? "figma-interview-orb-controls recording" : "figma-interview-orb-controls"} aria-label="回答控制">
+            <button
+              className="figma-interview-round-button cancel"
+              onClick={() => {
+                updateCurrentAnswer({ answerText: "", inputMode: "text", sttStatus: "manual", durationSec: 0 });
+                if (isRecording) {
+                  finishFigmaAnswer();
+                  return;
+                }
+                setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1));
+              }}
+              aria-label={isRecording ? "取消本题回答并进入下一题" : "跳过本题"}
+            />
+            <button
+              className="figma-interview-mic-button"
+              onClick={isRecording ? finishFigmaAnswer : startFigmaAnswer}
+              aria-label={isRecording ? "结束回答" : "开始回答"}
+            />
+            <button
+              className="figma-interview-round-button next"
+              onClick={() => {
+                if (isRecording) {
+                  finishFigmaAnswer();
+                  return;
+                }
+                playQuestion();
+              }}
+              aria-label={isRecording ? "结束并进入下一题" : "播放面试题"}
+            />
+          </div>
+        </div>
       </section>
     );
   }

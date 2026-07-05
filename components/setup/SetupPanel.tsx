@@ -362,7 +362,7 @@ export function SetupPanel({
             >
               <img
                 className="figma-home-comp-asset"
-                src="/figma/home/comp-1024-1@2x.png?v=2026070302"
+                src="/figma/home/comp-1024-1-jd@2x.png?v=2026070501"
                 alt=""
               />
             </div>

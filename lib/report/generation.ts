@@ -6,6 +6,8 @@ import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { validateReportOutput } from "@/lib/schemas/contracts";
 import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, PromptOverrides, QuestionReport } from "@/lib/types";
 
+const REPORT_LLM_TIMEOUT_MS = 60000;
+
 export interface ReportGenerationPayload {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
@@ -36,7 +38,7 @@ export async function generateInterviewReport(payload: ReportGenerationPayload, 
     return buildFallbackReport(payload.questions, payload.answers);
   }
 
-  const timeout = createTimeoutSignal();
+  const timeout = createTimeoutSignal(REPORT_LLM_TIMEOUT_MS);
   try {
     const promptOverrides = await resolvePromptOverrides(payload);
     const result = await generateJsonWithRetry(buildReportPrompt(payload, promptOverrides), { signal: timeout.signal });

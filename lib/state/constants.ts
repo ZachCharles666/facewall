@@ -9,18 +9,18 @@ export const INTERVIEWER_STYLES: Array<{
 }> = [
   {
     id: "strictHr",
-    label: "大厂严厉 HR",
-    description: "追问动机、稳定性和表达边界，压力感更强。"
+    label: "温柔HR小姐姐",
+    description: "题目更基础，诊断更偏建议，适合应届生首次练习。"
   },
   {
     id: "techBro",
     label: "技术老哥",
-    description: "聚焦项目细节、方法论和可验证证据。"
+    description: "更容易生成专业题和项目深挖题，诊断会指出技术/方法论空泛问题。"
   },
   {
     id: "gentleSister",
-    label: "温柔大姐姐",
-    description: "语气友好，但会引导你补足结构和重点。"
+    label: "资深业务大佬",
+    description: "更关注业务理解、取舍能力和岗位匹配度。"
   }
 ];
 

@@ -685,6 +685,166 @@
 | Scope | Pass | 保留 Home/JD 输入 toolbar 的 `#322E38` 不变；本轮只调整候选人画像页视觉层，不改数据、状态机或 API 契约。 |
 | Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
 
+## Figma 画像返回间距和面试官头像裁切修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile navigation spacing | Pass | 候选人画像页返回按钮从 `top=45px` 调整为 `top=50px`，标题栏同步下移到 `top=57px`，使 statusbar 时间与返回按钮的上下间距和 InputJD / Select Interviewer 的导航区域一致。 |
+| Select avatar clipping | Pass | `select interviewer` 网格页 144px 头像容器补回 `border-radius:50%` 与 `overflow:hidden`，与 Figma 的 `Ellipse 5` 圆形裁切一致。 |
+| Confirm avatar sizing | Pass | `select interviewer_2` 详情页保留 360px 圆形裁切容器，内部人像按 Figma image 节点尺寸 `292.5px × 517.5px` 放置，并使用 `center -40px` 对齐圆形裁切。 |
+| Statusbar clock | Pass | 候选人画像 / select interviewer / select interviewer_2 已使用 `StatusBarClock` 系统时间组件，本轮复查无需改动。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；三张 `public/figma/interviewers/*@2x.png` 静态资源均返回 200。 |
+
+## Figma Select Interviewer_2 详情头像恢复 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar sizing | Pass | 撤回详情页专用 `background-size: 292.5px 517.5px` 和 `center -40px` 覆盖，避免真实 PNG 在 360px 圆形容器内被拉伸压缩。 |
+| Clipping | Pass | 继续保留 `.figma-interviewer-portrait-detail` 的 `360px` 圆形裁切、`border-radius:50%` 和 `overflow:hidden`，仅恢复头像图片自身的 `cover` 构图。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；确认 CSS 中已无 `background-size: 292.5px 517.5px` 或 `center -40px` 详情页压缩覆盖。 |
+
+## Figma Select Interviewer_2 详情头像等比放大 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar scale | Pass | `select interviewer_2` 详情页头像从原始 PNG 宽 `234px` 改为 CSS 渲染宽 `292px`，另一边使用 `auto` 等比放大，避免再次拉伸变形。 |
+| Computed size | Pass | 严厉HR/技术老哥 PNG `234×320` 渲染约 `292×399.3`；温柔大姐姐 PNG `234×312` 渲染约 `292×389.3`。外层仍为 `360×360` 圆形裁切。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `.figma-interviewer-portrait-detail { background-size: 292px auto; }`。 |
+
+## Figma Select Interviewer_2 详情头像上移 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar position | Pass | `select interviewer_2` 详情头像整体向上抬升 20px：`.figma-interviewer-portrait-detail top` 从 `92px` 调整为 `72px`。 |
+| Scope | Pass | 保留头像 `292px auto` 等比缩放、`360×360` 圆形裁切、文字和 CTA 位置不变；只调整详情页头像位置。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `top: 72px` 和 `background-size: 292px auto` 同时生效。 |
+
+## Figma 面试官头像位置和风格文案更新 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Detail avatar position | Pass | `select interviewer_2` 详情头像在上一版基础上再上移 20px，`.figma-interviewer-portrait-detail top` 从 `72px` 调整为 `52px`。 |
+| Select avatar position | Pass | `select interviewer` 三个头像组整体上移 20px：上排 `top 203px→183px`，下方居中项 `top 383px→363px`，名字/职位随头像组一起上移。 |
+| Classic labels/descriptions | Pass | `INTERVIEWER_STYLES` 更新为 `温柔HR小姐姐 / 技术老哥 / 资深业务大佬`，描述分别改为基础建议型、专业/项目深挖型、业务理解与岗位匹配型；classic 选择卡、后续 prompt 的 style label 同步读取新文案。 |
+| Figma labels/descriptions | Pass | Figma 选择页和确认页名称同步为 `温柔HR小姐姐 / 技术老哥 / 资深业务大佬`；确认页描述来自同一份 `INTERVIEWER_STYLES`，因此 theme=figma 与 theme=classic 一致。 |
+| Fallback tone | Pass | 本地兜底题目前缀同步调整：`strictHr` 改为基础引导语气，`gentleSister` 改为业务取舍语气，保留枚举 id 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 坐标和面试官新文案均已用 `rg` 复查。 |
+
+## 面试官头像文件重命名与报告超时放宽 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar filenames | Pass | 头像文件按新角色命名：`strict-hr@2x.png` 重命名为 `gentle-hr-sister@2x.png`，`gentle-sister@2x.png` 重命名为 `senior-business-leader@2x.png`，`tech-bro@2x.png` 保持不变。 |
+| Avatar references | Pass | Figma CSS 引用同步更新为 `/figma/interviewers/gentle-hr-sister@2x.png`、`/figma/interviewers/tech-bro@2x.png`、`/figma/interviewers/senior-business-leader@2x.png`；旧文件名仅保留在历史 todo 记录中。 |
+| Report timeout | Pass | 报告生成链路新增 `REPORT_LLM_TIMEOUT_MS = 60000`，`generateInterviewReport` 调用 `createTimeoutSignal(60000)`；profile/questions 继续使用 provider 默认 25s。流式报告和非流式报告共用该链路。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /?theme=figma` 与三张新头像资源均返回 200；`npm run smoke:contract -- http://localhost:3000` 通过，覆盖 report schema 与 report stream events。 |
+
+## Figma 面试官头像和详情文字继续上移 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select avatar position | Pass | `select interviewer` 三个头像组继续整体上移 20px：上排 `top 183px→163px`，下方居中项 `top 363px→343px`，名字/职位随头像组一起上移。 |
+| Detail copy position | Pass | `select interviewer_2` 详情页文字组从 `top 452px` 上移到 `428px`，与头像圆形框下沿（`52px + 360px = 412px`）保留约 16px 间距，更贴近头像。 |
+| Scope | Pass | 保持详情头像 `top 52px`、`360×360` 圆形裁切和 `292px auto` 等比尺寸不变；仅调整选择页头像组和详情页文字组位置。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `top: 163px/343px/428px` 生效。 |
+
+## Figma Select Interviewer 两页接入 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma references | Pass | 使用 `面壁者/figma_Select_Interviewer_2026-07-03T12-46-23-851Z.json` 和 `面壁者/figma_Select_Interviewer_2_2026-07-03T12-46-33-131Z.json` 提取 375×812 根画布、标题、人物组、详情头像、描述和 CTA 尺寸。 |
+| Select page | Pass | 候选人画像页底部确认后进入 Figma 面试官选择页，复用 Home/InputJD 的 375×812 竖版框架、暗色背景、状态栏、返回按钮和右上 accessory；5 人设计适配为 3 选 1：左右两个备选 + 中间主位，点击任一面试官进入详情页。 |
+| Detail page | Pass | 选中面试官后进入 `Select Interviewer_2` 风格详情页：大圆形人像、姓名、职位、风格描述和 `开始面试` 胶囊按钮；保留返回重新选择能力。 |
+| Scope | Pass | 保留固定三种业务风格 `大厂严厉 HR / 技术老哥 / 温柔大姐姐` 和现有状态机/API 契约；只调整 `theme=figma` 的视觉层与页面结构。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Select Interviewer Navigation Bar 修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Navigation reference | Pass | 复查 Select Interviewer 两个 JSON：`Navigation Bar` 为 `y=0 h=88`，`StatusBar` 为 `y=0 h=47`，`Frame 5 / Group 1` 为 `x=23.5 y=50 w=32 h=32`。 |
+| Accessory removal | Pass | 面试官选择页和面试官详情页移除右侧 `NavigationBar-Accessory`，只保留 `Frame 5` 下的 `Group 1` 返回按钮。 |
+| Relative spacing | Pass | `.figma-interviewer-card .figma-statusbar` 保持 `top=14px`，`.figma-interviewer-back-button` 调整为 `top=50px left=23.5px`，维持 Figma 当前分辨率下 StatusBar 与 Frame5 的上下相对间距。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 手机端全屏容器修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile frame | Pass | 在 `@media (max-width: 820px)` 下为 `theme=figma` 增加手机端覆盖：`.app-shell` 去掉 padding，`.figma-phone-stage` 改为 `100dvh` stretch，`.figma-phone-card/.figma-home-card` 改为 `100vw x 100dvh`。 |
+| Rounded shell | Pass | 手机端 Figma 页面去掉外层卡片的 `border`、`border-radius` 和 `box-shadow`，避免真实手机上看到圆角预览框；桌面端仍保留居中预览效果。 |
+| Scope | Pass | 仅影响 `theme=figma` 小屏断点，不影响 classic 主题和业务状态机/API 契约。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 手机端 375 坐标系居中修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 手机端上一版将 `.figma-phone-card/.figma-home-card` 直接设为 `100vw`，但内部 Figma 节点仍按 375px 设计稿绝对坐标定位；在 390/430 等宽屏手机上会造成 Home、InputJD、面试官页内容整体偏左，候选人画像球体也偏左。 |
+| Mobile alignment | Pass | 小屏下改为 `.figma-phone-stage { place-items: start center }`，卡片宽度改为 `min(375px, 100vw)`，保持 375px Figma 坐标系水平居中；外侧区域使用 `#161316` 背景补齐。 |
+| Rounded shell | Pass | 继续保留手机端无 `border`、无 `border-radius`、无 `box-shadow`，避免真实手机出现圆角预览框。 |
+| Scope | Pass | 仅影响 `theme=figma` 小屏断点；桌面端仍保留居中预览卡，classic 主题和业务状态机/API 契约不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## 状态栏时间改用系统时间 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 系统时间 | Pass | 候选人画像 / select interviewer / select interviewer_2 三页 statusbar 的时间从写死 `9:41` 改为系统时间。新增 `StatusBarClock` 组件（`components/InterviewCoachApp.tsx`），格式 `H:MM`（如 `23:01`），`setInterval` 每 15s 刷新。 |
+| SSR 水合 | Pass | 组件为 `"use client"` 但仍会 SSR：初始渲染占位 `9:41`（服务端与首帧客户端一致），`useEffect` 挂载后再取 `new Date()` 并加 `suppressHydrationWarning` 兜底，避免水合不匹配。 |
+| 范围 | Note | 仅这三页（用户指定）。Home / InputJD 的 statusbar 在 `components/setup/SetupPanel.tsx`，仍为 `9:41`，未改。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器实测 statusbar 显示 `23:01` 与 `new Date()` 一致（截图确认）。 |
+
+## 确认页头像圆弧裁切（Ellipse 5）- 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 圆弧切割 | Pass | 用户指出 Figma `Group 2` 内含 `Ellipse 5`（360×360 圆，#D9D9D9 + blur），人像 `image`(292.5×517.5) 被该圆裁切，底部应是"圆弧切割"感而非直线平切。之前把 `border-radius:50%` 连同灰底一起去掉了——其实要去掉的是灰色填充，圆形**形状**要保留做裁剪。现给 `.figma-interviewer-portrait-detail` 加回 `border-radius:50%; overflow:hidden`（保持透明、无灰底/阴影），人像底部随圆弧切出弧形。 |
+| 保持透明 | Pass | 不加 `#D9D9D9` 填充与 `box-shadow`，圆内人像抠像浮于透明卡片背景，圆弧边缘处自然收束。 |
+| 截图验证 | Pass | strictHr / gentleSister 详情页均确认底部为圆弧切割、透明无白框；gentleSister 发髻在圆内不被裁（`-10%` 头顶补偿）。圆形裁切为统一 CSS，techBro 同理。 |
+| 待确认 | Open | Figma 网格页每个头像同样用 144 圆的 Ellipse 5 裁切；本次按用户"先关注 select interviewer_2"仅改详情页，网格页是否也加圆弧待用户确认。 |
+
+## 面试官选择/确认页对齐 Figma 坐标 - 2026-07-03
+
+依据用户提供的两份 Figma 节点导出（`Select Interviewer` / `Select Interviewer_2`）校准位置。
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 网格头像位置（修"靠下"） | Pass | 按 Figma 坐标：上排 `top` 230→203、中间 `top` 448→383（水平居中），左右边距 24/24→16/15。头像整体上移，修复"所有头像都偏靠下"。 |
+| 构图取舍 | Pass | Figma 用 117×207 人像矩形（偏移 14,−19），但那是按"头+肩"素材设计；我们的 PNG 是"头到躯干"，直接套 117×207 会导致人脸下移压到名字（已截图验证会重叠）。故保留上一版 144×144 `cover` + 逐图 `background-position` 的"头+上肩"构图，仅采用 Figma 的位置坐标。 |
+| 名字/职位 | Pass | 字号采用 Figma 值：名字 18px、职位 12px；位置因我们头像更大（头+肩 vs 整身），name/role 保持 150/176px（比 Figma 的 138/163 略低）以在肩线下方留干净间距，避免压到下巴。 |
+| 浏览器截图验证 | Pass | 用预览实例逐页截图核对：网格页三头对齐、名字在肩下方无重叠；确认页 strictHr/techBro/gentleSister 三人透明无白框、头+上肩、`20%`/`-10%` 补偿在 360px 详情图同样成立。 |
+
+## 面试官头像透明化 + 顶部间距 + 字号位置微调 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile 顶部间距 | Pass | 候选人画像页 statusbar `top` 从 24px 改回 14px（与 Home/JD/面试官页基线一致），back button 55→45、navbar 62→52 整块上移 10px，修复顶部间距比其它页偏低的问题。 |
+| 头像透明框 | Pass | PNG 本身是抠像（上方四角 alpha=0），此前用户看到的"白框"来自容器的 `background-color:#d9d9d9`+`border-radius:50%`+`box-shadow`；已移除，改 `background-color:transparent`，人物浮在透明背景上（选择页与确认页共用）。 |
+| 头像构图（头+上肩） | Pass | 对照效果图，构图应为"头+上肩"紧凑裁切而非整身；`background-size` 用 `cover`（填满、裁掉下方躯干）。三张 PNG 头顶透明留白不一（严厉HR 7%/技术老哥 10%/温柔姐姐 2%），按每图设 `background-position` 纵向补偿（strictHr `center 8%`、techBro `center 20%`、gentleSister `center -10%`），使三头统一约 6% 头顶间距、裁到上胸；百分比与框尺寸无关，144px 网格与 360px 详情图同一组值都成立。 |
+| 选择页字号/位置 | Pass | 名字 `font-size` 26→18px（26px 时 6 个中文字≈156px 会超出 144px 宽），name/role 下移到 150/176px 让位给完整人像；三个人像整体下移：option-1/2 top 214→230、option-3 432→448。 |
+| 确认页字号/位置 | Pass | 详情名字 `font-size` 48→30px、line-height 67→42；文案组 `top` 414→452px 下移到人像下方，修复"文字过于靠上"。 |
+| Verification | Pass | `npm run typecheck` 通过；dev server 已热更新，serve 出的 `layout.css` 已确认上述各值生效（Chrome 扩展本次未连上，未做像素级截图）。 |
+
+## 面试官头像替换为真实 PNG - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Assets | Pass | 用户已放入 `public/figma/interviewers/strict-hr@2x.png`、`tech-bro@2x.png`、`gentle-sister@2x.png`（头肩证件照式、人脸居中偏上）。 |
+| Wiring | Pass | `.figma-interviewer-portrait` 由 CSS 渐变/伪元素画脸改为引用 PNG：base 设 `background-size:cover; background-position:center top`，`::before/::after` 置 `content:none`，按 `hero-strictHr/hero-techBro/hero-gentleSister` 分别 `background-image`。选择页 144px 圆形与确认页 360px 详情图共用同一映射。 |
+| Cleanup | Pass | 移除旧的 clip-path/多层 radial-gradient 画脸规则及 techBro/gentleSister/detail 的伪元素覆写，避免死代码。 |
+| Verification | Pass | `npm run typecheck` 通过；dev server 已热更新，`GET /figma/interviewers/*@2x.png` 均返回 `200 image/png`，`GET /?theme=figma` 返回 200；serve 出的 `layout.css` 含三条 hero `background-image` 且旧 clip-path 已为 0。 |
+
+## Figma 小屏背景、返回按钮和面试官文案修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Viewport background | Pass | 在小屏 `theme=figma` 下增加固定全视口背景层，保留 375px Figma 坐标系居中，同时让不同分辨率外侧背景铺满，不再露出浅色页面底。 |
+| Profile back | Pass | 候选人画像页标题栏改为不接收 pointer events，并提高返回按钮层级，避免标题栏覆盖导致点击返回 JD 输入页无效。 |
+| Statusbar typography | Pass | `select interviewer` 和 `select interviewer_2` 的 statusbar 字号/字重改回共用 `figma-statusbar` 体系，和 Home、InputJD、候选人画像页保持一致。 |
+| Interviewer labels | Pass | 面试官选择页三项显示改为 `大厂严厉HR / 技术老哥 / 温柔大姐姐`；当前头像仍为 CSS 临时绘制，若需精确还原设计稿头像，建议导出 2x PNG 到 `public/figma/interviewers/` 后替换。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
 ## Profile LLM 匹配证据契约扩展 - 2026-07-01
 
 | Check | Result | Evidence |
@@ -726,6 +886,181 @@
 | Runtime artifact handling | Pass | `outputs/active-prompt-overrides.json` 加入 `.gitignore`，避免把产品在线调试结果误提交到仓库。 |
 | Deployment docs | Pass | `README.md` 和 `docs/15_release_selfhost.md` 已补腾讯云单机/多实例 Prompt 持久化说明，且修正 key 示例占位符避免安全检查误报。 |
 | Verification | Pass | `npm run typecheck`、`npm run build`、`npm run security:check` 通过；`npm run smoke:contract -- http://localhost:3001` 通过；`GET /?theme=classic` 显示 Prompt 面板，`GET /?theme=figma` 隐藏 Prompt 面板。 |
+
+## Classic 一键填充和 Figma 移动端/面试官位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Classic demo fill | Pass | `theme=classic` 下“一键填充”和“填充并生成画像”只替换简历/JD，保留当前已选 `form.interviewerStyleId`，不再强制改回 demo 默认的 `strictHr` / 温柔HR小姐姐。 |
+| Select interviewer position | Pass | `select interviewer` 三个人物组整体下移：上排从 `top: 163px` 调到 `195px`，下方居中项从 `343px` 调到 `395px`，避免当前视觉过于贴近页面上方。 |
+| Mobile fill | Pass | `theme=figma` 小屏卡片恢复 375×812 Figma 原始画布，并通过 `transform: scale(calc(100vw / 375px))` 按屏宽等比放大；iPhone 12 Pro / XR / 14 Pro Max 等 390-430px 宽度不再保留 375px 窄画布两侧空隙。 |
+| Avatar sizing note | Note | 选择页当前 Ellipse/头像显示框为 `.figma-interviewer-portrait` 的 `144px × 144px` 圆形裁切，PNG 使用 `background-size: cover` 填满圆；确认页为 `360px × 360px` 圆形裁切，PNG 使用 `background-size: 292px auto`。 |
+| Verification | Pass | `npm run typecheck` 通过；未改 API 契约、状态枚举、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像尺寸和位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select avatar width | Pass | `select interviewer` 三个头像圆形裁切从 `144px × 144px` 调整为 `118px × 118px`，人物按钮容器同步从 `144px × 180px` 调整为 `118px × 154px`。 |
+| Select avatar position | Pass | 人物组在上一版基础上整体上移 20px：上排 `top: 195px -> 175px`，下方居中项 `top: 395px -> 375px`；左右项为保持原中心点，改为 `left: 29px` / `right: 28px`。 |
+| Portrait crop | Pass | 选择页 PNG 在圆形裁切内整体下移：`strictHr 18%`、`techBro 30%`、`gentleSister 0%`，减少头像下方视觉空感；`select interviewer_2` 详情页保留原 `8% / 20% / -10%` 构图。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像模块二次位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Module position | Pass | `select interviewer` 三个人物模块整体向下移动 60px：上排 `top: 175px -> 235px`，下方居中项 `top: 375px -> 435px`。 |
+| Image crop | Pass | 头像模块内部 PNG 向上移动 20px：选择页 `background-position-y` 改为 `calc(18% - 20px)`、`calc(30% - 20px)`、`calc(0% - 20px)`；详情页 `.figma-interviewer-portrait-detail` 继续用单独覆盖值，未受影响。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像 PNG 微调 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Image crop | Pass | `select interviewer` 模块内头像 PNG 在上一版基础上向下微调 10px：选择页 `background-position-y` 从 `calc(... - 20px)` 调整为 `calc(... - 10px)`；外层头像模块 `top: 235px / 435px` 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像 PNG 5px 微调 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Image crop | Pass | `select interviewer` 模块内头像 PNG 在上一版基础上向下微调 5px：选择页 `background-position-y` 从 `calc(... - 10px)` 调整为 `calc(... - 5px)`；外层头像模块 `top: 235px / 435px` 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 初版接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma interview branch | Pass | `InterviewPanel` 新增 `visualTheme` 参数；`theme=figma` 下从 `select interviewer_2` 点击“开始面试”进入新的 375×812 面试页分支，classic 仍保留原有低保真 `VoiceControls` 面板。 |
+| State/API scope | Pass | 复用现有 `questions/currentIndex/answers`、TTS 播放、STT 录音/失败、手动编辑、跳过、上一题/下一题、生成报告逻辑；未改状态机、接口契约或报告链路。 |
+| Visual structure | Pass | 新增 `.figma-interview-*` 样式：状态栏、题目进度、面试官头像、题目卡片、播放提问/语音作答按钮、TTS/STT 状态、回答文本框、题目圆点和底部操作区；头像复用现有三张 PNG。 |
+| Figma source | Note | 本地未找到 `Interview Responses` 对应完整节点 JSON；当前按已有 Figma 375×812 框架做视觉承接。若提供 `Interview Responses` 节点 URL/JSON，可继续做像素级位置、字号、资源校准。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 流程和 Report 过渡接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interview Responses JSON | Pass | 已读取 `面壁者/figma_Interview_Responses_2026-07-04T16-12-10-564Z.json`：根画布 `375×812`，背景 `#161316`，球体 `Comp 1024 1` 位于 `x=-22 y=144 w=419.6 h=236`，面试官信息组 `x=26 y=88 w=149 h=56`，主文案位于 `x=24 y=380/430`，底部控制组 `x=48 y=650 w=280 h=64`。 |
+| Question flow | Pass | `theme=figma` 面试页改为逐题回答：每题先显示 `Interview Responses` 等待态；点击中间麦克风进入回答中态（`Interview Responses_2` 兜底结构）；回答中显示计时；结束回答后自动进入下一题；第三题结束后自动触发报告生成。 |
+| Answer state | Pass | 每题结束时写入 `durationSec`，保留已有 STT/手动编辑路径；STT 不可用或失败时仍保留文本并允许手动编辑。未改 `InterviewAnswer` schema。 |
+| Report transition | Pass | `ReportPanel` 新增 `visualTheme` 参数；`theme=figma` 下报告生成中显示 Figma 风格 loading 页（对应 Report Page 过渡），报告完成后显示 Figma 风格完整报告页（Report Page_2 结构化兜底）。classic 报告页保持不变。 |
+| Figma gaps | Note | 当前仅有 `Interview Responses` JSON；本地有 `Interview Responses_2.png`、`Report Page.png`、`Report Page_2.png` 和 `figma_Report_Page_2...json`，但缺少 `Interview Responses_2` 与 `Report Page` 的节点 JSON。后续可用节点 JSON 继续做像素级校准。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；`npm run smoke:contract -- http://localhost:3000` 通过；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma 球体资源替换 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interview ball size | Confirmed | `Interview Responses` 当前球体容器为 `.figma-interview-comp`：`left: -22px; top: 144px; width: 420px; height: 236px`；图片 `object-fit: contain`，新源图为 `750×472`，在该容器内按比例显示约 `375×236`。 |
+| Input JD ball size | Confirmed | `Input JD` 继续使用 `.figma-home-comp` 基础尺寸 `340×214`，并通过 `.figma-jd-card .figma-home-comp { top: 152px; }` 定位；新源图为 `750×472`，比例与容器一致。 |
+| Assets | Pass | 从 `面壁者/Comp 1024 1.png` 复制为 `public/figma/home/comp-1024-1-interview@2x.png`；从 `面壁者/Comp 1024 1-jd.png` 复制为 `public/figma/home/comp-1024-1-jd@2x.png`。 |
+| Wiring | Pass | `InterviewPanel` 的 `figma-interview-comp` 改用 `/figma/home/comp-1024-1-interview@2x.png?v=2026070501`；`SetupPanel` 的 Input JD 页改用 `/figma/home/comp-1024-1-jd@2x.png?v=2026070501`；Home 页仍保留原 `/figma/home/comp-1024-1@2x.png`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/home/comp-1024-1-interview@2x.png` 与 `GET /figma/home/comp-1024-1-jd@2x.png` 均返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 题目进度和底部按钮修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frame 10 JSON | Pass | 已读取 `面壁者/figma_Frame_10_2026-07-04T16-59-35-410Z.json`：按钮组 `280×64`；左按钮 `36×36 x=0 y=14`，中间麦克风 `64×64 x=108 y=0`，右按钮 `36×36 x=244 y=14`。当前容器 `.figma-interview-orb-controls` 继续按 `left:48px; top:650px; width:280px; height:64px` 对齐。 |
+| Progress position | Pass | 题目数量/计时从底部按钮附近上移到问题文案下方：`.figma-interview-progress top: 572px`，进度点 `.figma-interview-dots top: 592px`。 |
+| Footer text cleanup | Pass | 移除 `theme=figma` 面试页底部 “已完成 0 题，缺少 3 题 · TTS 待播放” 汇总文案；classic 页仍保留原有缺失答案提示。 |
+| Button icons | Pass | 底部三按钮不再使用文本符号/emoji，改为 CSS 伪元素绘制 X、麦克风、箭头；按钮尺寸和位置继续按 `Frame 10` JSON。若后续要求图标 100% 还原，可导出单个 icon 或整组透明 PNG/SVG。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 球体缩放和按钮 PNG 替换 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ball size | Pass | 面试回答页球体容器从 `420×236` 缩小到 `336×189`，约为上一版 0.8 倍；位置从 `left:-22px; top:144px` 调整为 `left:20px; top:168px`，保持原视觉中心点基本不变。 |
+| Button assets | Pass | 从 `面壁者/Frame 7.png`、`Frame 8.png`、`Frame 9.png` 复制为 `public/figma/interview-controls/frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png`；原始尺寸分别为 `72×72`、`128×128`、`72×72`。 |
+| Button wiring | Pass | 底部控制组继续按 `Frame 10` 尺寸显示：左/右按钮 `36×36`，中间麦克风 `64×64`；CSS 改为 PNG 背景图并移除旧伪元素绘制图标。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/interview-controls/frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png` 均返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 录音态视觉修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Recording ball | Pass | 点击中间麦克风进入录音态后，球体资源从 `/figma/home/comp-1024-1-interview@2x.png` 切换为 `/figma/home/comp-1024-1-response@2x.png`；新资源来自 `面壁者/Comp 1024 1-response.png`，原始尺寸 `750×472`。 |
+| Recording input | Pass | `theme=figma` 录音态移除画面中间的文字输入框，不再渲染 `.figma-interview-answer textarea`；classic 面试页的原有文本编辑路径不变。 |
+| Button hover | Pass | 底部左 X、中间麦克风、右箭头按钮增加 Figma 专用 hover 覆盖，鼠标移入时不再触发全局按钮的背景/位移变化。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/home/comp-1024-1-response@2x.png` 返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 底部按钮 hover 清理 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Prompt state buttons | Pass | `Interview Responses` 底部左 X、中间麦克风、右箭头按钮在 `.figma-interview-orb-controls` 范围内禁用 hover transition、背景变化、位移、阴影、滤镜和透明度变化。 |
+| Recording state buttons | Pass | `Interview Responses_2` 复用同一底部控制组，录音态 `.figma-interview-orb-controls.recording` 下三个按钮同样不再有鼠标悬停视觉效果。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses_2 监听同心圆 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source note | Note | 用户提供的 `figma_Indicator_Base_on_iOS_16_UI_Kit_by_Joey_Banks__2026-07-04T17-33-47-474Z.json` 仅包含 `Home Indicator` 矩形节点，未包含 `Ellipse 6/7/8/9`；本地其他 Figma JSON 也未命中这些节点名。 |
+| Recording rings | Pass | 参考 `面壁者/Interview Responses_2.png`，在 `theme=figma` 录音态新增 4 个同心圆，圆心对齐底部麦克风按钮中心 `x=187.5 y=682`，尺寸为 `320/224/160/96px`，放在按钮后方并由 375×812 画布底部裁切。 |
+| Scope | Pass | 同心圆仅在 `isRecording` 时渲染；`Interview Responses` 等待态、classic 面试页、状态机和 API 契约不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 长页视觉接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Pass | 已读取 `面壁者/figma_Report_Page_2_2026-07-04T17-36-18-818Z.json`：根画布 `375×1565`，背景 `#161316`；顶部评分组 `Group 8 x=16 y=61 w=343 h=296`；内容底板 `Rectangle 1 y=372 h=1282.5 #322E38`；Q tab 在 `y=389`；Home Indicator 位于 `y=1552`。 |
+| Report structure | Pass | `theme=figma` 报告完成页改为长页结构：顶部面试评分/总分/总结卡，下面 Q1/Q2/Q3 tab，当前题详情包含面试题目、考察维度、适用职级、出题意图、面试官避坑指南、您的回答和优化方向。 |
+| Data binding | Pass | 评分和总结来自 `finalReport`；tab 和题目来自 `questions/questionReports/answers`；Q tab 只切换展示题目详情，不改报告数据、状态机或 API 契约。 |
+| Mobile behavior | Pass | 新增 `.figma-report-page-card` 专用 `1565px` 高度和 `.figma-report-stage` 滚动覆盖，避免移动端全局 Figma 812px 卡片规则截断长报告页。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 截图差异修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile corner radius | Pass | 修复移动端 `.theme-figma .figma-home-card { border-radius: 0 }` 对报告长页的覆盖；`.figma-report-page-card` 在移动端继续保持 Figma JSON 的 `24px` 圆角。 |
+| Status bar | Pass | `Report Page_2` 顶部状态栏不再显示 `Facewall` 文案，改为 iOS 风格信号、Wi-Fi、电池图标，并保留系统时间。 |
+| Hero visual | Pass | 调整顶部紫蓝渐变和人物图尺寸，降低当前截图中头像过大、背景层次偏暗的问题，更贴近 `Report Page_2.png` 的评分头图。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 报告页视觉，不改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 NavigationBar-Accessory 移除 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Accessory removal | Pass | 移除 `theme=figma` 报告完成页右上 `NavigationBar-Accessory` DOM 和对应 `.figma-report-nav-accessory` CSS，不再显示胶囊菜单/圆点。 |
+| Vertical alignment | Pass | Accessory 移除后，评分组从 `top:61px` 上移到 `47px`；提示条从 `341px` 上移到 `327px`；内容底板从 `y=372` 上移到 `y=358`，Q tab 和正文随底板同步上移。 |
+| Background | Pass | 顶部背景改为更贴近 `Report Page_2` 的紫蓝亮面与深蓝弧形渐变层；未直接使用整张 `Report Page_2.png` 作为背景，避免把设计稿里的固定分数、人物和文案烙进真实报告数据。若需 100% 背景贴图，需要从 Figma 单独导出 JSON 中的 `Comp 1024 2` 图片节点。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 报告页视觉，不改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 手机端圆角修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile report corners | Pass | 手机端 `theme=figma` 下 `.figma-report-page-card` 覆盖为 `border-radius: 0`，避免结果页背景在全屏手机浏览时显示圆角。 |
+| Desktop preview | Pass | 非移动端基础样式仍保留 `24px` 圆角，用于桌面居中预览 Figma 画布。 |
+| Verification | Pass | `npm run typecheck` 通过；未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses_2 和 Report Page_2 动效优化 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Recording motion | Pass | `Interview Responses_2` 录音态球体新增呼吸、轻微漂浮和辉光动效；底部麦克风新增录音态呼吸；4 个同心圆保留原中心点 `x=187.5 y=682` 和 `320/224/160/96px` 尺寸，并增加分层脉冲。 |
+| Prompt transition | Pass | 面试页从等待态进入录音态时，题目文案和底部控制组增加短入场/位移动效；底部三按钮的 hover 覆盖仍保留，不恢复 hover 位移或滤镜。 |
+| Report loading motion | Pass | `theme=figma` 报告生成页新增球体呼吸/浮动、文案入场和流式片段 staggered 入场；不改流式/非流式报告契约和兜底逻辑。 |
+| Report ready motion | Pass | `Report Page_2` 完成页新增评分数字 pop、人物/总结卡/内容底板入场、指标卡 staggered 入场；Q1/Q2/Q3 tab 切换通过 React `key` 重新触发详情面板入场，仅影响视觉层。 |
+| Reduced motion | Pass | 新增 `@media (prefers-reduced-motion: reduce)`，关闭本次新增的 Figma 面试页和报告页动画/transition。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 390×844 走通 Home -> Input JD -> 候选人画像 -> Select Interviewer -> Interview Responses -> 录音态 -> Report Page_2，录音态检测到 `figma-interview-orb-breathe` / `figma-interview-mic-breathe` / `figma-interview-ring-pulse`，报告页检测到 `figma-report-score-pop` / `figma-report-detail-in`，`scrollWidth=390`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 StatusBar 和 Frame 11 内容修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| StatusBar cleanup | Pass | `Report Page_2` 顶部 statusbar 移除右侧 signal/Wi-Fi/battery DOM，只保留左侧时间模块；`.figma-report-page-card .figma-statusbar` 改为左对齐。 |
+| Score size | Confirmed | 当前评分数字 `.figma-report-score-hero h2` 为 `font-size: 96px; line-height: 134px; font-weight: 500;`，与 Figma JSON 中 `Group 8 / 92` 的 96px 字号一致。 |
+| Frame 11 sizing | Pass | `Group 8 / Frame 11` 保持设计稿起始尺寸规则：`width:343px`、`min-height:92px`、`border-radius:16px`、`padding:16px`；框体高度随真实内容自然撑开。 |
+| Frame 11 content | Pass | Frame 11 内容从单段 summary 改为包含 classic 报告页同源的 `最终报告`、`Top 风险`、`行动项`，数据来自 `report.finalReport.summary/topRisks/actionItems`，不改报告 schema 或 API 契约。 |
+| Layout spacing | Pass | 扩高后的 Frame 11 下方正文区从 `top:358px` 下移到 `top:568px`，toast 同步下移，避免新增内容覆盖 Q tab 和单题详情。 |
+| Verification | Pass | `npm run typecheck` 通过；启动 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 检查报告页 statusbar 子元素数为 1，Frame 11 computed width `343px`、min-height `92px`、实际内容高约 `287px`，评分 computed font-size `96px`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
 
 ## 风险和待确认
 

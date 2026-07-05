@@ -6,9 +6,9 @@ const SHORT_ANSWER_CHAR_LIMIT = 30;
 const OFF_TOPIC_PATTERN = /天气|篮球|电影|旅游|美食|游戏|唱歌|明星|综艺/;
 
 const styleLead: Record<InterviewerStyleId, string> = {
-  strictHr: "我会直接一点。",
+  strictHr: "我们先从基础问题开始。",
   techBro: "我们把细节拆开看。",
-  gentleSister: "你可以慢慢讲清楚。"
+  gentleSister: "我会更关注业务取舍。"
 };
 
 export function buildFallbackQuestions(interviewerStyleId: InterviewerStyleId) {
