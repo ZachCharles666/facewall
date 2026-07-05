@@ -1153,6 +1153,15 @@
 | Missing ability display | Pass | `theme=figma` 单题详情在缺失答案时不渲染六维雷达图，改为“缺失答案，暂不评估六维能力”，避免让用户误以为无回答也能得出六维评分。 |
 | Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://localhost:3000` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改接口字段、状态名、报告 schema、`tts-demo` 或 `.env.local`。 |
 
+## Figma Report Page_2 Tab 方案和面试官头像绑定 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab alternative | Pass | 放弃继续复刻不稳定的斜切 Figma tab，改为与当前深紫灰风格更搭的三段式玻璃胶囊 tab；每个 tab 展示 `Q1/Q2/Q3` 和该题状态（分数或“缺失”），当前项使用内高光、金色状态和轻阴影。 |
+| Content position | Pass | 新 tab 高度收敛后，单题详情从 `top:156px` 上移到 `top:124px`，避免 tab 区域占用过多纵向空间，并继续由动态高度逻辑兜住内容长度。 |
+| Interviewer avatar | Pass | `ReportPanel` 新增 `interviewerStyleId` 视觉 prop，由 `InterviewCoachApp` 传入当前选择；报告页顶部人物从固定 HR 图改为复用 `strictHr / techBro / gentleSister` 对应的三张面试官图片。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页视觉和 prop 透传，不改 interviewer 枚举 id、业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |

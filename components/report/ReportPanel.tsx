@@ -1,6 +1,13 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
-import type { DimensionScores, InterviewAnswer, InterviewQuestion, InterviewReport, QuestionReport } from "@/lib/types";
+import type {
+  DimensionScores,
+  InterviewAnswer,
+  InterviewerStyleId,
+  InterviewQuestion,
+  InterviewReport,
+  QuestionReport
+} from "@/lib/types";
 
 const dimensionOrder: Array<keyof DimensionScores> = [
   "jobRelevance",
@@ -92,6 +99,7 @@ export function ReportPanel({
   answers,
   state,
   streamedQuestionReports,
+  interviewerStyleId = "strictHr",
   visualTheme = "classic",
   onRetry,
   onUseNonStreamingFallback,
@@ -107,6 +115,7 @@ export function ReportPanel({
     usedFallback: boolean;
   };
   streamedQuestionReports: QuestionReport[];
+  interviewerStyleId?: InterviewerStyleId;
   visualTheme?: VisualTheme;
   onRetry: () => void;
   onUseNonStreamingFallback: () => void;
@@ -288,6 +297,16 @@ export function ReportPanel({
     const figmaReportPageStyle = {
       "--figma-report-page-height": `${figmaReportPageHeight}px`
     } as CSSProperties;
+    const tabItems = questions.slice(0, 3).map((question, index) => {
+      const questionReport = figmaQuestionReports.find((item) => item.questionId === question.id) ?? figmaQuestionReports[index];
+      const answer = answers.find((item) => item.questionId === question.id);
+      const isMissing = !answer?.answerText.trim() || questionReport?.riskTags.includes("缺失答案");
+      return {
+        id: question.id,
+        label: `Q${index + 1}`,
+        status: isMissing ? "缺失" : `${questionReport?.score ?? 0}分`
+      };
+    });
 
     return (
       <section className="figma-phone-stage figma-report-stage" aria-label="Report">
@@ -297,7 +316,7 @@ export function ReportPanel({
           </div>
 
           <section className="figma-report-score-hero">
-            <div className="figma-report-person" aria-hidden="true" />
+            <div className={`figma-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
             <p>面试评分</p>
             <h2>{report.finalReport.overallScore}</h2>
             <div className="figma-report-card-stack">
@@ -344,15 +363,16 @@ export function ReportPanel({
 
           <section className="figma-report-body">
             <div className="figma-report-tabs" role="tablist" aria-label="题目报告">
-              {questions.slice(0, 3).map((question, index) => (
+              {tabItems.map((tab, index) => (
                 <button
                   className={index === figmaReportQuestionIndex ? "active" : ""}
-                  key={question.id}
+                  key={tab.id}
                   onClick={() => setFigmaReportQuestionIndex(index)}
                   role="tab"
                   aria-selected={index === figmaReportQuestionIndex}
                 >
-                  Q{index + 1}
+                  <span>{tab.label}</span>
+                  <small>{tab.status}</small>
                 </button>
               ))}
             </div>

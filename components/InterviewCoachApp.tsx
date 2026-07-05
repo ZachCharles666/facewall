@@ -547,6 +547,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           questions={questions.length === 3 ? questions : demoScenario.questions}
           state={reportState}
           streamedQuestionReports={streamedQuestionReports}
+          interviewerStyleId={form.interviewerStyleId}
           visualTheme={initialVisualTheme}
           onRetry={() => handleGenerateReport()}
           onUseNonStreamingFallback={() => handleGenerateReportNonStreaming()}
