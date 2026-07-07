@@ -27,6 +27,15 @@ const dimensionLabels: Record<keyof DimensionScores, string> = {
   completeness: "完整度"
 };
 
+const zeroDimensionScores: DimensionScores = {
+  jobRelevance: 0,
+  structure: 0,
+  evidence: 0,
+  professionalExpression: 0,
+  truthBoundary: 0,
+  completeness: 0
+};
+
 type VisualTheme = "classic" | "figma";
 
 function FigmaReportClock() {
@@ -43,7 +52,7 @@ function FigmaReportClock() {
   return <span suppressHydrationWarning>{time ?? "9:41"}</span>;
 }
 
-function FigmaAbilityRadar({ scores }: { scores: DimensionScores }) {
+function FigmaAbilityRadar({ note, scores }: { note?: string; scores: DimensionScores }) {
   const center = 92;
   const radius = 58;
   const labelRadius = 78;
@@ -89,6 +98,7 @@ function FigmaAbilityRadar({ scores }: { scores: DimensionScores }) {
           </span>
         ))}
       </div>
+      {note && <p className="figma-report-radar-note">{note}</p>}
     </div>
   );
 }
@@ -128,8 +138,11 @@ export function ReportPanel({
   const [manualCopyText, setManualCopyText] = useState("");
   const [figmaReportQuestionIndex, setFigmaReportQuestionIndex] = useState(0);
   const copyTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const figmaReportStageRef = useRef<HTMLElement | null>(null);
+  const figmaReportCardRef = useRef<HTMLDivElement | null>(null);
   const figmaQuestionDetailRef = useRef<HTMLElement | null>(null);
   const [figmaReportPageHeight, setFigmaReportPageHeight] = useState(1565);
+  const [figmaTabsDock, setFigmaTabsDock] = useState({ left: 20, pinned: false, top: 8 });
 
   function fallbackCopy(text: string) {
     const textarea = document.createElement("textarea");
@@ -239,6 +252,53 @@ export function ReportPanel({
     };
   }, [answers, figmaReportQuestionIndex, report, streamedQuestionReports, visualTheme]);
 
+  useEffect(() => {
+    if (visualTheme !== "figma" || !report) {
+      setFigmaTabsDock((current) => (current.pinned ? { left: 20, pinned: false, top: 8 } : current));
+      return;
+    }
+
+    const stage = figmaReportStageRef.current;
+    const card = figmaReportCardRef.current;
+    if (!stage || !card) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const updateDock = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const stageRect = stage.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        const stickyTop = Math.max(stageRect.top, 0) + 8;
+        const tabNormalTop = cardRect.top + 812 + 8;
+        const nextDock = {
+          left: cardRect.left + 20,
+          pinned: tabNormalTop <= stickyTop,
+          top: stickyTop
+        };
+
+        setFigmaTabsDock((current) =>
+          current.pinned === nextDock.pinned &&
+          Math.abs(current.left - nextDock.left) < 0.5 &&
+          Math.abs(current.top - nextDock.top) < 0.5
+            ? current
+            : nextDock
+        );
+      });
+    };
+
+    updateDock();
+    stage.addEventListener("scroll", updateDock, { passive: true });
+    window.addEventListener("resize", updateDock);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      stage.removeEventListener("scroll", updateDock);
+      window.removeEventListener("resize", updateDock);
+    };
+  }, [report, visualTheme]);
+
   if (visualTheme === "figma") {
     if (!report) {
       return (
@@ -294,23 +354,21 @@ export function ReportPanel({
     const selectedAnswerText = selectedAnswer?.answerText.trim() ?? "";
     const isSelectedQuestionMissing = !selectedAnswerText || selectedQuestionReport?.riskTags.includes("缺失答案");
     const selectedQuestionScoreText = isSelectedQuestionMissing ? "暂无评分" : `${selectedQuestionReport?.score ?? 0}`;
+    const radarScores = isSelectedQuestionMissing ? zeroDimensionScores : selectedQuestionReport?.dimensionScores ?? zeroDimensionScores;
+    const radarNote = isSelectedQuestionMissing ? "缺失答案，六维分数为 0，暂不评估能力表现。" : undefined;
     const figmaReportPageStyle = {
-      "--figma-report-page-height": `${figmaReportPageHeight}px`
+      "--figma-report-page-height": `${figmaReportPageHeight}px`,
+      "--figma-report-tabs-fixed-left": `${figmaTabsDock.left}px`,
+      "--figma-report-tabs-fixed-top": `${figmaTabsDock.top}px`
     } as CSSProperties;
-    const tabItems = questions.slice(0, 3).map((question, index) => {
-      const questionReport = figmaQuestionReports.find((item) => item.questionId === question.id) ?? figmaQuestionReports[index];
-      const answer = answers.find((item) => item.questionId === question.id);
-      const isMissing = !answer?.answerText.trim() || questionReport?.riskTags.includes("缺失答案");
-      return {
-        id: question.id,
-        label: `Q${index + 1}`,
-        status: isMissing ? "缺失" : `${questionReport?.score ?? 0}分`
-      };
-    });
+    const tabItems = questions.slice(0, 3).map((question, index) => ({
+      id: question.id,
+      label: `Q${index + 1}`
+    }));
 
     return (
-      <section className="figma-phone-stage figma-report-stage" aria-label="Report">
-        <div className="figma-phone-card figma-home-card figma-report-card figma-report-page-card" style={figmaReportPageStyle}>
+      <section className="figma-phone-stage figma-report-stage" ref={figmaReportStageRef} aria-label="Report">
+        <div className="figma-phone-card figma-home-card figma-report-card figma-report-page-card" ref={figmaReportCardRef} style={figmaReportPageStyle}>
           <div className="figma-statusbar">
             <FigmaReportClock />
           </div>
@@ -362,7 +420,8 @@ export function ReportPanel({
           )}
 
           <section className="figma-report-body">
-            <div className="figma-report-tabs" role="tablist" aria-label="题目报告">
+            <div className="figma-report-content-surface" aria-hidden="true" />
+            <div className={`figma-report-tabs active-${figmaReportQuestionIndex}${figmaTabsDock.pinned ? " is-pinned" : ""}`} role="tablist" aria-label="题目报告">
               {tabItems.map((tab, index) => (
                 <button
                   className={index === figmaReportQuestionIndex ? "active" : ""}
@@ -372,7 +431,6 @@ export function ReportPanel({
                   aria-selected={index === figmaReportQuestionIndex}
                 >
                   <span>{tab.label}</span>
-                  <small>{tab.status}</small>
                 </button>
               ))}
             </div>
@@ -412,14 +470,7 @@ export function ReportPanel({
                 </dl>
               </section>
 
-              {selectedQuestionReport && !isSelectedQuestionMissing ? (
-                <FigmaAbilityRadar scores={selectedQuestionReport.dimensionScores} />
-              ) : (
-                <section className="figma-report-radar unavailable">
-                  <h3>六维能力评估</h3>
-                  <p>缺失答案，暂不评估六维能力。</p>
-                </section>
-              )}
+              <FigmaAbilityRadar note={radarNote} scores={radarScores} />
 
               <section className="figma-report-risk-tags">
                 <h3>风险标签</h3>
@@ -445,7 +496,20 @@ export function ReportPanel({
                   <div className="figma-report-card-title-row">
                     <h3>60 秒口述版</h3>
                     <button className="figma-report-copy-icon-button" onClick={() => copyQuestion(selectedQuestionReport, "oral")} aria-label="复制 60 秒口述版">
-                      <span aria-hidden="true" />
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="15"
+                        height="15"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect x="9" y="9" width="12" height="12" rx="2.4" />
+                        <path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5" />
+                      </svg>
                     </button>
                   </div>
                   <p>{selectedQuestionReport.oralVersion60s}</p>
