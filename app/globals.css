@@ -2573,37 +2573,70 @@ input[type="range"] {
   animation: figma-report-body-in 520ms ease both;
 }
 
-/* Connected / notched tabs: the active tab is a raised surface that merges
-   seamlessly into the content card below via concave (inverse) fillet corners,
-   matching the Figma "browser-tab" look instead of a floating segmented pill. */
+/* Connected folder-style tabs matching the Figma: a lighter rounded strip
+   holds the inactive labels; the active tab is an enlarged panel-colored
+   trapezoid — straight left edge, rounded top-left, flat top, then a small
+   top-right radius flowing into a diagonal right edge — that flattens into
+   the full-width panel below. */
 .figma-report-tabs {
   position: absolute;
-  left: 20px;
-  top: 8px;
+  left: 0;
+  right: 0;
+  top: 0;
   z-index: 3;
   display: flex;
   gap: 0;
   align-items: stretch;
-  width: 335px;
   height: 42px;
-  padding: 0 12px;
+  padding: 0;
   overflow: visible;
-  background: transparent;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(180deg, #453f50, #3c3745);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   list-style: none;
   text-align: center;
 }
 
+/* Fill the small concave triangles outside the top corners (of the strip or
+   the flush active tab) so they match the near-black card background above. */
+.figma-report-tabs::before,
+.figma-report-tabs::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  background: #161316;
+  pointer-events: none;
+}
+
+.figma-report-tabs::before {
+  left: 0;
+  -webkit-mask: radial-gradient(circle 16px at bottom right, transparent 15.5px, #000 16px);
+  mask: radial-gradient(circle 16px at bottom right, transparent 15.5px, #000 16px);
+}
+
+.figma-report-tabs::after {
+  right: 0;
+  -webkit-mask: radial-gradient(circle 16px at bottom left, transparent 15.5px, #000 16px);
+  mask: radial-gradient(circle 16px at bottom left, transparent 15.5px, #000 16px);
+}
+
+.figma-report-tabs.is-pinned::before,
+.figma-report-tabs.is-pinned::after {
+  display: none;
+}
+
 .figma-report-tabs.is-pinned {
   position: fixed;
-  left: var(--figma-report-tabs-fixed-left, 20px);
+  left: var(--figma-report-tabs-fixed-left, 0px);
+  right: auto;
   top: var(--figma-report-tabs-fixed-top, 8px);
   z-index: 40;
-  height: 50px;
-  padding: 6px 12px 0;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(180deg, #423d4c, #38333f);
+  width: 375px;
+  border-radius: 16px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 14px 30px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(14px);
   animation: figma-report-tabs-dock 160ms ease both;
@@ -2630,47 +2663,89 @@ input[type="range"] {
   transition: color 180ms ease;
 }
 
-.figma-report-tabs button:hover:not(:disabled):not(.active) {
-  color: rgba(255, 255, 255, 0.82);
+/* No hover feedback on the tabs: cancel the app-wide button:hover lift. */
+.figma-report-tabs button:hover:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+  transform: none;
 }
 
+/* Enlarged active tab: wider (flex) and taller (rises above the strip).
+   The trapezoid shape is drawn by the two pseudo-elements below. */
 .figma-report-tabs button.active {
   z-index: 2;
-  background: linear-gradient(180deg, #453f4f 0%, #38333f 100%);
+  flex: 1.5;
+  margin-top: -8px;
+  height: 50px;
+  background: transparent;
   color: #ffffff;
-  border-radius: 14px 14px 0 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
-/* Concave fillets flaring the active tab out into the content card top. */
-.figma-report-tabs button.active::before,
-.figma-report-tabs button.active::after {
+/* Tab body: straight left edge, rounded top-left corner, flat top. */
+.figma-report-tabs button.active::before {
   content: "";
   position: absolute;
+  left: 0;
+  top: 0;
   bottom: 0;
-  width: 12px;
-  height: 12px;
-  background: #38333f;
+  right: 34px;
+  z-index: -1;
+  background: #322e38;
+  border-radius: 16px 0 0 0;
   pointer-events: none;
 }
 
-.figma-report-tabs button.active::before {
-  left: -12px;
-  -webkit-mask: radial-gradient(circle 12px at top left, transparent 11.5px, #000 12px);
-  mask: radial-gradient(circle 12px at top left, transparent 11.5px, #000 12px);
-}
-
+/* Right edge: small top radius flowing into a diagonal that lands flat on
+   the strip bottom, where the tab merges into the full-width panel below. */
 .figma-report-tabs button.active::after {
-  right: -12px;
-  -webkit-mask: radial-gradient(circle 12px at top right, transparent 11.5px, #000 12px);
-  mask: radial-gradient(circle 12px at top right, transparent 11.5px, #000 12px);
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  width: 52px;
+  z-index: -1;
+  background: #322e38;
+  transform: skewX(28deg);
+  transform-origin: bottom left;
+  border-radius: 0 14px 0 0;
+  pointer-events: none;
 }
 
-/* When docked to the top, the tab detaches from the card; drop the fillets
-   and give the active tab a self-contained pill inside the solid pinned bar. */
+/* Q2 active: straight vertical edges on both sides (no diagonals), centered
+   in the strip by the symmetric flex layout. */
+.figma-report-tabs.active-1 button.active::before {
+  right: 0;
+  border-radius: 14px 14px 0 0;
+}
+
+.figma-report-tabs.active-1 button.active::after {
+  display: none;
+}
+
+/* Q3 active: horizontal mirror of Q1 — straight right edge flush with the
+   screen edge, rounded top-right, diagonal left edge. */
+.figma-report-tabs.active-2 button.active::before {
+  left: 34px;
+  right: 0;
+  border-radius: 0 16px 0 0;
+}
+
+.figma-report-tabs.active-2 button.active::after {
+  left: 6px;
+  right: auto;
+  transform: skewX(-28deg);
+  transform-origin: bottom right;
+  border-radius: 14px 0 0 0;
+}
+
+/* When docked to the top, the strip detaches from the panel; drop the
+   trapezoid and show the active tab as a self-contained pill in the strip. */
 .figma-report-tabs.is-pinned button.active {
-  border-radius: 12px;
-  background: linear-gradient(180deg, #514a5d, #423d4c);
+  margin-top: 4px;
+  height: 34px;
+  border-radius: 11px;
+  background: #322e38;
 }
 
 .figma-report-tabs.is-pinned button.active::before,
@@ -2687,22 +2762,8 @@ input[type="range"] {
 }
 
 .figma-report-tabs button.active span {
+  font-size: 24px;
   font-weight: 750;
-}
-
-/* The content card the active tab merges into. Lighter near the top, then
-   blends into the report body so it reads as one continuous surface. */
-.figma-report-content-surface {
-  position: absolute;
-  left: 20px;
-  top: 48px;
-  bottom: 0;
-  z-index: 1;
-  width: 335px;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(180deg, #38333f 0%, #322e38 150px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  pointer-events: none;
 }
 
 .figma-report-question-detail {

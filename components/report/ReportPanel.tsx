@@ -271,9 +271,9 @@ export function ReportPanel({
         const stageRect = stage.getBoundingClientRect();
         const cardRect = card.getBoundingClientRect();
         const stickyTop = Math.max(stageRect.top, 0) + 8;
-        const tabNormalTop = cardRect.top + 812 + 8;
+        const tabNormalTop = cardRect.top + 812;
         const nextDock = {
-          left: cardRect.left + 20,
+          left: cardRect.left,
           pinned: tabNormalTop <= stickyTop,
           top: stickyTop
         };
@@ -420,7 +420,6 @@ export function ReportPanel({
           )}
 
           <section className="figma-report-body">
-            <div className="figma-report-content-surface" aria-hidden="true" />
             <div className={`figma-report-tabs active-${figmaReportQuestionIndex}${figmaTabsDock.pinned ? " is-pinned" : ""}`} role="tablist" aria-label="题目报告">
               {tabItems.map((tab, index) => (
                 <button
