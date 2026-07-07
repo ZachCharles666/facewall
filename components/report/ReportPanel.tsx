@@ -140,8 +140,10 @@ export function ReportPanel({
   const copyTextRef = useRef<HTMLTextAreaElement | null>(null);
   const figmaReportStageRef = useRef<HTMLElement | null>(null);
   const figmaReportCardRef = useRef<HTMLDivElement | null>(null);
+  const figmaReportTopRef = useRef<HTMLDivElement | null>(null);
   const figmaQuestionDetailRef = useRef<HTMLElement | null>(null);
   const [figmaReportPageHeight, setFigmaReportPageHeight] = useState(1565);
+  const [figmaReportBodyTop, setFigmaReportBodyTop] = useState(812);
   const [figmaTabsDock, setFigmaTabsDock] = useState({ left: 20, pinned: false, top: 8 });
 
   function fallbackCopy(text: string) {
@@ -228,12 +230,23 @@ export function ReportPanel({
     if (!element) {
       return;
     }
+    const topStack = figmaReportTopRef.current;
 
     let animationFrame = 0;
     const updateHeight = () => {
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
-        const bodyTop = 812;
+        // The top region (score hero + summary/risk cards) is variable-height.
+        // Push the tabbed body below its real bottom so long risk/action lists
+        // never collide with the tab strip pinned at the body top.
+        const cardRect = figmaReportCardRef.current?.getBoundingClientRect();
+        const topStackRect = topStack?.getBoundingClientRect();
+        const bodyTop =
+          cardRect && topStackRect
+            ? Math.max(812, Math.ceil(topStackRect.bottom - cardRect.top + 20))
+            : 812;
+        setFigmaReportBodyTop((current) => (current === bodyTop ? current : bodyTop));
+
         const bottomPadding = 96;
         const nextHeight = Math.max(1565, Math.ceil(bodyTop + element.offsetTop + element.scrollHeight + bottomPadding));
         setFigmaReportPageHeight((currentHeight) => (currentHeight === nextHeight ? currentHeight : nextHeight));
@@ -243,6 +256,9 @@ export function ReportPanel({
     updateHeight();
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeight);
     resizeObserver?.observe(element);
+    if (topStack) {
+      resizeObserver?.observe(topStack);
+    }
     window.addEventListener("resize", updateHeight);
 
     return () => {
@@ -253,7 +269,10 @@ export function ReportPanel({
   }, [answers, figmaReportQuestionIndex, report, streamedQuestionReports, visualTheme]);
 
   useEffect(() => {
-    if (visualTheme !== "figma" || !report) {
+    // On mobile the whole page scrolls (the stage is not its own scroll
+    // container), so tab pinning is disabled and tabs flow with the content.
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 820px)").matches;
+    if (visualTheme !== "figma" || !report || isMobile) {
       setFigmaTabsDock((current) => (current.pinned ? { left: 20, pinned: false, top: 8 } : current));
       return;
     }
@@ -271,7 +290,7 @@ export function ReportPanel({
         const stageRect = stage.getBoundingClientRect();
         const cardRect = card.getBoundingClientRect();
         const stickyTop = Math.max(stageRect.top, 0) + 8;
-        const tabNormalTop = cardRect.top + 812;
+        const tabNormalTop = cardRect.top + figmaReportBodyTop;
         const nextDock = {
           left: cardRect.left,
           pinned: tabNormalTop <= stickyTop,
@@ -290,14 +309,16 @@ export function ReportPanel({
 
     updateDock();
     stage.addEventListener("scroll", updateDock, { passive: true });
+    window.addEventListener("scroll", updateDock, { passive: true });
     window.addEventListener("resize", updateDock);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
       stage.removeEventListener("scroll", updateDock);
+      window.removeEventListener("scroll", updateDock);
       window.removeEventListener("resize", updateDock);
     };
-  }, [report, visualTheme]);
+  }, [report, visualTheme, figmaReportBodyTop]);
 
   if (visualTheme === "figma") {
     if (!report) {
@@ -358,6 +379,7 @@ export function ReportPanel({
     const radarNote = isSelectedQuestionMissing ? "缺失答案，六维分数为 0，暂不评估能力表现。" : undefined;
     const figmaReportPageStyle = {
       "--figma-report-page-height": `${figmaReportPageHeight}px`,
+      "--figma-report-body-top": `${figmaReportBodyTop}px`,
       "--figma-report-tabs-fixed-left": `${figmaTabsDock.left}px`,
       "--figma-report-tabs-fixed-top": `${figmaTabsDock.top}px`
     } as CSSProperties;
@@ -377,7 +399,7 @@ export function ReportPanel({
             <div className={`figma-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
             <p>面试评分</p>
             <h2>{report.finalReport.overallScore}</h2>
-            <div className="figma-report-card-stack">
+            <div className="figma-report-card-stack" ref={figmaReportTopRef}>
               <section className="figma-report-summary-card figma-report-final-card">
                 <h3>最终报告</h3>
                 <p className="figma-report-final-score">总分：{report.finalReport.overallScore}</p>

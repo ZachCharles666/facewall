@@ -1087,6 +1087,7 @@ input[type="range"] {
   justify-content: space-between;
   width: 311px;
   height: 48px;
+  overflow: visible;
 }
 
 .figma-frame4-frame1-button,
@@ -1108,10 +1109,13 @@ input[type="range"] {
 }
 
 .figma-frame4-frame1-button {
+  grid-column: 1;
   background: transparent;
 }
 
 .figma-frame4-group1-button {
+  grid-column: 2;
+  justify-self: end;
   background: transparent;
 }
 
@@ -1149,12 +1153,19 @@ input[type="range"] {
 }
 
 .figma-frame4-frame3-menu {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 4;
   width: 248px;
   height: 48px;
-  display: grid;
-  grid-template-columns: 32px 104px 104px;
-  align-items: end;
+  display: flex;
+  align-items: flex-end;
   gap: 4px;
+  overflow: visible;
+  isolation: isolate;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .figma-frame4-icon-button,
@@ -1179,6 +1190,7 @@ input[type="range"] {
 .figma-frame4-icon-button {
   width: 32px;
   min-width: 32px;
+  flex: 0 0 32px;
   display: grid;
   place-items: center;
   border-radius: 16px;
@@ -1189,6 +1201,8 @@ input[type="range"] {
 
 .figma-frame4-pill-button {
   width: 104px;
+  min-width: 104px;
+  flex: 0 0 104px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1198,6 +1212,16 @@ input[type="range"] {
   cursor: pointer;
   font-size: 12px;
   line-height: 17px;
+  overflow: hidden;
+  white-space: nowrap;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.figma-frame4-pill-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .figma-file-upload-icon {
@@ -1567,7 +1591,7 @@ input[type="range"] {
   z-index: 3;
   display: flex;
   align-items: center;
-  width: 149px;
+  width: 240px;
   height: 56px;
 }
 
@@ -1609,6 +1633,7 @@ input[type="range"] {
   font-size: 16px;
   font-weight: 500;
   line-height: 22px;
+  white-space: nowrap;
 }
 
 .figma-interview-persona span {
@@ -2565,10 +2590,10 @@ input[type="range"] {
 .figma-report-body {
   position: absolute;
   left: 0;
-  top: 812px;
+  top: var(--figma-report-body-top, 812px);
   z-index: 3;
   width: 375px;
-  min-height: calc(var(--figma-report-page-height, 1565px) - 826px);
+  min-height: calc(var(--figma-report-page-height, 1565px) - var(--figma-report-body-top, 812px) - 14px);
   background: #322e38;
   animation: figma-report-body-in 520ms ease both;
 }
@@ -4177,10 +4202,10 @@ button.question-card {
 
 @keyframes figma-report-body-in {
   from {
-    transform: translateY(18px);
+    opacity: 0;
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
   }
 }
 
@@ -4270,13 +4295,17 @@ button.question-card {
       #161316;
   }
 
+  /* Mobile: let the whole page scroll instead of clipping a fixed-height,
+     transform-scaled phone frame. transform: scale() does not change layout
+     height, so combined with overflow:hidden it cut off the bottom of the
+     card (input bar / long reports) with no way to scroll to it. */
   .theme-figma .figma-phone-stage {
     position: relative;
     z-index: 1;
-    height: 100dvh;
+    height: auto;
     min-height: 100dvh;
     place-items: start center;
-    overflow: hidden;
+    overflow: visible;
     background: transparent;
   }
 
@@ -4288,12 +4317,11 @@ button.question-card {
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    transform: scale(calc(100vw / 375px));
-    transform-origin: top center;
+    transform: none;
   }
 
   .theme-figma .figma-report-stage {
-    overflow-y: auto;
+    overflow: visible;
   }
 
   .theme-figma .figma-report-card.figma-report-page-card {

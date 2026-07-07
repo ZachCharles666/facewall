@@ -204,6 +204,24 @@ export async function requestTtsAudio(payload: {
   return response.blob();
 }
 
+export async function requestSttTranscript(audio: Blob) {
+  const response = await fetch("/api/stt", {
+    method: "POST",
+    headers: {
+      "Content-Type": audio.type || "audio/wav",
+      ...getDevRequestHeaders("tts")
+    },
+    body: audio
+  });
+
+  const payload = (await response.json().catch(() => null)) as { text?: string; error?: string } | null;
+  if (!response.ok || !payload?.text) {
+    throw new Error(payload?.error || "Azure STT 识别失败，已保留当前文本，可重试或手动编辑。");
+  }
+
+  return payload.text;
+}
+
 export async function getAzureSpeechStatus() {
   const response = await fetch("/api/azure-status", {
     method: "GET",

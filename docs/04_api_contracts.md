@@ -298,7 +298,33 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 
 返回 `audio/mpeg` 或 `audio/wav` 二进制音频。
 
-## 7. Stable Enums
+## 7. POST /api/stt
+
+Azure Speech-to-Text 短音频识别接口。前端录制单声道 16k PCM WAV 后提交给服务端；服务端使用 `AZURE_SPEECH_KEY` 和 `AZURE_SPEECH_REGION` 调 Azure STT，不向前端暴露密钥。
+
+### Request
+
+Body 为二进制音频，推荐请求头：
+
+```http
+Content-Type: audio/wav
+```
+
+### Response
+
+```json
+{
+  "text": "识别出的中文文本"
+}
+```
+
+### Rules
+
+- 该接口仅用于短音频 Demo 识别；长音频、实时流式字幕、音频上传存储不在本轮范围内。
+- 失败时前端必须保留已有答案文本，并允许重试或手动编辑。
+- 非 HTTPS 公网页面通常无法稳定获取麦克风权限；线上演示应优先使用 HTTPS。
+
+## 8. Stable Enums
 
 | Enum | Values |
 | --- | --- |
@@ -308,7 +334,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 | `ttsStatus` | `idle`, `loading`, `speaking`, `ended`, `failed`, `unsupported` |
 | `sessionStep` | `setup`, `profile`, `questions`, `interview`, `report` |
 
-## 8. Prompt Output Rules
+## 9. Prompt Output Rules
 
 - LLM 返回必须能被 JSON 解析。
 - 不得编造用户未提供的硬事实，例如公司名、数据指标、获奖经历。

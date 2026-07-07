@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getAzureSpeechStatus, requestTtsAudio } from "@/lib/api/client";
+import { getAzureSpeechStatus, requestSttTranscript, requestTtsAudio } from "@/lib/api/client";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, personaSpeechDefaults } from "@/lib/speech/settings";
-import { canUseSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
+import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
 import type {
   InterviewAnswer,
@@ -77,9 +77,12 @@ export function InterviewPanel({
   const [voiceMessage, setVoiceMessage] = useState("语音提问优先 Azure TTS，失败后使用浏览器 Web Speech。");
   const [figmaAnswerPhase, setFigmaAnswerPhase] = useState<FigmaAnswerPhase>("prompt");
   const [figmaElapsedSec, setFigmaElapsedSec] = useState(0);
+  const [azureStatusReady, setAzureStatusReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const sttSessionRef = useRef<SttSession | null>(null);
+  const answersRef = useRef(answers);
+  const autoPlayedIndexRef = useRef<number | null>(null);
   const currentQuestion = questions[currentIndex];
   const currentAnswer = answers.find((answer) => answer.questionId === currentQuestion?.id);
 
@@ -91,6 +94,10 @@ export function InterviewPanel({
   useEffect(() => {
     setSpeechTuning(personaSpeechDefaults[interviewerStyleId]);
   }, [interviewerStyleId]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     setFigmaAnswerPhase("prompt");
@@ -116,7 +123,7 @@ export function InterviewPanel({
         setAzureVoices(status.voices.length > 0 ? status.voices : azureVoiceOptions);
         setVoiceMessage(
           status.configured
-            ? "Azure TTS 已配置；若播放失败会自动降级 Web Speech。"
+            ? "Azure Speech 已配置；提问使用 Azure TTS，答题优先 Azure STT。"
             : "Azure TTS 未配置；播放会自动使用 Web Speech API 兜底。"
         );
       })
@@ -124,12 +131,23 @@ export function InterviewPanel({
         if (cancelled) return;
         setAzureConfigured(false);
         setVoiceMessage("Azure TTS 状态不可用；播放会尝试 Web Speech API 兜底。");
+      })
+      .finally(() => {
+        if (!cancelled) setAzureStatusReady(true);
       });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!azureStatusReady || !currentQuestion) return;
+    if (autoPlayedIndexRef.current === currentIndex) return;
+    autoPlayedIndexRef.current = currentIndex;
+    playQuestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, azureStatusReady, currentQuestion]);
 
   useEffect(() => {
     function syncWebVoices() {
@@ -164,7 +182,7 @@ export function InterviewPanel({
 
   function getPatchedAnswers(answerPatch: Partial<InterviewAnswer>) {
     if (!currentQuestion) return answers;
-    return answers.map((answer) =>
+    return answersRef.current.map((answer) =>
       answer.questionId === currentQuestion.id
         ? {
             ...answer,
@@ -175,7 +193,9 @@ export function InterviewPanel({
   }
 
   function updateCurrentAnswer(answerPatch: Partial<InterviewAnswer>) {
-    onAnswersChange(getPatchedAnswers(answerPatch));
+    const nextAnswers = getPatchedAnswers(answerPatch);
+    answersRef.current = nextAnswers;
+    onAnswersChange(nextAnswers);
   }
 
   function fillSampleAnswers() {
@@ -281,7 +301,7 @@ export function InterviewPanel({
     setTtsStatus((status) => (status === "speaking" || status === "loading" ? "ended" : status));
   }
 
-  function startStt() {
+  async function startStt() {
     if (!currentQuestion || !currentAnswer) return;
     sttSessionRef.current?.abort();
 
@@ -289,6 +309,45 @@ export function InterviewPanel({
       updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer.answerText.trim() ? "edited" : "text" });
       setVoiceMessage("开发故障注入：STT 失败。已保留当前文本，可重试或手动编辑。");
       return;
+    }
+
+    if (azureConfigured && !canUseMicrophoneRecording()) {
+      updateCurrentAnswer({ sttStatus: "unsupported", inputMode: currentAnswer.answerText.trim() ? "edited" : "text" });
+      setVoiceMessage("Azure STT 已配置，但当前页面无法安全录音。请使用 HTTPS 域名访问后重试，或先手动输入。");
+      return;
+    }
+
+    if (azureConfigured) {
+      updateCurrentAnswer({ sttStatus: "recording", inputMode: "voice" });
+      try {
+        sttSessionRef.current = await startAzureSpeechRecognition({
+          existingText: currentAnswer.answerText,
+          transcribe: requestSttTranscript,
+          onStatus: (status, message) => {
+            updateCurrentAnswer({
+              sttStatus: status,
+              inputMode: status === "success" || status === "recording" ? "voice" : currentAnswer.answerText.trim() ? "edited" : "text"
+            });
+            setVoiceMessage(message);
+          },
+          onText: (text, isFinal) => {
+            updateCurrentAnswer({
+              answerText: text,
+              inputMode: isFinal ? "voice" : "edited",
+              sttStatus: isFinal ? "success" : "recording"
+            });
+          },
+          onDuration: (durationSec) => {
+            updateCurrentAnswer({ durationSec });
+          }
+        });
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Azure STT 录音启动失败，已切换为手动编辑。";
+        updateCurrentAnswer({ sttStatus: "unsupported", inputMode: currentAnswer.answerText.trim() ? "edited" : "text" });
+        setVoiceMessage(message.includes("Permission") || message.includes("denied") ? "麦克风权限不可用，已切换为手动编辑。" : message);
+        return;
+      }
     }
 
     if (!canUseSpeechRecognition()) {
@@ -320,8 +379,8 @@ export function InterviewPanel({
     });
   }
 
-  function stopStt() {
-    sttSessionRef.current?.stop();
+  async function stopStt() {
+    await sttSessionRef.current?.stop();
     sttSessionRef.current = null;
   }
 
@@ -331,15 +390,17 @@ export function InterviewPanel({
     startStt();
   }
 
-  function finishFigmaAnswer() {
+  async function finishFigmaAnswer() {
     if (!currentAnswer) return;
-    stopStt();
-    const durationSec = Math.max(currentAnswer.durationSec, figmaElapsedSec, currentAnswer.answerText.trim() ? 30 : 0);
+    await stopStt();
+    const latestAnswer = answersRef.current.find((answer) => answer.questionId === currentAnswer.questionId) ?? currentAnswer;
+    const durationSec = Math.max(latestAnswer.durationSec, figmaElapsedSec, latestAnswer.answerText.trim() ? 30 : 0);
     const nextAnswers = getPatchedAnswers({
       durationSec,
-      inputMode: currentAnswer.sttStatus === "recording" || currentAnswer.sttStatus === "success" ? "voice" : currentAnswer.inputMode,
-      sttStatus: currentAnswer.sttStatus === "recording" ? "success" : currentAnswer.sttStatus
+      inputMode: latestAnswer.sttStatus === "recording" || latestAnswer.sttStatus === "success" ? "voice" : latestAnswer.inputMode,
+      sttStatus: latestAnswer.sttStatus === "recording" ? "success" : latestAnswer.sttStatus
     });
+    answersRef.current = nextAnswers;
     onAnswersChange(nextAnswers);
     setFigmaAnswerPhase("prompt");
     setFigmaElapsedSec(0);

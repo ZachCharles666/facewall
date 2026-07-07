@@ -1354,6 +1354,30 @@
 | Reduced motion | Pass | `prefers-reduced-motion: reduce` 下禁用吸附入场动画。 |
 | Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
 
+## Figma 外网移动端滚动和报告 Tab 重叠修复 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Report overlap root cause | Fixed | 报告顶部评分/最终报告/风险行动卡片是可变高度，但 `.figma-report-body` 原先固定 `top:812px`；当风险或行动项内容变长时会压到 Q1/Q2/Q3 tab。现用 `ResizeObserver` 测量顶部卡片真实渲染底部，将 `--figma-report-body-top` 自适应下移并保留 20px 间隙。 |
+| Mobile scroll root cause | Fixed | 移动端原先使用固定 `100dvh` stage、`overflow:hidden` 和 `transform: scale(...)` 缩放手机框；缩放不改变布局高度，导致输入区/长报告被裁切且无法滚动。现移动端让页面自然纵向滚动，去掉手机框 transform 缩放和 stage 裁切。 |
+| Desktop sticky regression | Fixed | 报告页实际由页面滚动驱动，吸顶逻辑补充监听 `window` scroll；同时将 `.figma-report-body` 入场动画从 transform 改为 opacity，避免 transformed ancestor 影响 fixed tab 坐标。 |
+| Desktop verification | Pass | 浏览器 1280x720 验证：报告顶部卡片与 tab 间隙为 20px；滚动到 900px 后 tab 为 `position: fixed`，视口位置 `top:8px`、`left` 与报告卡片对齐。 |
+| Mobile verification | Pass | 浏览器 390x720 验证：首页 `documentElement.scrollHeight=812 > 720`，输入区可通过页面滚动进入视口；报告页 `scrollHeight=2646 > 720`，顶部卡片与 tab 间隙为 20px，移动端 tab 不吸顶、不重叠。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告布局、移动端手机框滚动 CSS 和 tab 吸顶监听；未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。待外网部署后用 WeChat 内置浏览器、Chrome、Safari 真机各复验一次。 |
+
+## Figma Home/JD 移动端上传菜单首帧裁切修复 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Fixed | 微信/iOS 首次点击 `+` 展开时，原菜单作为 grid 子项动态替换 48px 上传按钮，移动 WebKit 可能沿用旧按钮合成层裁切区域，导致 `UseDemoCV / UseDemoJD` 只渲染半截；截图/切后台触发重绘后才恢复。 |
+| Menu layout | Pass | `.figma-frame4-frame3-menu` 改为左下角绝对定位的 248px flex 菜单，关闭按钮、Demo 按钮、文件上传按钮使用固定 `flex-basis`，避免 grid 首帧尺寸抖动。 |
+| Submit button alignment | Fixed | 展开菜单绝对定位后不再参与 grid 布局，提交箭头曾被自动排到左侧列；现显式设置 `.figma-frame4-group1-button { grid-column: 2; justify-self: end; }`，保证展开/收起态均停在右侧。 |
+| Repaint stability | Pass | 菜单与 pill 按钮增加独立合成层和 `overflow` 约束，父工具条显式 `overflow: visible`，降低 WeChat/iOS 首次展开裁切概率。 |
+| STT finding | Fixed | 外网 STT 原先只走浏览器 `SpeechRecognition/webkitSpeechRecognition`。现新增 `/api/stt`，前端录制 16k PCM WAV 后优先提交 Azure Speech-to-Text，Web Speech 仅作 Azure 未配置时的兜底；若页面不是 HTTPS，会直接提示使用 HTTPS 域名，避免误判为 Azure API 无效。 |
+| Scope | Pass | 调整 `theme=figma` 首页/JD 输入栏展开菜单 CSS；新增 Azure STT 短音频接口和前端录音转写路径；未改上传逻辑、文件解析 API、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。待发云后需用 WeChat 内置浏览器真机复验 `+` 展开首帧。 |
+
 ## 分面试官 Prompt 配置（出题 + 报告评分）- 2026-07-06
 
 | Check | Result | Evidence |
