@@ -110,11 +110,18 @@ export interface InterviewReport {
   finalReport: FinalReport;
 }
 
+export interface InterviewerPromptProfile {
+  persona: string;
+  questions: string;
+  report: string;
+}
+
 export interface PromptOverrides {
   system: string;
   profile: string;
   questions: string;
   report: string;
+  interviewers: Record<InterviewerStyleId, InterviewerPromptProfile>;
 }
 
 export interface PromptStoreSnapshot {

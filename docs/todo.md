@@ -1162,6 +1162,211 @@
 | Interviewer avatar | Pass | `ReportPanel` 新增 `interviewerStyleId` 视觉 prop，由 `InterviewCoachApp` 传入当前选择；报告页顶部人物从固定 HR 图改为复用 `strictHr / techBro / gentleSister` 对应的三张面试官图片。 |
 | Scope | Pass | 仅调整 `theme=figma` 报告页视觉和 prop 透传，不改 interviewer 枚举 id、业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
 
+## Figma Report Page_2 六维图和 Tab 间距修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ability chart persistence | Pass | 缺失答案时不再把六维能力区替换成纯文字卡；`FigmaAbilityRadar` 始终渲染完整六边形雷达、网格、轴线、节点和 6 个维度分数。 |
+| Missing score note | Pass | 缺失答案时雷达分数使用 0 分，并在同一卡片底部补充“缺失答案，六维分数为 0，暂不评估能力表现。”，避免误导为已评估。 |
+| Tab spacing | Pass | 单题详情区从 `top:124px` 上移到 `top:106px`，大幅缩短 tab 下方到“本题分数”的距离，同时保留 tab 视觉安全间距。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉展示，不改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 全宽 Tab 样式修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Full-width tabs | Pass | Q1/Q2/Q3 tab 从内缩胶囊改为全宽连体页签，`.figma-report-tabs` 由 `left:0; width:375px` 撑满报告内容区，三个 tab 等宽无间隙。 |
+| Rounded top corners | Pass | Tab 容器使用 `border-radius:24px 24px 0 0`，首个 tab 保留左上圆角，最后一个 tab 保留右上圆角，底部与内容区连在一起。 |
+| Spacing | Pass | 新 tab 高度为 `84px`，单题详情区调整为 `top:96px`，保持 tab 到“本题分数”的距离紧凑且不贴边。 |
+| Type compatibility | Pass | 兼容当前工作区 `PromptOverrides.interviewers` 对象字段：`PromptDebugPanel` 仅把 `system/profile/questions/report` 四个字符串字段渲染为 textarea，避免新增对象字段破坏 typecheck。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Tab 文案和圆角边缘修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab labels | Pass | 移除 Q1/Q2/Q3 tab 下方的“缺失/分数”二级状态文案，tab 内仅保留单行 `Q1/Q2/Q3`，避免底部重复提示。 |
+| Tab height | Pass | 全宽 tab 高度从 `84px` 收紧到 `76px`，单题详情区同步调整为 `top:88px`，保留紧凑的 tab 到“本题分数”距离。 |
+| Rounded edge | Pass | Tab 外层移除额外外沿高光阴影，圆角裁切外侧直接显示报告内容背景；首尾 tab 仍保留左上/右上圆角。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉展示，不改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Tab 常态圆角和斜线分隔 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default rounded tabs | Pass | 未选中 tab 也增加常态深色底色，首个 tab 左上角和最后一个 tab 右上角不再依赖 active 背景才出现圆角。 |
+| Diagonal dividers | Pass | Tab 间分割线由竖线改为 `rotate(18deg)` 的斜线，并使用渐隐线性渐变降低边界突兀感。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，不改 tab 交互逻辑、业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 圆角外侧背景修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 圆角外侧小块发亮来自 `.figma-report-tabs` 容器自身渐变底色和 active tab 顶部径向高光，不是报告底板背景。 |
+| Corner background | Pass | `.figma-report-tabs` 容器背景改为透明，首尾 tab 圆角外侧直接露出 `.figma-report-body` 背景色。 |
+| Highlight cleanup | Pass | 移除 active tab 顶部径向高光和 inset 顶部高光，仅保留选中态底部金色线，避免圆角边缘像叠了一层亮膜。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 斜切分割对齐 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Split alignment | Pass | 选中态背景改为独立 `::before` 层，并按首/中/尾 tab 做斜切 `clip-path`，避免 active tab 仍出现竖直矩形边界。 |
+| Divider line | Pass | Tab 间斜线改为与分割边界同位的 14px 宽斜切渐变片，覆盖原竖直边界，不再出现“竖线 + 偏移斜线”双重分割。 |
+| Corner safety | Pass | 不再 clip 整个 button，只 clip 选中态背景层，首尾 tab 的常态圆角仍由 button 本身保留。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 参考图靠拢 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Two-layer tabs | Pass | Tab 区从三等分独立分段改为参考图式两层结构：顶部 `82px` 深色页签底座，下方从 `top:80px` 开始露出内容底板。 |
+| Active wedge | Pass | 选中态背景加宽到 `174px`，右侧用大斜切 `clip-path` 压入相邻 tab，接近参考图里 Q1 到 Q2 的斜坡过渡。 |
+| Content offset | Pass | 两层 tab 高度变为 `126px`，单题详情区同步调整到 `top:126px`，避免内容压住 tab 底板过渡。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Bootstrap 风格 Tab 调整 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference handling | Note | `https://www.bootstrapmb.com/item/12680/preview` 在当前环境无法抓取源码，按 Bootstrap 常见 raised tab 结构实现：底座 + 上浮 active tab + 斜切连接。 |
+| Three tabs only | Pass | 继续复用现有 `Q1 / Q2 / Q3` 三个 button，不增加 tab 数量，不改 tab 切换逻辑。 |
+| Color scope | Pass | 保留当前深紫灰色系和金色 active 底线：`#161316 / #28252d / #322e38 / #f3c766`。 |
+| Active shape | Pass | 选中项改为单层 `clip-path` 梯形背景，Q1 右斜切、Q2 双斜切、Q3 左斜切，避免旧 skew 扩展层被背景遮挡。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 BootstrapMB 12680 Tab 对齐修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference check | Note | 浏览器访问 `https://www.bootstrapmb.com/item/12680/preview` 超时并回落到条目页，页面标题可识别为“非常顺滑的jQuery Tabs选项卡”；未能稳定读取源码。 |
+| Style direction | Pass | 放弃上一版大斜切页签，改为更接近顺滑 jQuery Tabs 的三等分顶部 tab：暗色非选中底座 + 滑动 active 背景块 + 下方内容区连通。 |
+| Active motion | Pass | `.figma-report-tabs` 新增 `active-0/1/2` 视觉类，使用容器 `::after` 作为 active 背景，通过 `transform` 在三项之间平移，保留顺滑切换动效。 |
+| Color scope | Pass | 选中和非选中颜色继续沿用当前深紫灰体系，active 保留金色底线；仅改形状和动效，不引入新业务状态。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab JSX class 和 CSS，未改 API 契约、报告 schema、答题流程、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 BootstrapMB Tab 像素级形状修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Extra layer removal | Pass | 移除上一版容器 `::after` 滑动背景层，去掉 tab 顶部横向高亮条；容器只保留下方内容底色承接区。 |
+| Tab geometry | Pass | Q1/Q2/Q3 改为 3 个互相覆盖的 tab：`151px` 宽、`64px` 高、`112px` 步进，使用圆角顶部和右侧斜切 `clip-path` 模拟 BootstrapMB 示例。 |
+| Color scope | Pass | 选中/非选中仍使用当前深紫灰配色和金色 active 底线，仅复刻形状、层叠关系和过渡动效。 |
+| Content offset | Pass | 单题内容区从 `top:112px` 收紧到 `top:96px`，匹配新 tab 高度，避免 tab 下方留下多余空带。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 CSS，未改 API 契约、报告 schema、答题流程、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tympanus Tzoid Tab 尝试 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference | Note | 用户提供 `https://tympanus.net/Development/TabStylesInspiration/` 和截图，目标样式为选中 tab 与内容面板同色、非选中 tab 为圆角灰块的 Tympanus/Codrops 透视梯形 tab。 |
+| Geometry | Pass | `.figma-report-tabs button::before` 改用 `perspective(18px) rotateX(2.6deg)` 生成圆角梯形，不再使用上一版 `clip-path` 直线斜切。 |
+| Color scope | Pass | active 背景继续使用当前报告内容底色 `#322e38`，inactive 使用当前深紫灰 `#28252d` 系列；仅复刻形状，不替换为截图白/灰色。 |
+| Content join | Pass | tab 下方保留 `#322e38` 内容承接区，active tab 通过同色背景和金色底线与内容区连在一起。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tympanus 原版布局骨架修正 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source clue | Note | 用户补充原站 computed styles：tab 列表为 `display:flex; flex-flow:row wrap; justify-content:center`，单项 `flex:1; margin:0 3em`，链接 `margin:0 -3em 0 0; line-height:2.5; overflow:visible`。 |
+| Layout model | Pass | `.figma-report-tabs` 从 absolute left 坐标排布改为 flex 居中排布；三个 button 改为 `flex:1`、`max-width:150px`、`margin-right:-42px` 的重叠结构，更贴近原版 tabs-style-tzoid。 |
+| Shape model | Pass | 保留 `button::before` 透视圆角梯形，微调为 `perspective(18px) rotateX(2.2deg)`，继续使用当前选中/非选中颜色。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tabs 圆角反圆角 PLUS 实现 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference | Note | 用户提供掘金《实现tabs圆角及反圆角效果（PLUS）》完整思路和 SCSS：选中 tab 用 `skewX` 两侧伪元素，未选中 tab 用反圆角伪元素，选中项用 `box-shadow` 接入内容底色。 |
+| Selected tab | Pass | `.figma-report-tabs button.active` 使用 `#322e38` 作为 active/content 色，保留顶部圆角和金色底线，并用 `24px 40px` 左右 box-shadow 衔接下方内容区。 |
+| Skew edges | Pass | active `::before/::after` 分别使用 `left:-6px/right:-6px`、`width:12px`、`skewX(-15deg/15deg)` 和顶部圆角，复刻中间过渡斜线。 |
+| Inverse corners | Pass | inactive `button::before/::after` 使用默认 tab 色 `#24212b`、底部反圆角和相反方向 `skewX`，用于未选中 tab 的反圆角效果。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 叠层简化 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 当前 tab 同时叠加默认伪元素、active 伪元素、active 圆角主体和大 `box-shadow`，导致 Q1/Q2/Q3 选中态出现多层圆角块。 |
+| Layer cleanup | Pass | 默认 `button::before/::after` 改为 `content:none`，只在 `.active` 上启用两侧 `skewX` 过渡片，避免未选中 tab 参与叠层。 |
+| Shadow cleanup | Pass | 移除 active 的 `24px 40px` 左右大 box-shadow，改为 `.figma-report-tabs::before` 底部 `18px` 同色承接带连接内容区。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 边角底色修正 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 首尾边角颜色不协调来自 `.figma-report-tabs` 整体默认背景在圆角裁切处露出，和页面黑底、active 内容底色形成三种颜色交界。 |
+| Background ownership | Pass | `.figma-report-tabs` 背景改为透明，仅保留底部内容色承接带；默认底色移到每个 button 自身。 |
+| Outer corners | Pass | 首个 tab 单独保留 `border-top-left-radius:24px`，最后一个 tab 单独保留 `border-top-right-radius:24px`，避免容器背景在外角露出。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 极简 Tab 回退 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Decision | Done | 放弃继续叠加异形 tab 效果，回退为最简单、干净的三段式 tab。 |
+| Layer cleanup | Pass | 移除 `.figma-report-tabs` 和 button 的所有 tab 伪元素、skew、反圆角、承接带和额外阴影，仅保留容器、button、active 三层。 |
+| Visual model | Pass | 容器为 `#24212b` 深色底，3 个 tab 等宽；active 使用 `#322e38` 背景、白色文本和金色底线；hover 仅轻微提亮。 |
+| Content offset | Pass | 单题详情区从 `top:94px` 收紧到 `top:88px`，匹配极简 tab 高度。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 按 PLUS 原 SCSS 重做 Tab - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source | Done | 按用户提供的完整 SCSS 方案重做：`tab-height:52px`、active 两侧 `skewX` 伪元素、not-selected 两侧反圆角伪元素、active 使用 `24px 40px` 阴影承接。 |
+| Color mapping | Pass | `$default-color` 映射为当前未选中深色 `#24212b`；`$active-color` 映射为当前内容/选中色 `#322e38`；active 底线保留金色 `#f3c766`。 |
+| Geometry | Pass | 伪元素尺寸使用原方案比例：`width:12px`、左右偏移 `6px/-6px`、圆角 `12px`、`skewX(15deg/-15deg)`。 |
+| Content offset | Pass | 单题详情区从 `top:88px` 收紧到 `top:64px`，匹配 52px tab 高度并保留 12px 间距。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 稳定三段式 Tab 替换 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Decision | Done | 放弃继续调试异形、反圆角和 skew 方案，改为更适合当前深色报告页的稳定三段式 tab。 |
+| Layer cleanup | Pass | 移除 tab 的 `::before/::after`、skew、反圆角、大阴影承接等复杂叠层，仅保留容器、button、active 三层。 |
+| Visual model | Pass | Tab 容器使用深紫灰圆角底座，三个 tab 等宽撑满；active 使用同色系高亮块、白色文字和金色底线，未选中态仅保留淡文字和轻分隔线。 |
+| Stability | Pass | 新样式不依赖裁切伪元素和相邻 tab 叠压，避免首尾角落发亮、斜线错位、active 多层块等问题。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 顶部吸附 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Sticky behavior | Done | 报告页滚动时，当 Q1/Q2/Q3 tab 接近屏幕上方边缘，会切换为 fixed 吸附态；向上滚回原位置时还原。 |
+| Implementation | Pass | 使用 `figma-report-stage` 滚动监听计算 tab 的 fixed `left/top`，避免 `position: sticky` 被报告卡片 `overflow: hidden` 祖先裁切。 |
+| Visual scope | Pass | 吸附态沿用稳定三段式 tab 配色，仅增加轻量阴影和背景模糊；不改 tab 数据、切换逻辑、报告 schema 或 API 契约。 |
+| Reduced motion | Pass | `prefers-reduced-motion: reduce` 下禁用吸附入场动画。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## 分面试官 Prompt 配置（出题 + 报告评分）- 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Fixed | 此前面试官人设从未真正传给 LLM：三种面试官拿到相同 prompt，只多一个 label 字符串，所以「差异不大」。现按产品人设规范接入。 |
+| Data model | Done | `PromptOverrides` 新增 `interviewers: Record<InterviewerStyleId, { persona; questions; report }>`；`lib/prompts/productPromptSuite.ts` 增加 `defaultInterviewerPrompts`（温柔HR / 技术老哥 / 资深业务大佬）。 |
+| Backward compat | Done | `promptStore` 版本升 v2；`normalizePromptOverrides` 逐层回退默认，旧 v1 落盘文件（无 `interviewers`）读取时自动补默认，下次保存写 v2，无需迁移脚本。 |
+| Prompt wiring | Done | `buildQuestionsPrompt` 注入 `interviewerPersona/interviewerQuestionGuide`；`buildReportPrompt` 接收可选 `interviewerStyleId` 注入评分/诊断倾向。评分 6 维、区间、权重固定不变。 |
+| Report contract | Done | 报告 payload 新增可选 `interviewerStyleId`，三个报告 route 原样透传（`validateReportRequest` 不校验多余字段），client 与 `InterviewCoachApp` 均带上当前面试官。 |
+| Config UI | Done | `theme=classic` 的「Prompt 调试」面板新增「分面试官 Prompt」区块：切换三位面试官分别编辑人设 / 出题 / 评分；保存后 figma 主题读取同一份全局 store。 |
+| Scope | Pass | 仅接出题与报告，画像未接人设；未改评分 schema、状态机、`questionId` 对齐、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过。分面试官真实差异需配置真实 `OPENAI_*` key 跑三风格端到端；无 key 时走演示兜底，题目仅前置一句差异。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |

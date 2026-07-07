@@ -1,6 +1,54 @@
-import type { PromptOverrides } from "@/lib/types";
+import type { InterviewerPromptProfile, InterviewerStyleId, PromptOverrides } from "@/lib/types";
 
 export const promptOverrideStorageKey = "facewall.promptOverrides.v1";
+
+export const defaultInterviewerPrompts: Record<InterviewerStyleId, InterviewerPromptProfile> = {
+  strictHr: {
+    persona: [
+      "你是温婉、亲和的 HR 面试官。",
+      "语气自然、温和、有引导感，让候选人放松表达，不制造压迫感。"
+    ].join("\n"),
+    questions: [
+      "多从动机、沟通、协作、成长性、稳定性切入。",
+      "问法要自然、温和、有引导感，鼓励候选人展开讲。",
+      "避免过度技术细节和强压迫式追问。"
+    ].join("\n"),
+    report: [
+      "评价侧重沟通表达、动机匹配、协作意愿和成长潜力。",
+      "诊断口吻温和鼓励：先肯定亮点，再给具体、可执行的改进建议，不羞辱候选人。"
+    ].join("\n")
+  },
+  techBro: {
+    persona: [
+      "你是直接、就事论事的技术老哥面试官。",
+      "说话干脆，关注真实细节，不绕弯子。"
+    ].join("\n"),
+    questions: [
+      "多从项目细节、需求拆解、实现边界、技术协作切入。",
+      "问法直接，允许追问定义、规则、异常情况和边界。",
+      "避免空泛的职业规划类问题；非技术岗位不要强行写代码题。"
+    ].join("\n"),
+    report: [
+      "评价侧重技术/方法论的具体度、需求拆解能力和边界思考。",
+      "诊断直接点名空泛、缺少细节或逻辑漏洞的地方，并给出更严谨的表达方式。"
+    ].join("\n")
+  },
+  gentleSister: {
+    persona: [
+      "你是有压迫感的资深业务大佬面试官。",
+      "关注结果与价值，问题尖锐，逼候选人给出业务判断。"
+    ].join("\n"),
+    questions: [
+      "多从业务目标、指标结果、用户价值、资源取舍切入。",
+      "问法要有压迫感，追问‘为什么做、值不值得、如何证明有效’。",
+      "逼候选人从执行过程上升到业务判断，避免只问执行细节。"
+    ].join("\n"),
+    report: [
+      "评价侧重业务判断、指标结果、用户价值和取舍能力。",
+      "诊断尖锐，直指候选人是否只停留在执行层、能否证明有效，并要求用业务视角重构答案。"
+    ].join("\n")
+  }
+};
 
 export const defaultPromptOverrides: PromptOverrides = {
   system: [
@@ -27,7 +75,8 @@ export const defaultPromptOverrides: PromptOverrides = {
     "诊断要直接、具体，不要输出空泛鸡汤。",
     "如果原回答缺少数据，可以提示“这里建议补充具体指标”，但不能直接捏造数字。",
     "嘴替答案控制在 300 字以内，同时生成一个适合用户直接背诵的 60 秒口语版。"
-  ].join("\n")
+  ].join("\n"),
+  interviewers: defaultInterviewerPrompts
 };
 
 export const promptDataFormatPreview = {
@@ -83,20 +132,56 @@ export const promptDataFormatPreview = {
   }
 };
 
-const overrideKeys: Array<keyof PromptOverrides> = ["system", "profile", "questions", "report"];
+const overrideStringKeys: Array<"system" | "profile" | "questions" | "report"> = [
+  "system",
+  "profile",
+  "questions",
+  "report"
+];
+const interviewerStyleIds: InterviewerStyleId[] = ["strictHr", "techBro", "gentleSister"];
+const interviewerPromptKeys: Array<keyof InterviewerPromptProfile> = ["persona", "questions", "report"];
 
-export function normalizePromptOverrides(value: unknown): PromptOverrides {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return defaultPromptOverrides;
-  }
-
-  const source = value as Partial<Record<keyof PromptOverrides, unknown>>;
-  return overrideKeys.reduce<PromptOverrides>((result, key) => {
+function normalizeInterviewerPrompt(value: unknown, styleId: InterviewerStyleId): InterviewerPromptProfile {
+  const source = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Partial<
+    Record<keyof InterviewerPromptProfile, unknown>
+  >;
+  const fallback = defaultInterviewerPrompts[styleId];
+  return interviewerPromptKeys.reduce<InterviewerPromptProfile>((result, key) => {
     const rawValue = source[key];
     const trimmedValue = typeof rawValue === "string" ? rawValue.trim() : "";
     return {
       ...result,
-      [key]: trimmedValue || defaultPromptOverrides[key]
+      [key]: trimmedValue || fallback[key]
     };
-  }, defaultPromptOverrides);
+  }, { ...fallback });
+}
+
+function normalizeInterviewers(value: unknown): Record<InterviewerStyleId, InterviewerPromptProfile> {
+  const source = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Partial<
+    Record<InterviewerStyleId, unknown>
+  >;
+  return interviewerStyleIds.reduce<Record<InterviewerStyleId, InterviewerPromptProfile>>((result, styleId) => {
+    result[styleId] = normalizeInterviewerPrompt(source[styleId], styleId);
+    return result;
+  }, {} as Record<InterviewerStyleId, InterviewerPromptProfile>);
+}
+
+export function normalizePromptOverrides(value: unknown): PromptOverrides {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<Record<keyof PromptOverrides, unknown>>)
+      : {};
+
+  const normalized: PromptOverrides = {
+    ...defaultPromptOverrides,
+    interviewers: normalizeInterviewers(source.interviewers)
+  };
+
+  for (const key of overrideStringKeys) {
+    const rawValue = source[key];
+    const trimmedValue = typeof rawValue === "string" ? rawValue.trim() : "";
+    normalized[key] = trimmedValue || defaultPromptOverrides[key];
+  }
+
+  return normalized;
 }

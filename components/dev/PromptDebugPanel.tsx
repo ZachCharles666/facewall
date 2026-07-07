@@ -1,7 +1,29 @@
-import { defaultPromptOverrides, promptDataFormatPreview } from "@/lib/prompts/productPromptSuite";
-import type { PromptOverrides } from "@/lib/types";
+import { useState } from "react";
+import { defaultInterviewerPrompts, defaultPromptOverrides, promptDataFormatPreview } from "@/lib/prompts/productPromptSuite";
+import { INTERVIEWER_STYLES } from "@/lib/state/constants";
+import type { InterviewerPromptProfile, InterviewerStyleId, PromptOverrides } from "@/lib/types";
 
-const promptFields: Array<{ key: keyof PromptOverrides; label: string; helper: string }> = [
+type EditablePromptFieldKey = "system" | "profile" | "questions" | "report";
+
+const interviewerPromptFields: Array<{ key: keyof InterviewerPromptProfile; label: string; helper: string }> = [
+  {
+    key: "persona",
+    label: "人设 / 口吻",
+    helper: "这个面试官是谁、说话口吻。会注入题目和报告，决定整体气质。"
+  },
+  {
+    key: "questions",
+    label: "出题倾向",
+    helper: "关注重点、切入角度、追问力度、要避免的问题。三种面试官在这里必须明显不同。"
+  },
+  {
+    key: "report",
+    label: "评分 / 诊断倾向",
+    helper: "评价侧重和诊断口吻。仅调侧重与语气，6 维分数结构、区间和权重仍固定不变。"
+  }
+];
+
+const promptFields: Array<{ key: EditablePromptFieldKey; label: string; helper: string }> = [
   {
     key: "system",
     label: "公共系统指令",
@@ -41,12 +63,29 @@ export function PromptDebugPanel({
   onSave: () => void;
   onReset: () => void;
 }) {
-  function updatePrompt(key: keyof PromptOverrides, nextValue: string) {
+  const [activeInterviewer, setActiveInterviewer] = useState<InterviewerStyleId>(INTERVIEWER_STYLES[0].id);
+
+  function updatePrompt(key: EditablePromptFieldKey, nextValue: string) {
     onChange({
       ...value,
       [key]: nextValue
     });
   }
+
+  function updateInterviewerPrompt(styleId: InterviewerStyleId, key: keyof InterviewerPromptProfile, nextValue: string) {
+    onChange({
+      ...value,
+      interviewers: {
+        ...value.interviewers,
+        [styleId]: {
+          ...value.interviewers[styleId],
+          [key]: nextValue
+        }
+      }
+    });
+  }
+
+  const activeInterviewerPrompt = value.interviewers[activeInterviewer];
 
   return (
     <section className="panel prompt-debug-panel" aria-label="产品 Prompt 调试">
@@ -73,6 +112,21 @@ export function PromptDebugPanel({
         <small>当前全局保存时间：{updatedAt ? new Date(updatedAt).toLocaleString("zh-CN", { hour12: false }) : "未保存"}</small>
       </div>
 
+      <div className="prompt-locked-notice" role="note">
+        <strong>可调的是「策略 / 侧重 / 语气 / 措辞」。下列由后端契约锁定，在 prompt 里改字段名或结构不会生效，还可能触发演示兜底：</strong>
+        <ul>
+          <li>
+            输出字段名与 JSON 结构（如 <code>sourceMatches</code>、<code>suggestedSupplements</code>、<code>questionReports</code>、
+            <code>dimensionScores</code>）
+          </li>
+          <li>题目固定 3 道、id 固定 <code>q1/q2/q3</code></li>
+          <li>报告固定 6 个评分维度、分数区间（维度 0–20、总分 0–100）与权重</li>
+          <li>copyText 必须同时包含「优化答案」和「复盘报告」</li>
+          <li>不得编造用户未提供的公司、指标、人数、金额、奖项</li>
+        </ul>
+        <small>想改这些字段名或结构，需要走契约变更（types / schema / demo data / 前端展示 一起改），不能只在此处改 prompt。</small>
+      </div>
+
       <div className="prompt-debug-grid">
         {promptFields.map((field) => (
           <label className="prompt-debug-field" key={field.key} htmlFor={`prompt-${field.key}`}>
@@ -88,6 +142,49 @@ export function PromptDebugPanel({
         ))}
       </div>
 
+      <div className="panel prompt-interviewer-panel">
+        <div className="panel-header compact-header">
+          <div>
+            <h3>分面试官 Prompt</h3>
+            <p>每个面试官单独配置人设、出题和评分倾向。与上方全局 Prompt 一起保存，figma 主题也会读取同一份。</p>
+          </div>
+        </div>
+
+        <div className="style-grid prompt-interviewer-tabs" role="tablist" aria-label="选择要编辑的面试官">
+          {INTERVIEWER_STYLES.map((style) => (
+            <button
+              className={activeInterviewer === style.id ? "style-option selected" : "style-option"}
+              key={style.id}
+              onClick={() => setActiveInterviewer(style.id)}
+              role="tab"
+              aria-selected={activeInterviewer === style.id}
+            >
+              <strong>{style.label}</strong>
+              <span>{style.description}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="prompt-debug-grid">
+          {interviewerPromptFields.map((field) => (
+            <label
+              className="prompt-debug-field"
+              key={`${activeInterviewer}-${field.key}`}
+              htmlFor={`interviewer-${activeInterviewer}-${field.key}`}
+            >
+              <span>{field.label}</span>
+              <small>{field.helper}</small>
+              <textarea
+                id={`interviewer-${activeInterviewer}-${field.key}`}
+                value={activeInterviewerPrompt[field.key]}
+                onChange={(event) => updateInterviewerPrompt(activeInterviewer, field.key, event.target.value)}
+                spellCheck={false}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
       <details className="prompt-format-details">
         <summary>查看当前线上实际数据格式</summary>
         <p className="helper">
@@ -101,5 +198,13 @@ export function PromptDebugPanel({
 }
 
 export function cloneDefaultPromptOverrides(): PromptOverrides {
-  return { ...defaultPromptOverrides };
+  return {
+    ...defaultPromptOverrides,
+    interviewers: Object.fromEntries(
+      (Object.keys(defaultInterviewerPrompts) as InterviewerStyleId[]).map((styleId) => [
+        styleId,
+        { ...defaultInterviewerPrompts[styleId] }
+      ])
+    ) as Record<InterviewerStyleId, InterviewerPromptProfile>
+  };
 }

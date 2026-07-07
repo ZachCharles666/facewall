@@ -338,6 +338,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       candidateProfile: sourceProfile,
       questions: sourceQuestions,
       answers: nextAnswers,
+      interviewerStyleId: form.interviewerStyleId,
       promptOverrides: activePromptOverrides
     };
 
@@ -372,6 +373,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       candidateProfile: profile ?? demoScenario.candidateProfile,
       questions: questions.length === 3 ? questions : demoScenario.questions,
       answers,
+      interviewerStyleId: form.interviewerStyleId,
       promptOverrides: activePromptOverrides
     },
     successMessage = "已使用非流式保底生成报告。"
@@ -422,6 +424,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         questions: sourceQuestions,
         answers,
         questionId,
+        interviewerStyleId: form.interviewerStyleId,
         promptOverrides: activePromptOverrides
       });
       const nextReport = mergeQuestionReport(previousReport, nextQuestionReport);

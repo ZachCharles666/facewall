@@ -72,6 +72,7 @@ export function buildQuestionsPrompt(input: {
   questionCount: 3;
 }, promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides) {
   const overrides = normalizePromptOverrides(promptOverrides);
+  const interviewerPrompt = overrides.interviewers[input.interviewerStyleId];
   return [
     { role: "system" as const, content: buildSystemContent(overrides) },
     {
@@ -80,12 +81,15 @@ export function buildQuestionsPrompt(input: {
         {
           task: "生成 3 道可回答、可评分的中文面试题。",
           productPrompt: overrides.questions,
+          interviewerPersona: interviewerPrompt.persona,
+          interviewerQuestionGuide: interviewerPrompt.questions,
           rules: [
             "固定返回 questions 数组，长度必须为 3。",
             "id 必须稳定为 q1/q2/q3。",
             "每题必须体现候选人画像、JD 关键词或风险点。",
             "如果画像或 JD 是 AI 产品经理/AI 工具方向，题目要追问用户问题、产品判断、验证指标、模型能力边界或跨团队推进。",
-            "技术老哥风格是专业深挖，不要在非技术岗位强行写代码题。"
+            "技术老哥风格是专业深挖，不要在非技术岗位强行写代码题。",
+            "必须严格按 interviewerPersona 和 interviewerQuestionGuide 生成：不同面试官在关注重点、切入角度、追问力度上必须明显不同，不能只是语气不同。"
           ],
           interviewerStyle: styleLabel(input.interviewerStyleId),
           outputShape: {
@@ -114,8 +118,10 @@ export function buildReportPrompt(input: {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
+  interviewerStyleId?: InterviewerStyleId;
 }, promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides) {
   const overrides = normalizePromptOverrides(promptOverrides);
+  const interviewerPrompt = input.interviewerStyleId ? overrides.interviewers[input.interviewerStyleId] : undefined;
   return [
     { role: "system" as const, content: buildSystemContent(overrides) },
     {
@@ -124,6 +130,9 @@ export function buildReportPrompt(input: {
         {
           task: "基于画像、问题和答案生成非流式复盘报告。",
           productPrompt: overrides.report,
+          interviewerStyle: input.interviewerStyleId ? styleLabel(input.interviewerStyleId) : undefined,
+          interviewerPersona: interviewerPrompt?.persona,
+          interviewerReportGuide: interviewerPrompt?.report,
           scoringWeights: {
             jobRelevance: "25%",
             structure: "20%",
@@ -135,6 +144,7 @@ export function buildReportPrompt(input: {
           rules: [
             "questionReports 必须与输入 questions 的 questionId 一一对应。",
             "每题必须包含 6 个评分维度，维度分数 0 到 20，总分 0 到 100。",
+            "如果提供了 interviewerPersona / interviewerReportGuide，评价侧重和诊断口吻要按该面试官人设，但 6 个维度、分数区间、权重和事实边界必须保持不变。",
             "答案为空时必须指出缺失，不得替用户编造回答。",
             "答案过短或跑题时，必须在 riskTags/fatalIssue/diagnosis 中指出，并给补充建议或保守嘴替。",
             "finalReport.copyText 必须同时包含“优化答案”和“复盘报告”。",

@@ -4,7 +4,7 @@ import { buildFallbackReport } from "@/lib/demo/fallback";
 import { buildReportPrompt } from "@/lib/prompts/interview";
 import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { validateReportOutput } from "@/lib/schemas/contracts";
-import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, PromptOverrides, QuestionReport } from "@/lib/types";
+import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
 
 const REPORT_LLM_TIMEOUT_MS = 60000;
 
@@ -12,6 +12,7 @@ export interface ReportGenerationPayload {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
+  interviewerStyleId?: InterviewerStyleId;
   promptOverrides?: PromptOverrides;
 }
 

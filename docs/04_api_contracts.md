@@ -155,9 +155,12 @@
       "durationSec": 72,
       "sttStatus": "success|failed|unsupported|manual"
     }
-  ]
+  ],
+  "interviewerStyleId": "strictHr"
 }
 ```
+
+> `interviewerStyleId` 为**可选**字段。传入时，报告链路会按对应面试官的评分/诊断倾向调整评价侧重与口吻；不传或非法时优雅降级为中性报告 prompt。不进入 `validateReportRequest` 必填校验，因此老调用方不受影响。`generate-stream` 与 `regenerate-question` 复用同一 request，因此也支持该可选字段。
 
 ### Response data
 

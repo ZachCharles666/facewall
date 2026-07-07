@@ -3,7 +3,7 @@ import path from "node:path";
 import { defaultPromptOverrides, normalizePromptOverrides } from "@/lib/prompts/productPromptSuite";
 import type { PromptOverrides, PromptStoreSnapshot } from "@/lib/types";
 
-const promptStoreVersion = 1;
+const promptStoreVersion = 2;
 const defaultPromptStorePath = path.join(process.cwd(), "outputs", "active-prompt-overrides.json");
 
 function getPromptStorePath() {

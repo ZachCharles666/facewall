@@ -52,6 +52,7 @@ export function generateReport(payload: {
   candidateProfile: CandidateProfile;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
+  interviewerStyleId?: InterviewerStyleId;
   promptOverrides?: PromptOverrides;
 }) {
   return postJson<InterviewReport, typeof payload>("/api/report/generate", payload, "llm");
@@ -72,6 +73,7 @@ export async function generateReportStream(
     candidateProfile: CandidateProfile;
     questions: InterviewQuestion[];
     answers: InterviewAnswer[];
+    interviewerStyleId?: InterviewerStyleId;
     promptOverrides?: PromptOverrides;
   },
   handlers: ReportStreamHandlers = {}
@@ -154,6 +156,7 @@ export function regenerateQuestionReport(payload: {
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
   questionId: string;
+  interviewerStyleId?: InterviewerStyleId;
   promptOverrides?: PromptOverrides;
 }) {
   return postJson<QuestionReport, typeof payload>("/api/report/regenerate-question", payload, "llm");
