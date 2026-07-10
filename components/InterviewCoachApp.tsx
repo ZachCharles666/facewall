@@ -21,11 +21,13 @@ import type {
   InterviewerStyleId,
   QuestionReport,
   SessionStep,
-  SetupForm
+  SetupForm,
+  VisualTheme
 } from "@/lib/types";
 import { InterviewPanel } from "@/components/interview/InterviewPanel";
 import { DevOpsPanel } from "@/components/dev/DevOpsPanel";
 import { cloneDefaultPromptOverrides, PromptDebugPanel } from "@/components/dev/PromptDebugPanel";
+import { JujuOrb } from "@/components/JujuOrb";
 import { ReportPanel } from "@/components/report/ReportPanel";
 import { SetupPanel } from "@/components/setup/SetupPanel";
 
@@ -37,7 +39,6 @@ const stepLabels: Record<SessionStep, string> = {
   report: "Report"
 };
 
-type VisualTheme = "figma" | "classic";
 type FigmaSetupStep = "home" | "jd";
 
 function formatPromptTimestamp(value: string | null) {
@@ -64,7 +65,7 @@ function StatusBarClock() {
 }
 
 export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVisualTheme?: VisualTheme }) {
-  const isFigmaTheme = initialVisualTheme === "figma";
+  const isFigmaLikeTheme = initialVisualTheme === "figma" || initialVisualTheme === "juju";
   const [step, setStep] = useState<SessionStep>("setup");
   const [figmaSetupInitialStep, setFigmaSetupInitialStep] = useState<FigmaSetupStep>("home");
   const [figmaProfileStage, setFigmaProfileStage] = useState<"profile" | "selectInterviewer" | "confirmInterviewer">("profile");
@@ -111,7 +112,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
   }, [initialVisualTheme]);
 
   useEffect(() => {
-    if (isFigmaTheme || typeof window === "undefined") return;
+    if (isFigmaLikeTheme || typeof window === "undefined") return;
 
     let cancelled = false;
     async function loadActivePrompt() {
@@ -139,9 +140,9 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     return () => {
       cancelled = true;
     };
-  }, [isFigmaTheme]);
+  }, [isFigmaLikeTheme]);
 
-  const activePromptOverrides = isFigmaTheme ? undefined : promptOverrides;
+  const activePromptOverrides = isFigmaLikeTheme ? undefined : promptOverrides;
 
   async function handleSaveGlobalPrompt() {
     try {
@@ -237,14 +238,14 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       setProfile(nextProfile);
       setFigmaProfileStage("profile");
       setStep("profile");
-      setStatus({ kind: "success", message: isFigmaTheme ? "画像已生成，点击 Next 选择面试官。" : "画像已生成，下一步生成 3 道面试题。" });
+      setStatus({ kind: "success", message: isFigmaLikeTheme ? "画像已生成，点击 Next 选择面试官。" : "画像已生成，下一步生成 3 道面试题。" });
     } catch (error) {
       setProfile(demoScenario.candidateProfile);
       setFigmaProfileStage("profile");
       setStep("profile");
       setStatus({
         kind: "error",
-        message: `${error instanceof Error ? error.message : "画像生成失败"} 已使用演示兜底画像继续。${isFigmaTheme ? " 点击 Next 选择面试官。" : ""}`
+        message: `${error instanceof Error ? error.message : "画像生成失败"} 已使用演示兜底画像继续。${isFigmaLikeTheme ? " 点击 Next 选择面试官。" : ""}`
       });
     }
   }
@@ -440,9 +441,13 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
   }
 
   const statusClass = status.kind === "error" ? "status error" : status.kind === "success" ? "status success" : "status";
+  const showJujuThinking = initialVisualTheme === "juju" && status.kind === "loading";
+  const shellClassName = ["app-shell", `theme-${initialVisualTheme}`, isFigmaLikeTheme && initialVisualTheme !== "figma" ? "theme-figma" : ""]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <main className={`app-shell theme-${initialVisualTheme}`}>
+    <main className={shellClassName}>
       <header className="topbar">
         <div>
           <h1>面试嘴替教练</h1>
@@ -457,6 +462,9 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       <div className="visual-switcher" aria-label="视觉版本切换">
         <a className={initialVisualTheme === "figma" ? "active" : ""} href="/?theme=figma">
           Phase 9 新视觉
+        </a>
+        <a className={initialVisualTheme === "juju" ? "active" : ""} href="/?theme=juju">
+          Juju 新风格
         </a>
         <a className={initialVisualTheme === "classic" ? "active" : ""} href="/?theme=classic">
           旧版低保真
@@ -475,7 +483,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
 
       <DevOpsPanel />
 
-      {!isFigmaTheme && (
+      {!isFigmaLikeTheme && (
         <PromptDebugPanel
           value={promptOverrides}
           saveState={promptSaveState}
@@ -490,7 +498,9 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         />
       )}
 
-      {step === "setup" && (
+      {showJujuThinking && <JujuThinkingScreen />}
+
+      {!showJujuThinking && step === "setup" && (
         <SetupPanel
           form={form}
           initialFigmaStep={figmaSetupInitialStep}
@@ -502,10 +512,12 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         />
       )}
 
-      {isFigmaTheme && step === "profile" && figmaProfileStage !== "profile" ? (
+      {!showJujuThinking && (isFigmaLikeTheme && step === "profile" && figmaProfileStage !== "profile" ? (
         <FigmaInterviewerPanel
           selectedStyleId={form.interviewerStyleId}
           stage={figmaProfileStage}
+          candidateName={extractCandidateDisplayName(form.resumeText)}
+          visualTheme={initialVisualTheme}
           onBack={() => setFigmaProfileStage(figmaProfileStage === "confirmInterviewer" ? "selectInterviewer" : "profile")}
           onSelect={(styleId) => {
             updateFormWithoutReset({ interviewerStyleId: styleId });
@@ -530,11 +542,12 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           onFigmaNext={() => setFigmaProfileStage("selectInterviewer")}
           onStartInterview={() => setStep("interview")}
         />
-      )}
+      ))}
 
-      {step === "interview" && (
+      {!showJujuThinking && step === "interview" && (
         <InterviewPanel
           answers={answers}
+          candidateName={extractCandidateDisplayName(form.resumeText)}
           interviewerStyleId={form.interviewerStyleId}
           questions={questions}
           visualTheme={initialVisualTheme}
@@ -543,7 +556,7 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         />
       )}
 
-      {step === "report" && (
+      {!showJujuThinking && step === "report" && (
         <ReportPanel
           report={report}
           answers={answers}
@@ -627,6 +640,17 @@ function PreparationPanel({
     );
   }
 
+  if (visualTheme === "juju" && currentStep === "profile") {
+    return (
+      <JujuProfilePanel
+        profile={profile}
+        resumeText={resumeText}
+        onBack={onFigmaBack}
+        onNext={onFigmaNext}
+      />
+    );
+  }
+
   if (visualTheme === "figma" && currentStep === "profile") {
     return (
       <FigmaProfilePanel
@@ -646,7 +670,7 @@ function PreparationPanel({
           <h2>候选人画像</h2>
           <p>画像字段按 CandidateProfile 契约展示，供后续题目和报告共用。</p>
         </div>
-        {visualTheme === "figma" && currentStep === "profile" ? (
+        {(visualTheme === "figma" || visualTheme === "juju") && currentStep === "profile" ? (
           <button className="primary" onClick={onFigmaNext}>
             Next
           </button>
@@ -705,6 +729,133 @@ function PreparationPanel({
             </article>
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+function JujuProfilePanel({
+  profile,
+  resumeText,
+  onBack,
+  onNext
+}: {
+  profile: CandidateProfile;
+  resumeText: string;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const candidateName = extractCandidateDisplayName(resumeText);
+
+  return (
+    <section className="figma-phone-stage" aria-label="Candidate profile">
+      <div className="figma-phone-card figma-home-card figma-profile-card juju-profile-card">
+        <div className="figma-statusbar">
+          <StatusBarClock />
+          <span>Facewall</span>
+        </div>
+        <button className="figma-jd-back-button figma-profile-back-button" aria-label="返回 JD 输入" onClick={onBack}>
+          <span aria-hidden="true" />
+        </button>
+        <div className="juju-profile-scroll">
+          <div className="juju-profile-orb-frame">
+            <JujuOrb className="juju-profile-orb" size="small" />
+          </div>
+          <section className="juju-profile-summary">
+            <h2>{candidateName} 我们对您的履历做了总结</h2>
+            <p className={summaryExpanded ? "expanded" : ""}>{profile.summary}</p>
+            <button type="button" onClick={() => setSummaryExpanded((expanded) => !expanded)}>
+              {summaryExpanded ? "收起" : "展开"}
+            </button>
+          </section>
+
+          <JujuProfileInfoCard
+            className="juju-profile-match-card"
+            label="匹配点"
+            items={profile.matchedPoints}
+            footerLabel="匹配点"
+            iconSrc="/juju/profile/dot-match.svg?v=2026071003"
+            collapsible
+          />
+
+          <JujuProfileInfoCard
+            className="juju-profile-risk-card"
+            label="风险点"
+            items={profile.riskPoints}
+            footerLabel="风险点"
+            iconSrc="/juju/profile/dot-risk.svg?v=2026071003"
+            collapsible
+          />
+
+          <JujuProfileInfoCard
+            className="juju-profile-suggestion-card"
+            label="优化建议"
+            items={profile.suggestedSupplements}
+            footerLabel="优化建议"
+            iconSrc="/juju/profile/dot-suggestion.svg?v=2026071003"
+            hideFooter
+          />
+        </div>
+
+        <div className="juju-profile-tabs">
+          <button className="figma-profile-next-button juju-profile-next-button" aria-label="确认画像，选择面试官" onClick={onNext}>
+            准备面试
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function JujuProfileInfoCard({
+  className,
+  label,
+  items,
+  footerLabel,
+  iconSrc,
+  collapsible = false,
+  hideFooter = false
+}: {
+  className: string;
+  label: string;
+  items: string[];
+  footerLabel: string;
+  iconSrc: string;
+  collapsible?: boolean;
+  hideFooter?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const safeItems = items.length > 0 ? items : ["暂无信息"];
+  const visibleItems = collapsible && !expanded ? safeItems.slice(0, 1) : safeItems;
+
+  return (
+    <section className={`juju-profile-info-card ${className}`}>
+      <div className="juju-profile-info-body">
+        <div className="juju-profile-info-heading">
+          <img src={iconSrc} alt="" aria-hidden="true" />
+          <strong>{label}</strong>
+        </div>
+        <div className="juju-profile-info-list">
+          {visibleItems.map((item, index) => (
+            <p key={`${label}-${item}-${index}`}>{item}</p>
+          ))}
+        </div>
+        {collapsible && safeItems.length > 1 && (
+          <button
+            className={expanded ? "juju-profile-expand-button expanded" : "juju-profile-expand-button"}
+            type="button"
+            aria-label={expanded ? `收起${footerLabel}` : `展开${footerLabel}`}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            <img src="/juju/profile/expand-toggle.svg?v=2026071003" alt="" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {!hideFooter && (
+        <footer>
+          共有 {visibleItems.length}/{safeItems.length} 条{footerLabel}信息。
+        </footer>
       )}
     </section>
   );
@@ -804,6 +955,41 @@ function FigmaProfilePanel({
   );
 }
 
+function JujuThinkingScreen() {
+  return (
+    <section className="figma-phone-stage" aria-label="Loading">
+      <div className="figma-phone-card figma-home-card juju-thinking-card">
+        <div className="figma-statusbar">
+          <StatusBarClock />
+          <span>Facewall</span>
+        </div>
+        <JujuOrb className="juju-thinking-orb" />
+        <p className="juju-thinking-text">面壁者正在思考...</p>
+      </div>
+    </section>
+  );
+}
+
+function extractCandidateDisplayName(resumeText: string) {
+  const normalized = resumeText.replace(/\s+/g, " ").trim();
+  const patterns = [
+    /(?:姓名|名字|Name)[:：\s]+([A-Za-z\u4e00-\u9fa5·]{2,12})/i,
+    /(?:我叫|我是)([A-Za-z\u4e00-\u9fa5·]{2,8})(?:[，,。.；;\s]|$)/,
+    /本人([A-Za-z\u4e00-\u9fa5·]{2,8})(?:[，,。.；;\s]|$)/
+  ];
+  const invalidFragments = ["本科", "应届", "产品", "经理", "学生", "负责", "目标", "岗位", "项目", "实习"];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const candidate = match?.[1]?.trim();
+    if (candidate && !invalidFragments.some((fragment) => candidate.includes(fragment))) {
+      return candidate;
+    }
+  }
+
+  return "朋友";
+}
+
 function FigmaProfileSourceReview({
   profile,
   resumeText,
@@ -866,12 +1052,16 @@ function FigmaProfileSourceReview({
 function FigmaInterviewerPanel({
   selectedStyleId,
   stage,
+  candidateName = "朋友",
+  visualTheme = "figma",
   onBack,
   onSelect,
   onStart
 }: {
   selectedStyleId: InterviewerStyleId;
   stage: "selectInterviewer" | "confirmInterviewer";
+  candidateName?: string;
+  visualTheme?: VisualTheme;
   onBack: () => void;
   onSelect: (styleId: InterviewerStyleId) => void;
   onStart: () => void;
@@ -890,15 +1080,64 @@ function FigmaInterviewerPanel({
           <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="重新选择面试官" onClick={onBack}>
             <span aria-hidden="true" />
           </button>
+          {visualTheme === "juju" && <div className="juju-interviewer-avatar-frame" aria-hidden="true" />}
           <div className={`figma-interviewer-portrait figma-interviewer-portrait-detail hero-${selectedStyle.id}`} aria-hidden="true" />
           <div className="figma-interviewer-detail-copy">
             <h2>{selectedOption.name}</h2>
             <p className="figma-interviewer-role">{selectedOption.role}</p>
-            <p className="figma-interviewer-description">{selectedStyle.description}</p>
+            {visualTheme !== "juju" && <p className="figma-interviewer-description">{selectedStyle.description}</p>}
           </div>
+          {visualTheme === "juju" && (
+            <div className="juju-interviewer-detail-card">
+              <p className="juju-interviewer-summary">{selectedStyle.summary}</p>
+              <div className="juju-interviewer-detail-inner">
+                <p>{selectedStyle.description}</p>
+              </div>
+            </div>
+          )}
           <button className="figma-interviewer-start-button" onClick={onStart}>
             开始面试
           </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (visualTheme === "juju") {
+    return (
+      <section className="figma-phone-stage" aria-label="Select interviewer">
+        <div className="figma-phone-card figma-home-card figma-interviewer-card juju-interviewer-select-card">
+          <div className="figma-statusbar">
+            <StatusBarClock />
+            <span>Facewall</span>
+          </div>
+          <JujuOrb className="juju-interviewer-select-hero-orb" />
+          <div className="juju-interviewer-select-overlay" aria-hidden="true" />
+          <section className="juju-interviewer-select-copy">
+            <h2>请选择面试官</h2>
+            <p>
+              3位面试官分别来自不同岗位
+              <br />
+              每位面试官会根据需要发起提问
+            </p>
+          </section>
+          <div className="juju-interviewer-select-grid" role="list" aria-label="面试官风格">
+            {INTERVIEWER_STYLES.map((style, index) => {
+              const option = getFigmaInterviewerOption(style.id);
+              return (
+                <button
+                  className={`juju-interviewer-select-option option-${index + 1} hero-${style.id}`}
+                  key={style.id}
+                  onClick={() => onSelect(style.id)}
+                  role="listitem"
+                >
+                  <span className={`juju-interviewer-select-portrait hero-${style.id}`} aria-hidden="true" />
+                  <strong>{option.name}</strong>
+                  <span>{option.role}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
     );
@@ -915,7 +1154,7 @@ function FigmaInterviewerPanel({
           <span aria-hidden="true" />
         </button>
         <div className="figma-interviewer-title">
-          <h2>Hey Dark !</h2>
+          <h2>Hey {candidateName} !</h2>
           <p>请选择面试官</p>
         </div>
         <div className="figma-interviewer-grid" role="list" aria-label="面试官风格">
@@ -942,7 +1181,7 @@ function FigmaInterviewerPanel({
 
 function getFigmaInterviewerOption(styleId: InterviewerStyleId) {
   const options: Record<InterviewerStyleId, { name: string; role: string }> = {
-    strictHr: { name: "温柔HR小姐姐", role: "HR" },
+    strictHr: { name: "温婉HR小姐姐", role: "HR" },
     techBro: { name: "技术老哥", role: "Tech Lead" },
     gentleSister: { name: "资深业务大佬", role: "业务负责人" }
   };

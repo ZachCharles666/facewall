@@ -10,10 +10,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 outputs/active-prompt-overrides.json
+outputs/*.tar.gz
 
 # 本地开发/素材产物，不进仓库，也不该被 clone 到服务器
 venv/
 *.zip
+Faceless/
 面壁者/
 
 # Claude Code 本地会话配置

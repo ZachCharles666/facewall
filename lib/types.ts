@@ -1,5 +1,7 @@
 export type InterviewerStyleId = "strictHr" | "techBro" | "gentleSister";
 
+export type VisualTheme = "classic" | "figma" | "juju";
+
 export type InputMode = "voice" | "text" | "edited";
 
 export type SttStatus = "idle" | "recording" | "success" | "failed" | "unsupported" | "manual";

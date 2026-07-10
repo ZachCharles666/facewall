@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { getAzureSpeechStatus, requestSttTranscript, requestTtsAudio } from "@/lib/api/client";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, personaSpeechDefaults } from "@/lib/speech/settings";
 import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
+import { JujuOrb } from "@/components/JujuOrb";
 import type {
   InterviewAnswer,
   InterviewQuestion,
@@ -13,12 +14,13 @@ import type {
   SttStatus,
   TtsEngine,
   TtsStatus,
+  VisualTheme,
   VoiceOption
 } from "@/lib/types";
 import { VoiceControls } from "@/components/voice/VoiceControls";
 
-type VisualTheme = "classic" | "figma";
 type FigmaAnswerPhase = "prompt" | "recording";
+type QuestionTextMotionPhase = "idle" | "playing" | "finished";
 
 function FigmaInterviewClock() {
   const [time, setTime] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function InterviewPanel({
   questions,
   answers,
   interviewerStyleId,
+  candidateName = "朋友",
   visualTheme = "classic",
   onAnswersChange,
   onGenerateReport
@@ -63,6 +66,7 @@ export function InterviewPanel({
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
   interviewerStyleId: InterviewerStyleId;
+  candidateName?: string;
   visualTheme?: VisualTheme;
   onAnswersChange: (answers: InterviewAnswer[]) => void;
   onGenerateReport: (answers: InterviewAnswer[]) => void;
@@ -77,6 +81,11 @@ export function InterviewPanel({
   const [voiceMessage, setVoiceMessage] = useState("语音提问优先 Azure TTS，失败后使用浏览器 Web Speech。");
   const [figmaAnswerPhase, setFigmaAnswerPhase] = useState<FigmaAnswerPhase>("prompt");
   const [figmaElapsedSec, setFigmaElapsedSec] = useState(0);
+  const [questionTextMotionPhase, setQuestionTextMotionPhase] = useState<QuestionTextMotionPhase>("idle");
+  const [questionTextMotionRun, setQuestionTextMotionRun] = useState(0);
+  const [questionTextMotionDurationSec, setQuestionTextMotionDurationSec] = useState(6);
+  const [jujuToast, setJujuToast] = useState("");
+  const jujuToastTimerRef = useRef<number | null>(null);
   const [azureStatusReady, setAzureStatusReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -102,6 +111,7 @@ export function InterviewPanel({
   useEffect(() => {
     setFigmaAnswerPhase("prompt");
     setFigmaElapsedSec(0);
+    setQuestionTextMotionPhase("idle");
   }, [currentIndex]);
 
   useEffect(() => {
@@ -177,6 +187,9 @@ export function InterviewPanel({
     return () => {
       stopTts();
       sttSessionRef.current?.abort();
+      if (jujuToastTimerRef.current !== null) {
+        window.clearTimeout(jujuToastTimerRef.current);
+      }
     };
   }, []);
 
@@ -215,6 +228,37 @@ export function InterviewPanel({
     );
   }
 
+  function estimateQuestionSpeechDuration(text: string) {
+    const characters = Array.from(text.trim()).length;
+    const charactersPerSecond = Math.max(2.4, 4 * speechTuning.rate);
+    return Math.min(20, Math.max(4, characters / charactersPerSecond));
+  }
+
+  function startQuestionTextMotion(text: string, durationSec?: number) {
+    setQuestionTextMotionDurationSec(durationSec && Number.isFinite(durationSec) ? Math.max(2.5, durationSec) : estimateQuestionSpeechDuration(text));
+    setQuestionTextMotionRun((run) => run + 1);
+    setQuestionTextMotionPhase("playing");
+  }
+
+  function finishQuestionTextMotion() {
+    setQuestionTextMotionPhase("finished");
+  }
+
+  function resetQuestionTextMotion() {
+    setQuestionTextMotionPhase("idle");
+  }
+
+  function showJujuToast(message: string) {
+    setJujuToast(message);
+    if (jujuToastTimerRef.current !== null) {
+      window.clearTimeout(jujuToastTimerRef.current);
+    }
+    jujuToastTimerRef.current = window.setTimeout(() => {
+      setJujuToast("");
+      jujuToastTimerRef.current = null;
+    }, 1800);
+  }
+
   async function playQuestion() {
     if (!currentQuestion) return;
     const text = currentQuestion.questionText;
@@ -240,15 +284,18 @@ export function InterviewPanel({
         audio.onplay = () => {
           setTtsStatus("speaking");
           setVoiceMessage("Azure TTS 播放中。");
+          startQuestionTextMotion(text, Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : undefined);
         };
         audio.onended = () => {
           setTtsStatus("ended");
           setVoiceMessage("Azure TTS 播放完成。");
+          finishQuestionTextMotion();
           releaseAudio();
         };
         audio.onerror = () => {
           setTtsStatus("failed");
           setVoiceMessage("Azure TTS 播放失败，文本仍可继续。");
+          resetQuestionTextMotion();
           releaseAudio();
         };
         await audio.play();
@@ -265,19 +312,23 @@ export function InterviewPanel({
         onStart: () => {
           setTtsStatus("speaking");
           setVoiceMessage("Web Speech API 播放中；本机发音人效果取决于浏览器和系统。");
+          startQuestionTextMotion(text);
         },
         onEnd: () => {
           setTtsStatus("ended");
           setVoiceMessage("Web Speech API 播放完成。");
+          finishQuestionTextMotion();
         },
         onError: () => {
           setTtsStatus("failed");
           setVoiceMessage("Web Speech API 播放失败，文本仍可继续。");
+          resetQuestionTextMotion();
         }
       });
     } catch (error) {
       setTtsStatus("unsupported");
       setVoiceMessage(error instanceof Error ? error.message : "当前环境不支持语音播放，文本仍可继续。");
+      resetQuestionTextMotion();
     }
   }
 
@@ -298,6 +349,7 @@ export function InterviewPanel({
     if (canUseWebSpeech()) {
       window.speechSynthesis.cancel();
     }
+    resetQuestionTextMotion();
     setTtsStatus((status) => (status === "speaking" || status === "loading" ? "ended" : status));
   }
 
@@ -444,11 +496,93 @@ export function InterviewPanel({
     );
   }
 
+  if (visualTheme === "juju") {
+    const isRecording = figmaAnswerPhase === "recording";
+    const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
+    const interviewerName =
+      interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
+    const progressText = `${currentIndex + 1}/${questions.length}`;
+    const questionMotionStyle = {
+      "--juju-question-scroll-duration": `${questionTextMotionDurationSec}s`
+    } as CSSProperties;
+
+    return (
+      <section className="figma-phone-stage juju-interview-stage" aria-label="Interview response">
+        <div className={isRecording ? "figma-phone-card figma-home-card figma-interview-card juju-interview-card is-answering" : "figma-phone-card figma-home-card figma-interview-card juju-interview-card is-question"}>
+          <div className="figma-statusbar">
+            <FigmaInterviewClock />
+            <span>Facewall</span>
+          </div>
+
+          <JujuOrb className="juju-interview-orb" progressText={progressText} showEllipse11={isRecording} showOuterArc />
+
+          {!isRecording && (
+            <section className={`juju-interview-question-frame is-${questionTextMotionPhase}`} style={questionMotionStyle}>
+              <div className="juju-interview-question-viewport">
+                <p key={`${currentQuestion.id}-${questionTextMotionRun}`}>{currentQuestion.questionText}</p>
+              </div>
+            </section>
+          )}
+
+          {isRecording && (
+            <>
+              <p className="juju-interview-listening-label">{interviewerName}正在聆听...</p>
+              <div className="figma-interview-listening-rings juju-interview-listening-rings" aria-hidden="true">
+                <span className="ring ring-outer" />
+                <span className="ring ring-large" />
+                <span className="ring ring-medium" />
+                <span className="ring ring-small" />
+              </div>
+            </>
+          )}
+
+          {(currentAnswer.sttStatus === "failed" || currentAnswer.sttStatus === "unsupported") && (
+            <div className="figma-interview-error juju-interview-error" role="alert">
+              识别失败，已保留当前状态，可重试或继续下一题。
+            </div>
+          )}
+
+          <div className={isRecording ? "figma-interview-orb-controls juju-interview-controls recording" : "figma-interview-orb-controls juju-interview-controls"} aria-label="回答控制">
+            <button
+              className="juju-interview-control juju-interview-control-frame7"
+              onClick={() => {
+                updateCurrentAnswer({ answerText: "", inputMode: "text", sttStatus: "manual", durationSec: 0 });
+                if (isRecording) {
+                  finishFigmaAnswer();
+                  return;
+                }
+                setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1));
+              }}
+              aria-label={isRecording ? "取消本题回答并进入下一题" : "跳过本题"}
+            >
+              <img src="/juju/interview-controls/frame-7.svg?v=202607102345" alt="" />
+            </button>
+            <button
+              className="juju-interview-control juju-interview-control-frame8"
+              onClick={isRecording ? finishFigmaAnswer : startFigmaAnswer}
+              aria-label={isRecording ? "结束回答" : "开始回答"}
+            >
+              <img src="/juju/interview-controls/frame-8.svg?v=202607102345" alt="" />
+            </button>
+            <button
+              className="juju-interview-control juju-interview-control-frame9"
+              onClick={() => showJujuToast("下个版本开放")}
+              aria-label="下个版本开放"
+            >
+              <img src="/juju/interview-controls/frame-9.svg?v=202607102345" alt="" />
+            </button>
+          </div>
+          {jujuToast && <div className="juju-interview-toast" role="status">{jujuToast}</div>}
+        </div>
+      </section>
+    );
+  }
+
   if (visualTheme === "figma") {
     const isRecording = figmaAnswerPhase === "recording";
     const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
     const interviewerName =
-      interviewerStyleId === "strictHr" ? "温柔HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
+      interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
     const interviewerRole =
       interviewerStyleId === "strictHr" ? "HR" : interviewerStyleId === "techBro" ? "Tech Lead" : "业务负责人";
     const compSrc = isRecording
@@ -476,7 +610,7 @@ export function InterviewPanel({
           </div>
 
           <section className={isRecording ? "figma-interview-prompt answering" : "figma-interview-prompt"}>
-            <h2>{isRecording ? "正在回答 ..." : "Hey Dark !"}</h2>
+            <h2>{isRecording ? "正在回答 ..." : `Hey ${candidateName} !`}</h2>
             <p>{currentQuestion.questionText}</p>
           </section>
 

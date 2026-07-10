@@ -1412,3 +1412,346 @@
 2. Phase 10 复验真实 Azure TTS / Web Speech fallback，并覆盖 LLM、TTS、STT、clipboard 故障注入。
 3. 若产品要求题目权重展示，再单独做 `weight` 契约变更，不在当前 schema 中隐式增加字段。
 4. 保留 `tts-demo` 作为 Azure/Web Speech 对照验证样板，不迁移或删除。
+
+## 《AI面试嘴替》技术方案 PDF 对齐评估 - 2026-07-09
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 核心闭环 | High alignment | PDF 的简历/JD 解析、3 道题、语音/文本作答、六维复盘、优化答案、60 秒版、复制和 Mock 兜底均已进入当前 Next.js 主流程或契约。 |
+| 技术边界 | Partial alignment | 当前实现为 Next.js App Router + Route Handlers，不是纯 SPA；Azure TTS/STT 优先、Web Speech/文本兜底，比 PDF 的纯前端 Web Speech 方案更符合现有安全与降级约束。 |
+| 流式能力 | Contract only | `/api/report/generate-stream` 使用 SSE 并立即发送进度事件，但当前仍等待完整 LLM JSON 后再发送各题报告，不应对外承诺真实模型 token 流或 TTFT `< 1.5s`。 |
+| 面试官口径 | Conflict | PDF 使用“温婉 HR / 技术老哥 / 业务大佬”，当前代码展示“温柔HR小姐姐 / 技术老哥 / 资深业务大佬”，均与 `AGENTS.md` 固定的“大厂严厉 HR / 技术老哥 / 温柔大姐姐”不完全一致；需产品一次性冻结展示文案，稳定 `styleId` 不变。 |
+| 出题权重 | Not implemented by design | PDF 的“岗位命中度 + 简历证据强度 + 面试高频度”目前是 prompt 方向而非可审计数值字段；Phase 7 已决定 `weight` 暂不进入 schema。 |
+| 部署承诺 | Needs correction | 当前推荐腾讯云 Node 自托管；若使用 Vercel，需先处理全局 Prompt 文件持久化和调试入口访问控制，不能直接表述为纯 SPA 一键部署。 |
+| Verification | Pass | 逐页渲染并审查 10 页 PDF；核对 `AGENTS.md`、API 契约、Phase 7-10、报告/语音/Prompt/部署实现；`npm run typecheck` 通过。 |
+
+### 调整建议
+
+1. 对外方案保留核心闭环，删除“100% 稳定”“100% Mock”“TTFT < 1.5 秒”等未经实测或绝对化承诺，改为“可控演示兜底、失败不阻断主流程”。
+2. 保留现有 Next.js + 服务端 Azure 代理 + OpenAI-compatible provider，不按 PDF 回退为纯 SPA 或纯 Web Speech。
+3. 将“严格按三项权重出题”改为“覆盖三项出题依据”；若产品必须展示权重，再走 API 契约变更。
+4. 将“流式极速响应”改为“SSE 进度反馈 + 完整报告兜底”；真实增量报告和性能指标另立任务并增加埋点验收。
+5. Phase 10 前先冻结三种面试官展示名称，再完成真实 LLM 三风格、Azure/Web Speech 降级和公网部署验收。
+
+## PDF 技术方案逐页修改文档 - 2026-07-09
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Revision document | Done | 新增 `docs/16_pdf_technical_proposal_revision.md`，按 PDF 第 1-10 页给出原描述、建议替换文案、修改原因和是否需要代码调整。 |
+| Cross-page terminology | Done | 统一 Agent、Mock、流式、语音、权重、部署和事实边界等对外术语。 |
+| Code impact | Identified | 面试官名称为 P0 代码与文档同步项；真实模型流式、性能埋点为独立后续任务，其余主要是 PDF 文案修正。 |
+| Risk | Open | PDF 修改完成后，当前代码中的“温柔HR小姐姐 / 资深业务大佬”仍需按产品硬边界统一，否则页面与方案稿继续不一致。 |
+| Next step | Recommended | 产品先确认逐页替换文案和三种面试官最终口径，再由开发同步代码并执行 Phase 10 三风格真实 LLM 验收。 |
+
+## Juju 主题入口复制 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Theme route | Done | `?theme=juju` 新增为正式视觉主题值；`?theme=figma` 保持原入口不变，未知 theme 仍回落到 `figma`。 |
+| Figma parity | Pass | `juju` 复用当前 figma 页面分支、`.figma-*` DOM 和样式，同时保留 `theme-juju` / `body[data-visual-theme="juju"]` 作为后续新风格覆盖入口。 |
+| Classic influence | Pass | `juju` 与 `figma` 一样隐藏 classic 调试面板，LLM 请求不传页面草稿 Prompt，继续读取 classic 保存后的全局 Prompt。 |
+| Scope | Pass | 仅调整主题识别、视觉分支类型和导航入口；未改业务状态机、API 契约、报告 schema、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；因 3000 被其他本地服务占用，改用 `GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju Home 节点背景接入 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source JSON | Reviewed | `C:/Users/Administrator/Downloads/figma_home_2026-07-10T09-24-16-457Z.json` 是整理后的节点清单，不含 `imageRef` 或 `IMAGE` fill；无法直接获得背景图文件。 |
+| Background model | Done | 根节点 `home` 背景为 `#EBEDFF`；背景组包含底部三个模糊色块：`#FFF0CC`、`#D799FF`、`#99FFAD`，已用 `theme=juju` 专属 CSS radial-gradient 复刻。 |
+| Page coverage | Pass | `theme=juju` 下 `.figma-phone-card`、home/profile/interviewer/interview/report 等 figma 分支页面统一使用新浅色背景；旧 `theme=figma` 不受影响。 |
+| Text baseline | Pass | 为 Juju 浅色背景补充首屏/状态栏/面试官选择/面试题/报告 loading 和评分头部的深色文字覆盖，避免白字落在浅背景上不可读。 |
+| Scope | Pass | 仅调整 `theme=juju` CSS 背景与少量文字颜色；未改业务状态机、API 契约、报告 schema、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju ToolBar 输入框背景接入 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source JSON | Reviewed | `C:/Users/Administrator/Downloads/figma_ToolBar_2026-07-10T09-32-56-494Z.json` 根节点 `ToolBar` 为 `fill=#FFFFFF`、`corner_radius=16`、`BACKGROUND_BLUR(radius=8)`。 |
+| Home / JD input | Done | `theme=juju` 下 `.figma-home-toolbar` 覆盖为白色背景并启用 8px 背景模糊；home 和 input JD 共用该 toolbar，因此两页同步生效。 |
+| Text contrast | Pass | Juju toolbar 内 textarea 文字改为 `#1A1A1A`，placeholder 改为半透明深色，适配白色输入框背景。 |
+| Scope | Pass | 仅调整 `theme=juju` 输入工具条 CSS；未改上传逻辑、文件解析 API、业务状态机、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju ToolBar 透明度与按钮图片 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Input opacity | Done | `theme=juju` 下 `.figma-home-toolbar` 从纯白改为 `rgba(255,255,255,0.5)`，保留 `backdrop-filter: blur(8px)`。 |
+| Right button image | Done | 新增真实图片资产 `public/juju/home/toolbar-go.png`，home 与 input JD 右侧继续/生成按钮在 Juju 主题下使用该图片。 |
+| Left button image | Done | 新增真实图片资产 `public/juju/home/toolbar-cancel.svg`，Juju 主题下输入框最左侧按钮和展开菜单关闭按钮使用该图片，不用 CSS 伪元素绘制。 |
+| Scope | Pass | 仅调整 Juju 主题的 toolbar 透明度、按钮图片资源和 `SetupPanel` 图片路径；旧 `theme=figma` 仍使用原 PNG 资产。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju`、`/juju/home/toolbar-go.png`、`/juju/home/toolbar-cancel.svg` 均返回 200。 |
+
+## Juju ToolBar 展开菜单图片补齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default left button | Done | 新增真实图片资产 `public/juju/home/toolbar-plus.svg`，Juju 输入框左侧默认按钮从 X 图改为 `+` 图。 |
+| Expanded close button | Pass | 展开菜单中的关闭按钮继续使用 `public/juju/home/toolbar-cancel.svg`，与关闭语义保持一致。 |
+| File icon image | Done | 新增真实图片资产 `public/juju/home/toolbar-file.svg`，Juju 展开菜单中文件上传按钮左侧图标使用该图片。 |
+| Scope | Pass | 仅调整 Juju 主题图片资源与 `SetupPanel` 图片路径；旧 `theme=figma` 继续使用原 Figma PNG 资产。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju`、`/juju/home/toolbar-plus.svg`、`/juju/home/toolbar-file.svg` 均返回 200。 |
+
+## Juju ToolBar 右侧按钮截图对齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference image | Done | 基于用户提供的正确上箭头截图 `C:/Temp/codex-clipboard-ac7f1f20-86e2-4463-9f15-3588f71dd8b9.png` 重新裁出真实按钮图片。 |
+| Right button asset | Done | `public/juju/home/toolbar-go.png` 已更新为粉色圆形 + 白色上箭头；旧 `toolbar-go.svg` 已删除，避免误用。 |
+| Wiring | Pass | `SetupPanel` 中 Juju 右侧按钮路径更新为 `/juju/home/toolbar-go.png?v=2026071005`，旧 `theme=figma` 仍使用原 PNG。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/home/toolbar-go.png?v=2026071005` 均返回 200。 |
+
+## Juju 返回按钮与首页文案 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Back button image | Done | 新增真实图片资产 `public/juju/home/back.svg`，Juju 主题下所有 `.figma-jd-back-button` 统一使用该返回按钮图片。 |
+| Figma isolation | Pass | 返回按钮覆盖仅在 `.theme-juju` 生效；旧 `theme=figma` 仍使用原 CSS 返回按钮。 |
+| Home copy | Done | Juju 首页标题改为 `Hey 朋友!`，介绍文案改为 `我是面壁者，请告诉我您的过往经历，以便我能够更好地了解您。`；旧 Figma 文案保持不变。 |
+| Scope | Pass | 仅调整 Juju 返回按钮图片和 Home 文案；未改路由、状态机、上传/解析逻辑、API 契约、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/home/back.svg?v=2026071006` 均返回 200。 |
+
+## Juju 候选人画像页面重构 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Juju-only profile branch | Done | `theme=juju` 的候选人画像页拆为 `JujuProfilePanel`；旧 `theme=figma` 继续走 `FigmaProfilePanel`，不受本次结构删减影响。 |
+| Removed modules | Done | Juju 画像页不再渲染旧“匹配概览”三指标模块、顶部大圆球、“候选人画像”标题和“对比简历 / JD 匹配来源”tabs。 |
+| Summary behavior | Done | 顶部候选人评价默认两行截断，超出由 CSS line-clamp 省略；提供蓝色“展开 / 收起”按钮。标题按简历中显式姓名替换，未识别到姓名时显示“朋友 我们对您的履历做了总结”。 |
+| Profile cards | Done | 核心匹配、面试风险和优化建议改为 Juju 白色卡片样式；优化建议从旧 tabs 后方独立提升到风险模块下方。 |
+| Orb asset | Done | 新增真实图片资产 `public/juju/profile/component-1.svg`，按 `figma_Component_1_2026-07-10T11-03-43-416Z.json` 的 64×64 小圆球样式接入。 |
+| Scope | Pass | 仅调整 Juju 画像视觉结构和候选人称呼提取；未改 `CandidateProfile` schema、画像生成 API、题目生成、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/profile/component-1.svg?v=2026071001` 均返回 200。 |
+
+## Juju 候选人画像折叠与 CTA 优化 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Match / risk collapse | Done | Juju 画像页匹配点、风险点默认只展示 1 条，点击 16px 展开图片按钮后展示全部；底部统计按当前可见数显示为 `1/n` 或 `n/n`。 |
+| Image assets | Done | 新增 `public/juju/profile/expand-toggle.svg`、`dot-match.svg`、`dot-risk.svg`、`dot-suggestion.svg`，展开按钮和三类圆点均改为图片资源，不用 CSS 拼接。 |
+| Suggestion height | Done | 优化建议卡片去掉固定最小高度，改为按内容自然撑高。 |
+| Floating CTA | Done | Juju 画像页底部按钮改为固定悬浮在手机画布底部，尺寸 `184×44`、圆角 `22px`、底色 `#FF0080`，文案为“准备面试”。 |
+| Orb position | Done | 顶部小圆球从右上角绝对定位改为画像内容区内左对齐显示，继续使用 `component-1.svg` 图片资产。 |
+| Scope | Pass | 仅调整 Juju 画像页视觉与折叠交互；未改 `CandidateProfile` schema、画像生成 API、题目生成、语音链路、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；新增 4 个 Juju profile 图片资源均返回 200。 |
+
+## Juju 候选人画像层级和底部区域修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Card hierarchy | Done | Juju 画像卡片增强为外层半透明磨砂底、白色内层 body、独立 footer、白色描边和轻阴影，避免截图中卡片轮廓和层次不明显。 |
+| Collapsed card height | Done | 匹配点、风险点 body 去掉旧固定最小高度，默认一条内容时自然回到节点约 120px 的高度；展开后再由内容撑高。 |
+| Bottom display logic | Done | `.juju-profile-scroll` 底部截到悬浮 CTA 上方，不再让优化建议等滚动内容压到“准备面试”按钮下面。 |
+| CTA placement | Pass | “准备面试”保持手机画布底部悬浮，位置调整为 `bottom: 39px`，与底部 Home Indicator 留出独立区域。 |
+| Scope | Pass | 仅调整 Juju 画像 CSS 层级和滚动区域；未改业务状态机、API 契约、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 和 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 画像图标资源继续返回 200。 |
+
+## Juju 候选人画像字重、图标和 Tabs CTA 修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Typography | Done | 顶部“朋友 我们对您的履历做了总结”标题和“匹配点 / 风险点 / 优化建议”模块名均加粗到 `font-weight: 700`。 |
+| Ring icons | Done | `dot-match.svg`、`dot-risk.svg`、`dot-suggestion.svg` 从实心圆改为浅色外环 + 实心内点图片，路径缓存版本更新到 `v=2026071003`。 |
+| Expand icon border | Done | `expand-toggle.svg` 改为带圆形描边的 16×16 图片，展开 / 收起均使用图片资源，缓存版本更新到 `v=2026071003`。 |
+| Tabs CTA | Done | “准备面试”按钮外层新增 `375×56` Tabs 区域，按钮在 Tabs 内居中，尺寸仍为 `184×44`、圆角 `22px`、底色 `#FF0080`。 |
+| Scope | Pass | 仅调整 Juju 画像页字重、图片资源和 CTA 容器；未改业务状态机、API 契约、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 和 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；`dot-match.svg?v=2026071003` 与 `expand-toggle.svg?v=2026071003` 返回 200。 |
+
+## Juju 候选人画像 CTA Tabs 毛玻璃 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tabs glass layer | Done | `375×56` 的 `.juju-profile-tabs` 增加半透明白色背景、`20px` backdrop blur 和顶部高光，作为“准备面试”按钮所属的毛玻璃承载区域。 |
+| Button behavior | Pass | 按钮继续保持 `184×44`、`#FF0080`、居中；Tabs 容器不截获事件，点击仍只落到按钮。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 候选人画像 CTA Tabs 纯毛玻璃 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Glass without tint | Done | `.juju-profile-tabs` 去掉半透明白色背景和顶部高光，只保留 `backdrop-filter: blur(20px)` / `-webkit-backdrop-filter`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 候选人画像底部玻璃层对齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Bottom glass extent | Done | `.juju-profile-tabs` 从 56px 悬浮条调整为覆盖底部的 100px 玻璃层，贴到手机画布底部。 |
+| Soft top edge | Done | 玻璃效果移到 `::before` 背景层，并用 mask 做顶部渐隐，避免硬切矩形边。 |
+| Button / indicator layering | Done | “准备面试”按钮和 Home Indicator 独立置于玻璃层上方，避免被渐隐 mask 裁切。 |
+| Scroll boundary | Done | 画像滚动区域底部调整到 98px，为底部玻璃层和按钮留出空间。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 报告页结构重排 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Juju-only report branch | Done | `theme=juju` 报告完成页拆为 `JujuReportPanel`，不再复用 Figma 长报告页；旧 `theme=figma` 继续保留原报告结构。 |
+| Final report removal | Done | Juju 报告页移除旧“最终报告 / 总分”模块，只保留顶部评价卡展示总结与作答状态。 |
+| Summary clamp | Done | 顶部评价卡按 `Frame 11` 风格实现，默认最多 3 行，超出后通过“展开 / 收起”切换。 |
+| Risk / action cards | Done | Top 风险和行动项改为 `Frame 58` 双统计卡；点击后弹出 375×470 白色底部详情层，带顶部阴影。 |
+| Mouthpiece | Done | 旧单题 “60 秒口述版” 不再放在 tabs 下方，改为独立“嘴替”模块，聚合 `questionReports` 中 LLM 返回的三题口述版内容并支持复制。 |
+| Question tabs | Done | Tabs 详情中去掉本题分数、您的回答、六维象限和分数；保留“面试题目”两行折叠、“诊断”两行折叠、“面试题目分析”和“风险分析”。 |
+| Risk analysis | Done | “风险标签”改为“风险分析”，使用当前题 riskTags 的前两个维度，并结合 fatalIssue / diagnosis 做阐述。 |
+| Scope | Pass | 仅调整 Juju 报告展示层；未改 `InterviewReport` / `QuestionReport` schema、报告生成 API、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 面试官图片、统一球体和答题页状态 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interviewer assets | Done | `theme=juju` 下选择面试官、确认面试官、答题头像和报告页人物图均覆盖为 `/juju/interviewers/*.png`，不再使用旧 `/figma/interviewers` 资源。 |
+| Unified orb component | Done | 新增 `components/JujuOrb.tsx`，用固定图片 `/juju/profile/component-1.svg` 加默认动效框复用到 home、input JD、loading、选择面试官、答题页和候选人画像左上小球。 |
+| Interview question state | Done | Juju 答题页非录音状态按 `figma_Interview_Responses_2026-07-10T14-39-07-644Z.json` 重排：Group 9 球体、`1/3` 进度、题目文本和底部三按钮；不渲染 mini program 导航胶囊。 |
+| Interview recording state | Done | Juju 答题页录音状态按 `figma_Interview_Responses_2_2026-07-10T14-40-39-750Z.json` 重排：保留 Group 9 球体，展示“正在聆听”文案和 4 层聆听圆环；不渲染 mini program 导航胶囊。 |
+| Scope | Pass | 仅调整 Juju 视觉层和组件复用；未改 `sessionStep`、API payload、schema、错误码、报告生成、语音状态机、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 页面、三张 `/juju/interviewers` 图片和 `/juju/profile/component-1.svg` 均返回 200。浏览器走到 profile/select/interview/recording，确认无 mini program 文案、无旧 `.figma-interview-comp`，答题页 `orbProgress=1/3`，录音态有 4 层圆环且 console error 为 0。 |
+| Risk | Open | 面试官展示文案仍沿用当前代码里的“温婉HR小姐姐 / 技术老哥 / 资深业务大佬”；本次只按要求替换 Juju 主题图片资源，若需改成 `AGENTS.md` 固定口径需单独同步产品文案。 |
+
+## Juju 统一球体分层修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Layer mapping | Done | `JujuOrb` 按 Group 9 明确拆分为 `Ellipse 10` 外框、`Ellipse 11` 球体描边和 `B_01` 固定图片三层。 |
+| Fixed sphere asset | Done | `B_01` 继续直接使用单张 `/juju/profile/component-1.svg` 图片，不再由 CSS 拼接球体，并固定为球体尺寸避免被进度区撑高。 |
+| Motion | Done | 移除外框旋转、扫描和 loading 容器缩放；仅 `Ellipse 10` 外框保留 3.2 秒、最大 1.2% 的轻微呼吸效果。 |
+| Scope | Pass | 仅调整 Juju 球体视觉组件和样式；未改业务状态机、API 契约或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器检查首页球体为 `Ellipse 10=200×200`、`Ellipse 11=128×128`、`B_01=200×200`，且只有 `Ellipse 10` 带呼吸动画。 |
+
+## Juju 答题页提问文字与图片按钮 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Four-line question window | Done | 面试官播放题目时，中部文字窗口固定为 4 行（`88px / 22px`），超出内容在窗口内向上滚动。 |
+| Speech-linked motion | Done | Azure 音频以实际时长驱动文字滚动；Web Speech 以文本长度和语速估算时长驱动。播放结束维持淡出，停止或失败恢复可读文本。 |
+| Direct control images | Done | 新增 Juju 主题的 `frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png`，答题页左右中三按钮均通过 `<img>` 直接使用完整图片。 |
+| Scope | Pass | 仅调整 Juju 答题页视觉与播放联动；未改 TTS/STT API、语音状态机、答题数据或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；三张 Juju 图片资源均返回 200。浏览器走至答题页确认题目窗口为 `88px` 高、`22px` 行高、`overflow: hidden`，三枚按钮为 `52px / 80px / 52px` 的独立图片，Juju DOM 无旧 CSS 控制按钮。 |
+
+## Juju 统一球体 B_01 图片替换 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source asset | Done | 将用户提供的 `B_01.png` 放入 `public/juju/profile/B_01.png`，作为 Juju 主题统一球体的唯一固定球图。 |
+| All Juju orb placements | Done | Home、JD 输入、loading、面试官选择、候选人画像和答题页均通过 `JujuOrb` 引用新 PNG，不再引用旧 `component-1.svg`。 |
+| Node alignment | Done | 图片按 `B_01` 节点画布比例置于外框内，固定画布为外框的 74%，使可见球体继续与 `Ellipse 11` 的 64% 描边对齐。 |
+| Layer order | Done | `Ellipse 10 -> B_01 -> Ellipse 11` 明确分层，保证球形描边显示在新图片边缘之上。 |
+| Scope | Pass | 仅替换 Juju 球体图片和定位比例；未改业务状态机、API 契约或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；`/juju/profile/B_01.png` 返回 200；组件扫描确认 Juju 唯一球图引用为新 PNG。浏览器实时预览因 webview 连接超时未能复验。 |
+
+## Juju 答题页更新 Figma 状态 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ellipse 10 color | Done | 统一球体外框改为白色描边与白色轻光，并继续保留轻微呼吸动效。 |
+| Interviewer playback state | Done | 按 `figma_Interview_Responses_2026-07-10T15-25-12-508Z.json` 对齐：球体内容从 Group 9 的 `y=149` 开始，题目外框 `343×118`、正文窗口 `323×88`，保留底部 Home Indicator。播放态不渲染 `Ellipse 11`。 |
+| Voice answer state | Done | 按 `figma_Interview_Responses_2_2026-07-10T15-25-23-631Z.json` 对齐：保留 `Ellipse 11`、聆听文案、四层 Group 10 圆环、Frame 10 控制区和底部 Home Indicator。 |
+| Mini program exclusion | Pass | 两个 Juju 状态均未渲染 Figma 的 `NavBar 导航栏 - mini program小程序` 胶囊或标题。 |
+| Scope | Pass | 仅调整 Juju 答题页组件、球体视觉和 CSS；未改 TTS/STT API、业务状态机、答题数据或其他主题。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 入口返回 200。 |
+
+## Juju 面试官选择与单题嘴替回归 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select interviewer layout | Done | `theme=juju` 选择页按 `figma_Select_Interviewer_2_2026-07-10T15-27-32-204Z.json` 重排为顶部大球、渐变内容层、两张上排 180px 人物卡和一张下排居中人物卡，并保留底部 Home Indicator。 |
+| Interviewer behavior | Pass | 继续使用固定的 3 个 `InterviewerStyleId` 和 Juju 图片资源；点击卡片仍进入既有确认页。 |
+| Per-question mouthpiece | Done | 移除报告顶层三题合并“嘴替”模块；当前 Q1/Q2/Q3 Tab 在“诊断”后展示对应 `QuestionReport.oralVersion60s`，并只复制当前题内容。 |
+| Scope | Pass | 仅调整 Juju 选择页与报告展示层；未改报告 schema、报告 API、复制底层兜底或其他主题。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 入口浏览器 DOM 正常加载。 |
+## Juju 面试确认页、字幕渐隐与答题按钮修正 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Ellipse 10 呼吸动效 | 已完成 | 最大缩放调整为 `1.05`，同步增强白色光晕。 |
+| 面试官头像外框 | 已完成 | Juju 确认页的人像外新增 284px 白色圆形描边与轻微发光。 |
+| 题目字幕边缘渐隐 | 已完成 | 字幕滚动窗口使用上下遮罩，文字先半透明渐隐再消失。 |
+| 答题页三个操作按钮 | 已完成 | 使用独立图片资源 `frame-7.svg`、`frame-8.svg`、`frame-9.svg`；右侧按钮仅提示“下个版本开放”。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题视觉和交互，不改答题状态机与接口契约。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；三个 SVG 资源均返回 HTTP 200。 |
+
+## Juju Report 嘴替宽度、分析图标与两行展开 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 嘴替框宽度 | 已完成 | Tabs 内单题“嘴替”模块外扩到 343px，与“面试题目分析 / 风险分析”卡片宽度保持一致。 |
+| 面试题目分析图标 | 已完成 | 新增完整图片资源 `public/juju/report/analyze.svg`，标题左侧直接使用图片，不再由 DOM/CSS 拼接。 |
+| 风险分析图标 | 已完成 | 新增完整图片资源 `public/juju/report/guide.svg`，标题左侧直接使用图片，不再由 CSS bookmark 拼接。 |
+| 两行展开 | 已完成 | Tabs 下“面试题目”和“诊断”内容超过两行即截断，“展开”保持在第二行末尾。 |
+| 本次范围 | 已完成 | 仅调整 Juju report 展示层、图片资源与折叠交互；未改报告 schema、API 契约或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`analyze.svg` 与 `guide.svg` 均返回 HTTP 200；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 选择页头像透明框、答题球体外环与弹层蒙层 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择面试官头像圆框 | 已完成 | 头像圆形框保留，底色改为半透明白色并增加轻微毛玻璃，不再使用实心灰底。 |
+| 答题页球体外环 | 已完成 | `JujuOrb` 增加可选外侧圆环，答题页启用；新圆半径按 Ellipse 10 与球体半径差等距扩展，并带一截加粗弧线缓慢旋转。 |
+| 识别失败提示 | 已完成 | Juju 答题页失败提示条文字居中。 |
+| TOP 风险 / 行动项蒙层 | 已完成 | 报告页底部详情弹层遮罩改为白色 70%。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题视觉层和 `JujuOrb` 可选渲染；未改面试状态机、报告 schema、API 契约或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 候选人画像底部 Home Indicator 移除 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 画像页底部黑色 Indicator | 已完成 | 移除 Juju 候选人画像页面底部 Tabs 内的 home indicator，仅保留“准备面试”按钮和底部玻璃层。 |
+| 本次范围 | 已完成 | 仅调整 Juju 候选人画像页 JSX 与对应废弃 CSS；未改其他页面的 home indicator、业务状态机或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 选择面试官底部 Indicator 与球体层级修正 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择页底部黑色 Indicator | 已完成 | 移除 Juju 选择面试官页面底部 home indicator。 |
+| 顶部球体圆框层级 | 已完成 | 将顶部球体层级提到“选择面试官”浅色内容层之上，标题文案和面试官卡片继续保持在球体之上。 |
+| 本次范围 | 已完成 | 仅调整 Juju 选择面试官页 JSX 和 CSS 层级；未改业务状态机、面试官枚举或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示；代码扫描确认无 `juju-interviewer-select-home-indicator` 残留。 |
+
+## Juju 面试官确认页头像 Ellipse 5 对齐 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 头像裁切框 | 已完成 | Juju 面试官确认页头像容器改为 320×320 圆形裁切，与 Figma `Ellipse 5` 尺寸一致。 |
+| 圆形描边 | 已完成 | 外部白色圆形描边同步改为 320×320，与 Ellipse 5 同位，避免头像和框尺寸不一致。 |
+| 面试官图片尺寸 | 已完成 | 针对三种面试官分别调整 `background-size` 与位置，让头像落在 320px 圆框内。 |
+| 本次范围 | 已完成 | 仅调整 Juju 确认面试官页视觉；未改选择面试官流程、面试官枚举、业务状态机或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 移动端视口铺满与头像框去描边 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 移动端背景铺满 | 已完成 | Juju 主题背景抽为统一变量，body、app-shell、stage 和 phone card 使用同一背景，避免模拟手机时露出非 Juju 背景。 |
+| 移动端横向操作区 | 已完成 | Juju 小屏 phone card 改为 `100vw`，首页 / JD 输入操作框改为 `calc(100% - 32px)`，横向撑满到左右 16px 边距；纵向保持页面可滚动。 |
+| 选择页头像框描边 | 已完成 | 选择面试官页三个头像圆框去掉描边和内阴影。 |
+| 确认页头像框描边与位置 | 已完成 | 确认面试官页 320px 圆形框去掉描边和光晕，人物图在圆形裁切内整体上移 40px。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题 CSS 视觉与移动端布局；未改业务状态机、路由、API 或其他主题逻辑。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 宽屏手机模拟居中与 Indicator 清理 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择面试官浅色层 | 已完成 | 选择面试官页中间浅色渐变层改为 `width: 100%`，避免 430px 模拟宽度下只铺 375px。 |
+| 确认页信息卡 | 已完成 | 面试官确认页信息卡从左侧固定定位改为 `left: 50%` 居中。 |
+| 答题页整体居中 | 已完成 | Juju 答题页在宽屏手机模拟下使用 `--juju-design-offset`，球体、题目/聆听文字、按钮和 toast 按 375px 设计整体居中。 |
+| 答题页 Home Indicator | 已完成 | 移除 Juju 答题页底部 home indicator 节点。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题移动端布局和答题页 JSX；未改答题状态机、语音逻辑、报告 schema 或 API。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示；代码扫描确认无 `juju-interview-home-indicator` 残留。 |
+
+## Juju 移动端文案与底部 CTA 居中修正 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择页顶部背景球 | 已完成 | 小屏宽度超过 375px 时，顶部 Juju 球体按设计画布整体居中，不再贴左侧固定坐标。 |
+| 选择页标题说明文字 | 已完成 | “请选择面试官”和说明文案随 375px 设计画布居中到当前视口。 |
+| 面试官头像区域 | 已完成 | 三个面试官选项跟随同一居中偏移，头像与姓名整体保持居中排布。 |
+| 首页 / JD 文案组 | 已完成 | 首页和 JD 输入页的标题、说明与提示文字保持原相对位置，整组随 375px 设计画布居中。 |
+| Loading 文案 | 已完成 | Juju 思考 loading 页文案跟随 375px 设计画布居中，避免宽屏手机模拟下偏左。 |
+| 画像页底部 CTA | 已完成 | 候选人画像页底部按钮区域改为 100% 宽度，按钮居中，底部半透明背景左右贯通。 |
+| 本次范围 | 已完成 | 仅调整 Juju 移动端 CSS；未改面试官数据、输入流程、状态机或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |

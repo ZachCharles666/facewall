@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES } from "@/lib/state/constants";
-import type { CommonResponse, SetupForm } from "@/lib/types";
+import type { CommonResponse, SetupForm, VisualTheme } from "@/lib/types";
+import { JujuOrb } from "@/components/JujuOrb";
 
 interface ParsedUploadResponse {
   text: string;
@@ -58,7 +59,7 @@ export function SetupPanel({
 }: {
   form: SetupForm;
   initialFigmaStep?: "home" | "jd";
-  visualTheme?: "figma" | "classic";
+  visualTheme?: VisualTheme;
   onChange: (form: SetupForm) => void;
   onFillDemo: () => void;
   onFillDemoAndStart: () => void;
@@ -87,6 +88,21 @@ export function SetupPanel({
     kind: "idle",
     message: ""
   });
+  const isJujuTheme = visualTheme === "juju";
+  const uploadButtonImageSrc = isJujuTheme
+    ? "/juju/home/toolbar-plus.svg?v=2026071003"
+    : "/figma/home/frame4-frame1-upload@2x.png?v=2026070302";
+  const closeButtonImageSrc = isJujuTheme ? "/juju/home/toolbar-cancel.svg?v=2026071002" : null;
+  const continueButtonImageSrc = isJujuTheme
+    ? "/juju/home/toolbar-go.png?v=2026071005"
+    : "/figma/home/frame4-group1-continue@2x.png?v=2026070302";
+  const fileUploadIconSrc = isJujuTheme
+    ? "/juju/home/toolbar-file.svg?v=2026071003"
+    : "/figma/home/frame4-frame3-frame2-file@2x.png?v=2026070303";
+  const homeTitle = isJujuTheme ? "Hey 朋友!" : "Hey Dark !";
+  const homeIntro = isJujuTheme
+    ? "我是面壁者，请告诉我您的过往经历，以便我能够更好地了解您。"
+    : "我是Lili，请告诉我您的过往经历，以便我能够更好地了解您。";
 
   useEffect(() => {
     function refreshSystemTime() {
@@ -99,7 +115,7 @@ export function SetupPanel({
   }, []);
 
   useLayoutEffect(() => {
-    if (visualTheme !== "figma" || figmaStep !== "home") return;
+    if ((visualTheme !== "figma" && visualTheme !== "juju") || figmaStep !== "home") return;
 
     const textarea = figmaResumeTextareaRef.current;
     if (!textarea) return;
@@ -114,7 +130,7 @@ export function SetupPanel({
   }, [figmaStep, form.resumeText, visualTheme]);
 
   useLayoutEffect(() => {
-    if (visualTheme !== "figma" || figmaStep !== "jd") return;
+    if ((visualTheme !== "figma" && visualTheme !== "juju") || figmaStep !== "jd") return;
 
     const textarea = figmaJdTextareaRef.current;
     if (!textarea) return;
@@ -215,7 +231,7 @@ export function SetupPanel({
     onStart();
   }
 
-  if (visualTheme === "figma") {
+  if (visualTheme === "figma" || visualTheme === "juju") {
     return (
       <section className="figma-phone-stage" aria-label="Figma setup flow">
         {figmaStep === "home" ? (
@@ -224,20 +240,24 @@ export function SetupPanel({
               <span>{currentSystemTime}</span>
               <span>Facewall</span>
             </div>
-            <div
-              className="figma-home-comp"
-              aria-hidden="true"
-              data-figma-layer="home / Comp 1024 1"
-            >
-              <img
-                className="figma-home-comp-asset"
-                src="/figma/home/comp-1024-1@2x.png?v=2026070302"
-                alt=""
-              />
-            </div>
+            {isJujuTheme ? (
+              <JujuOrb className="juju-home-orb" />
+            ) : (
+              <div
+                className="figma-home-comp"
+                aria-hidden="true"
+                data-figma-layer="home / Comp 1024 1"
+              >
+                <img
+                  className="figma-home-comp-asset"
+                  src="/figma/home/comp-1024-1@2x.png?v=2026070302"
+                  alt=""
+                />
+              </div>
+            )}
             <div className="figma-copy">
-              <h2>Hey Dark !</h2>
-              <p>我是Lili，请告诉我您的过往经历，以便我能够更好地了解您。</p>
+              <h2>{homeTitle}</h2>
+              <p>{homeIntro}</p>
               <p className="figma-home-help">您可粘贴至输入框或点击“+”上传 PDF 、word 文档 最大不超过20m。</p>
             </div>
             <div
@@ -285,7 +305,11 @@ export function SetupPanel({
                       aria-label="Close upload options"
                       onClick={() => setFigmaUploadOpen(false)}
                     >
-                      <span aria-hidden="true">×</span>
+                      {closeButtonImageSrc ? (
+                        <img src={closeButtonImageSrc} alt="" aria-hidden="true" />
+                      ) : (
+                        <span aria-hidden="true">×</span>
+                      )}
                     </button>
                     <button className="figma-frame4-pill-button" onClick={fillDemoResume}>
                       <span>UseDemoCV</span>
@@ -293,7 +317,7 @@ export function SetupPanel({
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaResumeFile">
                       <img
                         className="figma-file-upload-icon"
-                        src="/figma/home/frame4-frame3-frame2-file@2x.png?v=2026070303"
+                        src={fileUploadIconSrc}
                         alt=""
                         aria-hidden="true"
                       />
@@ -316,7 +340,7 @@ export function SetupPanel({
                     aria-label="Open upload options"
                     onClick={() => setFigmaUploadOpen(true)}
                   >
-                    <img src="/figma/home/frame4-frame1-upload@2x.png?v=2026070302" alt="" aria-hidden="true" />
+                    <img src={uploadButtonImageSrc} alt="" aria-hidden="true" />
                   </button>
                 )}
                 <button
@@ -324,7 +348,7 @@ export function SetupPanel({
                   aria-label="Continue"
                   onClick={continueToJd}
                 >
-                  <img src="/figma/home/frame4-group1-continue@2x.png?v=2026070302" alt="" aria-hidden="true" />
+                  <img src={continueButtonImageSrc} alt="" aria-hidden="true" />
                 </button>
               </div>
               {figmaResumeError ? (
@@ -355,17 +379,21 @@ export function SetupPanel({
             <button className="figma-jd-back-button" aria-label="Back" onClick={() => setFigmaStep("home")}>
               <span aria-hidden="true" />
             </button>
-            <div
-              className="figma-home-comp"
-              aria-hidden="true"
-              data-figma-layer="input JD / Comp 1024 1"
-            >
-              <img
-                className="figma-home-comp-asset"
-                src="/figma/home/comp-1024-1-jd@2x.png?v=2026070501"
-                alt=""
-              />
-            </div>
+            {isJujuTheme ? (
+              <JujuOrb className="juju-jd-orb" />
+            ) : (
+              <div
+                className="figma-home-comp"
+                aria-hidden="true"
+                data-figma-layer="input JD / Comp 1024 1"
+              >
+                <img
+                  className="figma-home-comp-asset"
+                  src="/figma/home/comp-1024-1-jd@2x.png?v=2026070501"
+                  alt=""
+                />
+              </div>
+            )}
             <div className="figma-copy">
               <h2>已经知悉了您的过往 ...</h2>
               <p>请输入您的意向 JD，以便我给您匹配合适的面试官。</p>
@@ -415,7 +443,11 @@ export function SetupPanel({
                       aria-label="Close JD upload options"
                       onClick={() => setFigmaJdUploadOpen(false)}
                     >
-                      <span aria-hidden="true">×</span>
+                      {closeButtonImageSrc ? (
+                        <img src={closeButtonImageSrc} alt="" aria-hidden="true" />
+                      ) : (
+                        <span aria-hidden="true">×</span>
+                      )}
                     </button>
                     <button className="figma-frame4-pill-button" onClick={fillDemoJd}>
                       <span>UseDemoJD</span>
@@ -423,7 +455,7 @@ export function SetupPanel({
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaJdFile">
                       <img
                         className="figma-file-upload-icon"
-                        src="/figma/home/frame4-frame3-frame2-file@2x.png?v=2026070303"
+                        src={fileUploadIconSrc}
                         alt=""
                         aria-hidden="true"
                       />
@@ -446,11 +478,11 @@ export function SetupPanel({
                     aria-label="Open JD upload options"
                     onClick={() => setFigmaJdUploadOpen(true)}
                   >
-                    <img src="/figma/home/frame4-frame1-upload@2x.png?v=2026070302" alt="" aria-hidden="true" />
+                    <img src={uploadButtonImageSrc} alt="" aria-hidden="true" />
                   </button>
                 )}
                 <button className="figma-frame4-group1-button" aria-label="Generate profile" onClick={startFromJd}>
-                  <img src="/figma/home/frame4-group1-continue@2x.png?v=2026070302" alt="" aria-hidden="true" />
+                  <img src={continueButtonImageSrc} alt="" aria-hidden="true" />
                 </button>
               </div>
               {figmaJdError ? (

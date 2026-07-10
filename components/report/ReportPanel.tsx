@@ -1,12 +1,14 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
+import { JujuOrb } from "@/components/JujuOrb";
 import type {
   DimensionScores,
   InterviewAnswer,
   InterviewerStyleId,
   InterviewQuestion,
   InterviewReport,
-  QuestionReport
+  QuestionReport,
+  VisualTheme
 } from "@/lib/types";
 
 const dimensionOrder: Array<keyof DimensionScores> = [
@@ -35,8 +37,6 @@ const zeroDimensionScores: DimensionScores = {
   truthBoundary: 0,
   completeness: 0
 };
-
-type VisualTheme = "classic" | "figma";
 
 function FigmaReportClock() {
   const [time, setTime] = useState<string | null>(null);
@@ -320,7 +320,7 @@ export function ReportPanel({
     };
   }, [report, visualTheme, figmaReportBodyTop]);
 
-  if (visualTheme === "figma") {
+  if (visualTheme === "figma" || visualTheme === "juju") {
     if (!report) {
       return (
         <section className="figma-phone-stage" aria-label="Report loading">
@@ -329,7 +329,11 @@ export function ReportPanel({
               <FigmaReportClock />
               <span>Facewall</span>
             </div>
-            <div className="figma-report-loading-orb" aria-hidden="true" />
+            {visualTheme === "juju" ? (
+              <JujuOrb className="juju-report-loading-orb" />
+            ) : (
+              <div className="figma-report-loading-orb" aria-hidden="true" />
+            )}
             <section className="figma-report-loading-copy">
               <h2>正在生成复盘报告</h2>
               <p>{state.message || "正在整理 3 道题的回答、风险和优化答案。"}</p>
@@ -355,6 +359,26 @@ export function ReportPanel({
             )}
           </div>
         </section>
+      );
+    }
+
+    if (visualTheme === "juju") {
+      return (
+        <JujuReportPanel
+          report={report}
+          questions={questions}
+          answers={answers}
+          answeredCount={answeredCount}
+          missingAnswers={missingAnswers}
+          copyText={copyText}
+          copyState={copyState}
+          copyMessage={copyMessage}
+          manualCopyVisible={manualCopyVisible}
+          manualCopyText={manualCopyText}
+          copyTextRef={copyTextRef}
+          state={state}
+          interviewerStyleId={interviewerStyleId}
+        />
       );
     }
 
@@ -703,6 +727,419 @@ export function ReportPanel({
       </div>
     </section>
   );
+}
+
+function JujuReportPanel({
+  report,
+  questions,
+  answers,
+  answeredCount,
+  missingAnswers,
+  copyText,
+  copyState,
+  copyMessage,
+  manualCopyVisible,
+  manualCopyText,
+  copyTextRef,
+  state,
+  interviewerStyleId
+}: {
+  report: InterviewReport;
+  questions: InterviewQuestion[];
+  answers: InterviewAnswer[];
+  answeredCount: number;
+  missingAnswers: InterviewQuestion[];
+  copyText: (text: string, successMessage: string) => Promise<void>;
+  copyState: "idle" | "success" | "failed";
+  copyMessage: string;
+  manualCopyVisible: boolean;
+  manualCopyText: string;
+  copyTextRef: React.RefObject<HTMLTextAreaElement | null>;
+  state: {
+    kind: "idle" | "loading" | "streaming" | "ready" | "error";
+    message: string;
+    usedFallback: boolean;
+  };
+  interviewerStyleId: InterviewerStyleId;
+}) {
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
+  const [sheet, setSheet] = useState<"risks" | "actions" | null>(null);
+  const questionReports = report.questionReports;
+  const selectedReport = questionReports[Math.min(selectedQuestionIndex, Math.max(0, questionReports.length - 1))] ?? questionReports[0];
+  const selectedQuestion = questions.find((question) => question.id === selectedReport?.questionId) ?? questions[selectedQuestionIndex];
+  const summaryText = buildJujuSummaryText(report, answeredCount, questions.length, missingAnswers);
+  const selectedMouthpieceText = selectedReport?.oralVersion60s || "暂无嘴替答案。";
+  const riskAnalysis = buildJujuRiskAnalysis(selectedReport);
+  const tabs = questions.slice(0, 3).map((question, index) => ({
+    id: question.id,
+    label: `Q${index + 1}`
+  }));
+  const interviewerName =
+    interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
+  const interviewerRole =
+    interviewerStyleId === "strictHr" ? "HR" : interviewerStyleId === "techBro" ? "Tech Lead" : "业务负责人";
+  const dimensionSummary =
+    selectedQuestion?.expectedSignals.join("、") || selectedReport?.riskTags.join("、") || "结合岗位要求、表达结构和证据质量综合评估。";
+  const seniorityText =
+    selectedQuestion?.difficulty === "hard"
+      ? "高压追问 / 资深候选人"
+      : selectedQuestion?.difficulty === "medium"
+        ? "进阶练习 / 中级候选人"
+        : "基础练习 / 初次面试";
+  const intentText = selectedQuestion?.intent || selectedReport?.diagnosis || "考察候选人是否能用真实证据支撑判断。";
+
+  return (
+    <section className="figma-phone-stage juju-report-stage" aria-label="Juju report">
+      <div className="figma-phone-card figma-home-card figma-report-card juju-report-card">
+        <div className="figma-statusbar">
+          <FigmaReportClock />
+          <span>Facewall</span>
+        </div>
+
+        <div className="juju-report-scroll">
+          <section className="juju-report-hero">
+            <div className={`juju-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
+            <div className="juju-report-hero-score">
+              <p>本次得分</p>
+              <h2>{report.finalReport.overallScore}</h2>
+              <span>
+                评分来自 {interviewerName} · {interviewerRole}
+              </span>
+            </div>
+          </section>
+
+          <section className="juju-report-summary-card">
+            <JujuClampText
+              className="juju-report-summary-text"
+              expanded={summaryExpanded}
+              lines={3}
+              text={summaryText}
+            />
+            <button type="button" onClick={() => setSummaryExpanded((current) => !current)}>
+              {summaryExpanded ? "收起" : "展开"}
+            </button>
+          </section>
+
+          <div className="juju-report-stat-grid">
+            <JujuReportStatCard
+              count={report.finalReport.topRisks.length}
+              iconSrc="/juju/profile/dot-risk.svg?v=2026071003"
+              label="TOP 风险"
+              onClick={() => setSheet("risks")}
+            />
+            <JujuReportStatCard
+              count={report.finalReport.actionItems.length}
+              iconSrc="/juju/profile/dot-suggestion.svg?v=2026071003"
+              label="行动项"
+              onClick={() => setSheet("actions")}
+            />
+          </div>
+
+          <section className="juju-report-tabs-panel">
+            <div className="juju-report-tabs" role="tablist" aria-label="题目报告">
+              {tabs.map((tab, index) => (
+                <button
+                  className={index === selectedQuestionIndex ? "active" : ""}
+                  key={tab.id}
+                  onClick={() => setSelectedQuestionIndex(index)}
+                  role="tab"
+                  aria-selected={index === selectedQuestionIndex}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <article className="juju-report-question-pane">
+              <section className="juju-report-question-block">
+                <h3>面试题目</h3>
+                <JujuTruncatedText
+                  key={`question-${selectedQuestion?.id ?? selectedQuestionIndex}`}
+                  text={selectedQuestion?.questionText ?? selectedQuestion?.title ?? "暂无题目内容。"}
+                />
+              </section>
+
+              <section className="juju-report-diagnosis-block">
+                <h3>诊断</h3>
+                <JujuTruncatedText
+                  key={`diagnosis-${selectedReport?.questionId ?? selectedQuestionIndex}`}
+                  text={selectedReport?.diagnosis ?? "暂无诊断。"}
+                />
+              </section>
+
+              <section className="juju-report-mouthpiece-inline">
+                <div className="juju-report-mouthpiece-inline-body">
+                  <div className="juju-report-section-heading">
+                    <img src="/juju/profile/dot-match.svg?v=2026071003" alt="" aria-hidden="true" />
+                    <h3>嘴替</h3>
+                  </div>
+                  <p>{selectedMouthpieceText}</p>
+                </div>
+                <button
+                  type="button"
+                  className="juju-report-copy-inline"
+                  onClick={() => copyText(selectedMouthpieceText, `已复制 ${tabs[selectedQuestionIndex]?.label ?? "当前题"} 嘴替内容。`)}
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="6" y="6" width="8" height="8" rx="1.6" />
+                    <path d="M3.3 10H2.7A1.3 1.3 0 0 1 1.4 8.7v-6A1.3 1.3 0 0 1 2.7 1.4h6A1.3 1.3 0 0 1 10 2.7v0.6" />
+                  </svg>
+                  <span aria-hidden="true">复制答案</span>
+                </button>
+              </section>
+
+              <section className="juju-report-analysis-card">
+                <div className="juju-report-block-heading">
+                  <img className="juju-report-heading-icon" src="/juju/report/analyze.svg?v=2026071017" alt="" aria-hidden="true" />
+                  <h3>面试题目分析</h3>
+                </div>
+                <div className="juju-report-block-body">
+                  <dl>
+                    <div>
+                      <dt>考察维度</dt>
+                      <dd>{dimensionSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>适用职级</dt>
+                      <dd>{seniorityText}</dd>
+                    </div>
+                    <div>
+                      <dt>出题意图</dt>
+                      <dd>{intentText}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+
+              <section className="juju-report-risk-analysis">
+                <div className="juju-report-block-heading">
+                  <img className="juju-report-heading-icon" src="/juju/report/guide.svg?v=2026071017" alt="" aria-hidden="true" />
+                  <h3>风险分析</h3>
+                </div>
+                <div className="juju-report-block-body">
+                  {riskAnalysis.map((item) => (
+                    <article key={item.title}>
+                      <h4>{item.title}</h4>
+                      <p>{item.content}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </article>
+          </section>
+
+          {(state.usedFallback || copyState !== "idle") && (
+            <div className={copyState === "success" ? "juju-report-toast success" : "juju-report-toast warning"}>
+              {copyState !== "idle" ? copyMessage : "当前展示演示兜底报告。"}
+            </div>
+          )}
+
+          {manualCopyVisible && (
+            <label className="figma-report-manual-copy juju-report-manual-copy" htmlFor="jujuReportCopyText">
+              <span>手动复制内容</span>
+              <textarea ref={copyTextRef} id="jujuReportCopyText" readOnly value={manualCopyText || report.finalReport.copyText} />
+            </label>
+          )}
+        </div>
+
+        {sheet && (
+          <JujuReportSheet
+            items={sheet === "risks" ? report.finalReport.topRisks : report.finalReport.actionItems}
+            title={sheet === "risks" ? "TOP 风险" : "行动项"}
+            iconSrc={sheet === "risks" ? "/juju/profile/dot-risk.svg?v=2026071003" : "/juju/profile/dot-suggestion.svg?v=2026071003"}
+            onClose={() => setSheet(null)}
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function JujuTruncatedText({
+  text,
+  collapsedLines = 2,
+  thresholdLines = 2
+}: {
+  text: string;
+  collapsedLines?: number;
+  thresholdLines?: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  // null = content fits within thresholdLines, no expand affordance at all
+  const [truncatedText, setTruncatedText] = useState<string | null>(null);
+  const measureRef = useRef<HTMLParagraphElement | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      const element = measureRef.current;
+      if (!element) return;
+      const lineHeight = parseFloat(window.getComputedStyle(element).lineHeight) || 20;
+      element.textContent = text;
+      const fullLines = Math.ceil(element.scrollHeight / lineHeight);
+      if (fullLines <= thresholdLines) {
+        setTruncatedText(null);
+        return;
+      }
+      const suffix = " ... 展开";
+      let low = 0;
+      let high = text.length;
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        element.textContent = `${text.slice(0, mid)}${suffix}`;
+        if (Math.ceil(element.scrollHeight / lineHeight) <= collapsedLines) {
+          low = mid;
+        } else {
+          high = mid - 1;
+        }
+      }
+      setTruncatedText(text.slice(0, low));
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [text, collapsedLines, thresholdLines]);
+
+  return (
+    <div className="juju-truncate">
+      <p ref={measureRef} className="juju-truncate-measure" aria-hidden="true" />
+      {truncatedText === null ? (
+        <p>{text}</p>
+      ) : expanded ? (
+        <>
+          <p>{text}</p>
+          <button type="button" onClick={() => setExpanded(false)}>
+            收起
+          </button>
+        </>
+      ) : (
+        <p>
+          {truncatedText}
+          <span className="juju-truncate-ellipsis" aria-hidden="true">
+            {" ... "}
+          </span>
+          <button type="button" className="juju-truncate-inline" onClick={() => setExpanded(true)}>
+            展开
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function JujuClampText({
+  className,
+  expanded,
+  lines,
+  text
+}: {
+  className: string;
+  expanded: boolean;
+  lines: number;
+  text: string;
+}) {
+  return (
+    <p
+      className={expanded ? `${className} expanded` : className}
+      style={{ "--juju-clamp-lines": lines } as CSSProperties}
+    >
+      {text}
+    </p>
+  );
+}
+
+function JujuReportStatCard({
+  count,
+  iconSrc,
+  label,
+  onClick
+}: {
+  count: number;
+  iconSrc: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="juju-report-stat-card" type="button" onClick={onClick}>
+      <div className="juju-report-stat-inner">
+        <img src={iconSrc} alt="" aria-hidden="true" />
+        <strong>{count}</strong>
+        <span>
+          {label}
+          <img src="/juju/profile/expand-toggle.svg?v=2026071003" alt="" aria-hidden="true" />
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function JujuReportSheet({
+  iconSrc,
+  items,
+  title,
+  onClose
+}: {
+  iconSrc: string;
+  items: string[];
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="juju-report-sheet-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="juju-report-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="juju-report-section-heading">
+          <img src={iconSrc} alt="" aria-hidden="true" />
+          <h3>{title}</h3>
+        </div>
+        <div className="juju-report-sheet-list">
+          {(items.length > 0 ? items : ["暂无信息"]).map((item, index) => (
+            <p key={`${title}-${item}-${index}`}>{item}</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildJujuSummaryText(
+  report: InterviewReport,
+  answeredCount: number,
+  questionCount: number,
+  missingAnswers: InterviewQuestion[]
+) {
+  const status =
+    missingAnswers.length > 0
+      ? `当前有 ${missingAnswers.length} 道题缺少答案。系统保留问题和已填答案，不会编造缺失内容。`
+      : `已完成 ${answeredCount}/${questionCount} 道题作答。`;
+  return `${report.finalReport.summary} ${status}`.trim();
+}
+
+function buildJujuRiskAnalysis(questionReport: QuestionReport | undefined) {
+  const tags = questionReport?.riskTags.slice(0, 2) ?? [];
+  const fallbackTags = tags.length > 0 ? tags : ["事实边界", "表达结构"];
+  const fatalIssue = questionReport?.fatalIssue || "当前回答的关键风险需要结合岗位要求继续收敛。";
+  const diagnosis = questionReport?.diagnosis || "建议优先补充可验证事实、个人动作和结果复盘，避免泛泛而谈。";
+  return fallbackTags.map((tag, index) => ({
+    title: tag,
+    content: index === 0 ? fatalIssue : diagnosis
+  }));
 }
 
 function MissingAnswerNotice({ missingAnswers }: { missingAnswers: InterviewQuestion[] }) {

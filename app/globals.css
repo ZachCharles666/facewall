@@ -4400,3 +4400,1825 @@ button.question-card {
     flex-direction: column;
   }
 }
+
+body[data-visual-theme="juju"] {
+  --juju-phone-background:
+    radial-gradient(ellipse 474px 514px at 100% 84.9%, rgba(153, 255, 173, 0.82) 0%, rgba(153, 255, 173, 0.42) 34%, rgba(153, 255, 173, 0) 70%),
+    radial-gradient(ellipse 332px 331px at 50.6% 87%, rgba(215, 153, 255, 0.72) 0%, rgba(215, 153, 255, 0.36) 38%, rgba(215, 153, 255, 0) 74%),
+    radial-gradient(circle 365px at 0% 95.3%, rgba(255, 240, 204, 0.84) 0%, rgba(255, 240, 204, 0.44) 34%, rgba(255, 240, 204, 0) 72%),
+    #ebedff;
+  --color-bg: #ebedff;
+  --color-bg-deep: #ebedff;
+  --color-text: #1a1a1a;
+  --color-muted: #4d4d4d;
+  --color-border: rgba(26, 26, 26, 0.1);
+  --color-focus: #0055ff;
+  --bg: var(--color-bg);
+  --text: var(--color-text);
+  --muted: var(--color-muted);
+  --border: var(--color-border);
+  --focus: var(--color-focus);
+  min-height: 100dvh;
+  background: var(--juju-phone-background);
+}
+
+.theme-juju.app-shell,
+.theme-juju.app-shell::before,
+.theme-juju .figma-phone-stage {
+  background: var(--juju-phone-background);
+}
+
+.theme-juju .figma-phone-card,
+.theme-juju .figma-home-card,
+.theme-juju .figma-profile-card,
+.theme-juju .figma-interviewer-card,
+.theme-juju .figma-interview-card,
+.theme-juju .figma-report-card,
+.theme-juju .figma-report-card.figma-report-page-card {
+  background: var(--juju-phone-background);
+}
+
+.theme-juju .figma-home-card::after,
+.theme-juju .figma-profile-card::after,
+.theme-juju .figma-interviewer-card::after,
+.theme-juju .figma-report-page-card::after {
+  display: none;
+}
+
+.theme-juju .figma-phone-card::before {
+  display: none;
+}
+
+.theme-juju .figma-statusbar {
+  color: rgba(0, 0, 0, 0.86);
+}
+
+.theme-juju .juju-orb-shell {
+  --juju-orb-size: 200px;
+  --juju-orb-frame-offset: 25px;
+  position: relative;
+  width: var(--juju-orb-size);
+  height: calc(var(--juju-orb-size) + var(--juju-orb-frame-offset) + 32px);
+  pointer-events: none;
+}
+
+.theme-juju .juju-orb-small {
+  --juju-orb-size: 64px;
+  --juju-orb-frame-offset: 0px;
+  height: var(--juju-orb-size);
+}
+
+.theme-juju .juju-orb-outer-arc {
+  position: absolute;
+  left: calc(var(--juju-orb-size) * -0.13);
+  top: calc(var(--juju-orb-frame-offset) - var(--juju-orb-size) * 0.13);
+  z-index: 0;
+  width: calc(var(--juju-orb-size) * 1.26);
+  height: calc(var(--juju-orb-size) * 1.26);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  opacity: 0.86;
+}
+
+.theme-juju .juju-orb-outer-arc::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0) 258deg, rgba(255, 255, 255, 0.96) 286deg, rgba(255, 255, 255, 0.96) 318deg, rgba(255, 255, 255, 0) 342deg, rgba(255, 255, 255, 0) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: juju-orb-outer-arc-spin 9s linear infinite;
+}
+
+.theme-juju .juju-orb-ellipse10 {
+  position: absolute;
+  left: 0;
+  top: var(--juju-orb-frame-offset);
+  z-index: 0;
+  width: var(--juju-orb-size);
+  height: var(--juju-orb-size);
+  border-radius: 50%;
+  border: 1px solid #ffffff;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.24);
+  animation: juju-orb-ellipse10-breathe 3.2s ease-in-out infinite;
+}
+
+.theme-juju .juju-orb-ellipse11 {
+  position: absolute;
+  z-index: 2;
+  left: calc(var(--juju-orb-size) * 0.1825);
+  top: calc(var(--juju-orb-frame-offset) + var(--juju-orb-size) * 0.18);
+  width: calc(var(--juju-orb-size) * 0.64);
+  height: calc(var(--juju-orb-size) * 0.64);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  box-shadow: 0 0 8px rgba(0, 85, 255, 0.16);
+}
+
+.theme-juju .juju-orb-b01 {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--juju-orb-size) * 0.1325);
+  top: calc(var(--juju-orb-frame-offset) + var(--juju-orb-size) * 0.13);
+  width: calc(var(--juju-orb-size) * 0.74);
+  height: calc(var(--juju-orb-size) * 0.74);
+  object-fit: contain;
+}
+
+.theme-juju .juju-orb-progress {
+  position: absolute;
+  left: 0;
+  top: calc(var(--juju-orb-frame-offset) + var(--juju-orb-size) + 10px);
+  width: var(--juju-orb-size);
+  color: #b3b3b3;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: center;
+}
+
+.theme-juju .juju-home-orb,
+.theme-juju .juju-jd-orb,
+.theme-juju .juju-thinking-orb,
+.theme-juju .juju-report-loading-orb {
+  position: absolute;
+  left: 50%;
+  top: 124px;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-home-orb {
+  top: 116px;
+}
+
+.theme-juju .juju-jd-orb {
+  top: 136px;
+}
+
+.theme-juju .figma-jd-back-button {
+  background: url("/juju/home/back.svg?v=2026071006") center / 32px 32px no-repeat;
+}
+
+.theme-juju .figma-jd-back-button span {
+  display: none;
+}
+
+.theme-juju .figma-jd-back-button:hover:not(:disabled) {
+  background: url("/juju/home/back.svg?v=2026071006") center / 32px 32px no-repeat;
+}
+
+.theme-juju .figma-home-toolbar {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-juju .figma-toolbar-frame4 {
+  grid-template-columns: 248px 32px;
+  height: 33px;
+}
+
+.theme-juju .figma-frame4-frame1-button,
+.theme-juju .figma-frame4-group1-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 16px;
+}
+
+.theme-juju .figma-frame4-frame1-button img,
+.theme-juju .figma-frame4-group1-button img,
+.theme-juju .figma-frame4-close-button img {
+  width: 32px;
+  height: 32px;
+  transform: none;
+}
+
+.theme-juju .figma-home-toolbar textarea {
+  color: #1a1a1a;
+}
+
+.theme-juju .figma-home-toolbar textarea::placeholder {
+  color: rgba(26, 26, 26, 0.52);
+}
+
+.theme-juju .figma-frame4-icon-button,
+.theme-juju .figma-frame4-pill-button {
+  background: #ffffff;
+  color: #333333;
+}
+
+.theme-juju .figma-home-toolbar .figma-frame4-icon-button:hover:not(:disabled),
+.theme-juju .figma-home-toolbar .figma-frame4-pill-button:hover,
+.theme-juju .figma-home-toolbar .figma-frame4-file-button:hover {
+  background: #ffffff;
+}
+
+.theme-juju .figma-copy h2,
+.theme-juju .figma-interviewer-title h2,
+.theme-juju .figma-interviewer-detail-copy h2,
+.theme-juju .figma-interview-persona strong,
+.theme-juju .figma-interview-prompt h2,
+.theme-juju .figma-report-loading-copy h2,
+.theme-juju .figma-report-score-hero p,
+.theme-juju .figma-report-score-hero h2 {
+  color: #1a1a1a;
+}
+
+.theme-juju .figma-copy p,
+.theme-juju .figma-interviewer-title p,
+.theme-juju .figma-interviewer-role,
+.theme-juju .figma-interviewer-description,
+.theme-juju .figma-interview-persona span,
+.theme-juju .figma-interview-prompt p,
+.theme-juju .figma-interview-progress,
+.theme-juju .figma-report-loading-copy p,
+.theme-juju .figma-home-card .figma-copy .figma-home-help {
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-profile-card {
+  color: #333333;
+}
+
+.theme-juju .juju-profile-scroll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 102px;
+  bottom: 98px;
+  z-index: 3;
+  overflow-y: auto;
+  padding: 0 16px 8px;
+  scrollbar-width: none;
+}
+
+.theme-juju .juju-profile-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-juju .juju-profile-orb-frame {
+  width: 327px;
+  margin: 0 auto 2px;
+}
+
+.theme-juju .juju-profile-orb {
+  display: block;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+}
+
+.theme-juju .juju-profile-summary {
+  width: 327px;
+  min-height: 101px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto 16px;
+}
+
+.theme-juju .juju-profile-summary h2 {
+  width: 240px;
+  margin: 0;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+}
+
+.theme-juju .juju-profile-summary p {
+  width: 327px;
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.theme-juju .juju-profile-summary p.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.theme-juju .juju-profile-summary button {
+  width: 327px;
+  min-width: 0;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #0055ff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.theme-juju .juju-profile-summary button:hover:not(:disabled),
+.theme-juju .juju-profile-summary button:focus-visible {
+  border: 0;
+  background: transparent;
+  color: #0055ff;
+  transform: none;
+  outline: 0;
+}
+
+.theme-juju .juju-profile-info-card {
+  width: 343px;
+  margin: 0 auto 16px;
+  padding: 1px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 12px 28px rgba(50, 56, 88, 0.08);
+  overflow: hidden;
+}
+
+.theme-juju .juju-profile-info-body {
+  min-height: 0;
+  padding: 24px 24px 16px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.theme-juju .juju-profile-risk-card .juju-profile-info-body {
+  min-height: 0;
+}
+
+.theme-juju .juju-profile-suggestion-card .juju-profile-info-body {
+  min-height: 0;
+  padding-bottom: 24px;
+}
+
+.theme-juju .juju-profile-info-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  margin-bottom: 8px;
+}
+
+.theme-juju .juju-profile-info-heading img {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.theme-juju .juju-profile-info-heading strong {
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.theme-juju .juju-profile-info-list {
+  display: grid;
+  gap: 16px;
+}
+
+.theme-juju .juju-profile-match-card .juju-profile-info-list,
+.theme-juju .juju-profile-risk-card .juju-profile-info-list {
+  gap: 8px;
+}
+
+.theme-juju .juju-profile-info-list p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.theme-juju .juju-profile-expand-button {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  display: block;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.theme-juju .juju-profile-expand-button img {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.theme-juju .juju-profile-expand-button.expanded img {
+  transform: rotate(180deg);
+}
+
+.theme-juju .juju-profile-expand-button:hover:not(:disabled),
+.theme-juju .juju-profile-expand-button:focus-visible {
+  border: 0;
+  background: transparent;
+  transform: none;
+  outline: 0;
+}
+
+.theme-juju .juju-profile-info-card footer {
+  height: 49px;
+  padding: 16px 24px;
+  color: rgba(77, 77, 77, 0.44);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.theme-juju .juju-profile-tabs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  width: 100%;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 17px;
+  background: transparent;
+  box-shadow: none;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.theme-juju .juju-profile-tabs::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.22) 38%,
+    rgba(255, 255, 255, 0.52) 100%
+  );
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%);
+}
+
+.theme-juju .juju-profile-next-button {
+  position: relative;
+  z-index: 1;
+  width: 184px;
+  min-width: 184px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 12px 64px;
+  border: 0;
+  border-radius: 22px;
+  background: #ff0080;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  box-shadow: none;
+  transform: none;
+  pointer-events: auto;
+}
+
+.theme-juju .juju-profile-next-button:hover:not(:disabled),
+.theme-juju .juju-profile-next-button:focus-visible {
+  border: 0;
+  background: #ff0080;
+  color: #ffffff;
+  transform: none;
+  outline: 0;
+}
+
+.theme-juju .juju-report-stage {
+  align-items: center;
+  overflow: hidden;
+}
+
+.theme-juju .juju-report-card {
+  width: 375px;
+  height: 812px;
+  min-height: 812px;
+  overflow: hidden;
+  border-radius: 24px;
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-report-card .figma-statusbar {
+  top: 14px;
+  left: 26px;
+  right: 24px;
+  z-index: 10;
+  color: #111111;
+}
+
+.theme-juju .juju-report-scroll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58px;
+  bottom: 0;
+  z-index: 3;
+  overflow-y: auto;
+  padding: 0 16px 32px;
+  scrollbar-width: none;
+}
+
+.theme-juju .juju-report-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-juju .juju-report-hero {
+  position: relative;
+  width: 343px;
+  height: 270px;
+  margin: 0 auto;
+}
+
+.theme-juju .juju-report-person {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 1;
+  width: 160px;
+  height: 270px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 188px auto;
+  transform: scaleX(-1);
+  filter: drop-shadow(0 16px 20px rgba(0, 0, 0, 0.18));
+}
+
+.theme-juju .juju-report-person.hero-strictHr {
+  background-image: url("/figma/interviewers/gentle-hr-sister@2x.png");
+}
+
+.theme-juju .juju-report-person.hero-techBro {
+  background-image: url("/figma/interviewers/tech-bro@2x.png");
+  background-size: 178px auto;
+}
+
+.theme-juju .juju-report-person.hero-gentleSister {
+  background-image: url("/figma/interviewers/senior-business-leader@2x.png");
+  background-size: 176px auto;
+}
+
+.theme-juju .juju-report-hero-score {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  z-index: 2;
+  width: 155px;
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-juju .juju-report-hero-score p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.theme-juju .juju-report-hero-score h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 72px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.theme-juju .juju-report-hero-score span {
+  margin-top: 8px;
+  color: #808080;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+}
+
+.theme-juju .juju-report-summary-card {
+  position: relative;
+  z-index: 3;
+  width: 343px;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  margin: -60px auto 16px;
+  border-radius: 16px;
+  padding: 16px 16px 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), #ffffff);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-report-summary-card p,
+.theme-juju .juju-report-question-text,
+.theme-juju .juju-report-diagnosis-text {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--juju-clamp-lines, 3);
+}
+
+.theme-juju .juju-report-summary-card p.expanded,
+.theme-juju .juju-report-question-text.expanded,
+.theme-juju .juju-report-diagnosis-text.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.theme-juju .juju-report-summary-card button,
+.theme-juju .juju-report-question-block button,
+.theme-juju .juju-report-diagnosis-block button {
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #0055ff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.theme-juju .juju-report-summary-card button:hover:not(:disabled),
+.theme-juju .juju-report-question-block button:hover:not(:disabled),
+.theme-juju .juju-report-diagnosis-block button:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: #0055ff;
+  transform: none;
+}
+
+.theme-juju .juju-report-stat-grid {
+  width: 343px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 auto 16px;
+}
+
+.theme-juju .juju-report-stat-card {
+  width: 163.5px;
+  min-width: 0;
+  height: 121px;
+  min-height: 121px;
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+  padding: 1px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: none;
+}
+
+.theme-juju .juju-report-stat-card:hover:not(:disabled) {
+  border: 0;
+  background: rgba(255, 255, 255, 0.78);
+  transform: none;
+}
+
+.theme-juju .juju-report-stat-inner {
+  height: 119px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border-radius: 15px;
+  padding: 12px 12px 12px 24px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.theme-juju .juju-report-stat-inner > img {
+  width: 12px;
+  height: 12px;
+  margin-bottom: 16px;
+}
+
+.theme-juju .juju-report-stat-inner strong {
+  color: #4d4d4d;
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 50px;
+}
+
+.theme-juju .juju-report-stat-inner span {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #4d4d4d;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+}
+
+.theme-juju .juju-report-stat-inner span img {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+}
+
+.theme-juju .juju-report-mouthpiece-card {
+  width: 343px;
+  min-height: 219px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  padding: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-report-mouthpiece-body {
+  min-height: 168px;
+  border-radius: 15px;
+  padding: 24px 24px 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.theme-juju .juju-report-mouthpiece-inline {
+  margin: 0 -16px;
+  border-radius: 16px;
+  padding: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-report-mouthpiece-inline-body {
+  border-radius: 15px;
+  padding: 24px 24px 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.theme-juju .juju-report-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  margin-bottom: 8px;
+}
+
+.theme-juju .juju-report-section-heading img {
+  width: 12px;
+  height: 12px;
+}
+
+.theme-juju .juju-report-section-heading h3,
+.theme-juju .juju-report-question-block h3,
+.theme-juju .juju-report-diagnosis-block h3,
+.theme-juju .juju-report-analysis-card h3,
+.theme-juju .juju-report-risk-analysis h3 {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.theme-juju .juju-report-mouthpiece-card p,
+.theme-juju .juju-report-mouthpiece-inline p,
+.theme-juju .juju-report-analysis-card p,
+.theme-juju .juju-report-risk-analysis p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  white-space: pre-line;
+}
+
+.theme-juju .juju-report-copy-inline {
+  width: 100%;
+  min-width: 0;
+  height: 49px;
+  min-height: 49px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  border: 0;
+  padding: 16px 24px;
+  border-radius: 0;
+  background: transparent;
+  color: #808080;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.theme-juju .juju-report-copy-inline svg {
+  flex: 0 0 auto;
+}
+
+.theme-juju .juju-report-copy-inline:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  transform: none;
+}
+
+.theme-juju .juju-report-tabs-panel {
+  width: 343px;
+  margin: 0 auto 24px;
+  background: transparent;
+}
+
+.theme-juju .juju-report-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  height: 46px;
+  padding: 4px;
+  border-radius: 23px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.theme-juju .juju-report-tabs button {
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  border-radius: 19px;
+  padding: 0;
+  background: transparent;
+  color: #808080;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.theme-juju .juju-report-tabs button.active {
+  background: #ffffff;
+  color: #333333;
+  font-weight: 700;
+}
+
+.theme-juju .juju-report-tabs button:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  transform: none;
+}
+
+.theme-juju .juju-report-tabs button.active:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.theme-juju .juju-report-question-pane {
+  display: grid;
+  gap: 16px;
+  padding: 20px 16px 24px;
+  background: transparent;
+}
+
+.theme-juju .juju-report-question-block,
+.theme-juju .juju-report-diagnosis-block {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-juju .juju-truncate {
+  position: relative;
+}
+
+.theme-juju .juju-truncate p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.theme-juju .juju-truncate-measure {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.theme-juju .juju-truncate-ellipsis {
+  color: #808080;
+}
+
+.theme-juju .juju-truncate button {
+  width: auto;
+  min-width: 0;
+  min-height: 20px;
+  height: 20px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #0055ff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.theme-juju .juju-truncate button:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: #0055ff;
+  transform: none;
+}
+
+.theme-juju .juju-truncate button.juju-truncate-inline {
+  display: inline;
+  width: auto;
+  vertical-align: baseline;
+}
+
+.theme-juju .juju-report-analysis-card,
+.theme-juju .juju-report-risk-analysis {
+  margin: 0 -16px;
+  border-radius: 16px;
+  padding: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-report-block-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.theme-juju .juju-report-heading-icon {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 18px;
+  display: block;
+}
+
+.theme-juju .juju-report-block-heading h3 {
+  margin: 0;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 25px;
+}
+
+.theme-juju .juju-report-block-body {
+  display: grid;
+  gap: 24px;
+  border-radius: 16px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-report-analysis-card dl {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+}
+
+.theme-juju .juju-report-analysis-card dl > div {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-juju .juju-report-analysis-card dt {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.theme-juju .juju-report-analysis-card dd {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.theme-juju .juju-report-bookmark {
+  width: 12px;
+  height: 14px;
+  border: 1.4px solid #4d4d4d;
+  border-radius: 2px 2px 4px 4px;
+}
+
+.theme-juju .juju-report-risk-analysis article {
+  display: grid;
+  gap: 4px;
+}
+
+.theme-juju .juju-report-risk-analysis h4 {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.theme-juju .juju-report-toast {
+  margin: 0 auto 16px;
+  width: 343px;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #4d4d4d;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.theme-juju .juju-report-toast.warning {
+  color: #cc0022;
+}
+
+.theme-juju .juju-report-toast.success {
+  color: #00ac64;
+}
+
+.theme-juju .juju-report-manual-copy {
+  width: 343px;
+  margin: 0 auto 16px;
+}
+
+.theme-juju .juju-report-sheet-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.theme-juju .juju-report-sheet {
+  width: 100%;
+  height: 50%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px 24px 0 0;
+  padding: 20px 24px 24px;
+  background: #ffffff;
+  color: #4d4d4d;
+  box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.theme-juju .juju-report-sheet-list {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.theme-juju .juju-report-sheet-list p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.theme-juju .figma-interviewer-portrait.hero-strictHr,
+.theme-juju .figma-interview-persona-avatar.hero-strictHr,
+.theme-juju .figma-report-person.hero-strictHr,
+.theme-juju .juju-report-person.hero-strictHr {
+  background-image: url("/juju/interviewers/gentle-hr-sister@2x.png?v=202607101435");
+}
+
+.theme-juju .figma-interviewer-portrait.hero-techBro,
+.theme-juju .figma-interview-persona-avatar.hero-techBro,
+.theme-juju .figma-report-person.hero-techBro,
+.theme-juju .juju-report-person.hero-techBro {
+  background-image: url("/juju/interviewers/tech-bro@2x.png?v=202607101435");
+}
+
+.theme-juju .figma-interviewer-portrait.hero-gentleSister,
+.theme-juju .figma-interview-persona-avatar.hero-gentleSister,
+.theme-juju .figma-report-person.hero-gentleSister,
+.theme-juju .juju-report-person.hero-gentleSister {
+  background-image: url("/juju/interviewers/senior-business-leader@2x.png?v=202607101435");
+}
+
+.theme-juju .juju-interviewer-select-orb {
+  position: absolute;
+  left: 24px;
+  top: 112px;
+  z-index: 3;
+}
+
+.theme-juju .juju-interviewer-select-card {
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-interviewer-select-card .figma-statusbar {
+  z-index: 4;
+}
+
+.theme-juju .juju-interviewer-select-hero-orb {
+  position: absolute;
+  left: 87.5px;
+  top: 24px;
+  z-index: 2;
+}
+
+.theme-juju .juju-interviewer-select-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 144px;
+  z-index: 1;
+  width: 100%;
+  height: 668px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.theme-juju .juju-interviewer-select-copy {
+  position: absolute;
+  left: 16px;
+  top: 176px;
+  z-index: 3;
+  width: 343px;
+  text-align: center;
+}
+
+.theme-juju .juju-interviewer-select-copy h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 34px;
+}
+
+.theme-juju .juju-interviewer-select-copy p {
+  margin: 16px 0 0;
+  color: #4d4d4d;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.theme-juju .juju-interviewer-select-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+.theme-juju .juju-interviewer-select-option {
+  position: absolute;
+  display: block;
+  width: 180px;
+  min-width: 180px;
+  height: 222px;
+  min-height: 222px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #333333;
+  box-shadow: none;
+  text-align: center;
+}
+
+.theme-juju .juju-interviewer-select-option.option-1 {
+  left: 6px;
+  top: 305px;
+}
+
+.theme-juju .juju-interviewer-select-option.option-2 {
+  left: 189px;
+  top: 305px;
+}
+
+.theme-juju .juju-interviewer-select-option.option-3 {
+  left: 98px;
+  top: 498px;
+}
+
+.theme-juju .juju-interviewer-select-option:hover:not(:disabled),
+.theme-juju .juju-interviewer-select-option:focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+  transform: translateY(-2px);
+}
+
+.theme-juju .juju-interviewer-select-portrait {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 180px;
+  height: 180px;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 0;
+  background-color: rgba(255, 255, 255, 0.16);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 146px auto;
+  box-shadow: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.theme-juju .juju-interviewer-select-portrait.hero-strictHr {
+  background-image: url("/juju/interviewers/gentle-hr-sister@2x.png?v=202607101435");
+  background-position: center 6px;
+}
+
+.theme-juju .juju-interviewer-select-portrait.hero-techBro {
+  background-image: url("/juju/interviewers/tech-bro@2x.png?v=202607101435");
+  background-position: center -8px;
+}
+
+.theme-juju .juju-interviewer-select-portrait.hero-gentleSister {
+  background-image: url("/juju/interviewers/senior-business-leader@2x.png?v=202607101435");
+  background-position: center -4px;
+}
+
+.theme-juju .juju-interviewer-select-option strong,
+.theme-juju .juju-interviewer-select-option > span:not(.juju-interviewer-select-portrait) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: block;
+}
+
+.theme-juju .juju-interviewer-select-option strong {
+  top: 180px;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 25px;
+}
+
+.theme-juju .juju-interviewer-select-option > span:not(.juju-interviewer-select-portrait) {
+  top: 205px;
+  color: #808080;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+}
+
+.theme-juju .juju-interview-card {
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-interview-orb {
+  position: absolute;
+  left: 87.5px;
+  top: 124px;
+  z-index: 2;
+}
+
+.theme-juju .juju-interview-question-frame {
+  position: absolute;
+  left: 18px;
+  top: 425px;
+  z-index: 3;
+  width: 343px;
+  height: 118px;
+  padding: 0;
+}
+
+.theme-juju .juju-interview-question-viewport {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 323px;
+  height: 88px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%);
+}
+
+.theme-juju .juju-interview-question-frame p {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+  text-align: center;
+  will-change: opacity, transform;
+}
+
+.theme-juju .juju-interview-question-frame.is-playing p {
+  animation: juju-question-text-scroll var(--juju-question-scroll-duration) linear forwards;
+}
+
+.theme-juju .juju-interview-question-frame.is-finished p {
+  opacity: 0;
+  transform: translateY(calc(-100% - 88px));
+}
+
+.theme-juju .juju-interview-listening-label {
+  position: absolute;
+  left: 28px;
+  top: 432px;
+  z-index: 3;
+  width: 319px;
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  background: linear-gradient(90deg, #4d4d4d, #b2b2b2, #808080);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.theme-juju .juju-interview-listening-rings {
+  z-index: 1;
+}
+
+.theme-juju .juju-interview-listening-rings .ring {
+  top: 682px;
+  background: transparent;
+  border: 1px solid rgba(0, 85, 255, 0.14);
+  box-shadow:
+    inset 0 0 28px rgba(255, 255, 255, 0.24),
+    0 0 28px rgba(0, 85, 255, 0.08);
+}
+
+.theme-juju .juju-interview-listening-rings .ring-outer {
+  width: 320px;
+  height: 320px;
+}
+
+.theme-juju .juju-interview-listening-rings .ring-large {
+  width: 226px;
+  height: 226px;
+}
+
+.theme-juju .juju-interview-listening-rings .ring-medium {
+  width: 158px;
+  height: 158px;
+}
+
+.theme-juju .juju-interview-listening-rings .ring-small {
+  width: 104px;
+  height: 104px;
+}
+
+.theme-juju .juju-interview-controls {
+  left: 32px;
+  top: 642px;
+  width: 312px;
+  height: 80px;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control {
+  position: absolute;
+  display: block;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 0;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control:hover:not(:disabled),
+.theme-juju .juju-interview-controls .juju-interview-control:focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+  transform: none;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control-frame7,
+.theme-juju .juju-interview-controls .juju-interview-control-frame9 {
+  top: 14px;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
+  border-radius: 26px;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control-frame7 {
+  left: 0;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control-frame9 {
+  right: 0;
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control-frame8 {
+  left: 116px;
+  top: 0;
+  width: 80px;
+  min-width: 80px;
+  height: 80px;
+  min-height: 80px;
+  border-radius: 40px;
+}
+
+.theme-juju .juju-interview-error {
+  top: 552px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #cc0022;
+  text-align: center;
+}
+
+.theme-juju .juju-interview-toast {
+  position: absolute;
+  left: 88px;
+  top: 560px;
+  z-index: 5;
+  width: 199px;
+  margin: 0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #4d4d4d;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Juju selected-interviewer detail page (Select Interviewer_2) */
+.theme-juju .figma-confirm-card::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 103px;
+  z-index: 1;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: #d9d9d9;
+  filter: blur(24px);
+}
+
+.theme-juju .juju-interviewer-avatar-frame {
+  position: absolute;
+  left: 50%;
+  top: 103px;
+  z-index: 2;
+  width: 320px;
+  height: 320px;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-portrait-detail {
+  left: 50%;
+  top: 103px;
+  z-index: 2;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  overflow: hidden;
+  transform: translateX(-50%);
+  background-size: 248px auto;
+  background-repeat: no-repeat;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-portrait-detail.hero-strictHr {
+  background-size: 244px auto;
+  background-position: center -6px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-portrait-detail.hero-techBro {
+  background-size: 250px auto;
+  background-position: center -4px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-portrait-detail.hero-gentleSister {
+  background-size: 246px auto;
+  background-position: center -10px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-detail-copy {
+  top: 414px;
+  z-index: 3;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-detail-copy h2 {
+  color: #1a1a1a;
+  font-size: 48px;
+  font-weight: 500;
+  line-height: 67px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-role {
+  margin: -8px 0 0;
+  color: #808080;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  text-align: center;
+}
+
+.theme-juju .juju-interviewer-detail-card {
+  position: absolute;
+  left: 50%;
+  top: 506px;
+  z-index: 4;
+  width: 343px;
+  min-height: 196px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-interviewer-summary {
+  margin: 0;
+  padding: 24px;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.theme-juju .juju-interviewer-detail-inner {
+  border-radius: 16px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+.theme-juju .juju-interviewer-detail-inner p {
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-start-button {
+  left: 50%;
+  top: auto;
+  bottom: 40px;
+  transform: translateX(-50%);
+  background: #ff0080;
+  font-size: 14px;
+}
+
+.theme-juju .figma-confirm-card .figma-interviewer-start-button:hover:not(:disabled),
+.theme-juju .figma-confirm-card .figma-interviewer-start-button:focus-visible {
+  background: #e60073;
+  transform: translateX(-50%);
+}
+
+/* Juju unified loading (thinking) screen */
+.theme-juju .juju-thinking-card {
+  color: #333333;
+}
+
+.theme-juju .juju-thinking-orb {
+  position: absolute;
+  left: 50%;
+  top: 124px;
+  z-index: 2;
+  width: 200px;
+  height: 257px;
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-thinking-text {
+  position: absolute;
+  left: 28px;
+  top: 385px;
+  z-index: 2;
+  width: 319px;
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  background: linear-gradient(90deg, #4d4d4d, #b2b2b2, #808080);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (max-width: 820px) {
+  body[data-visual-theme="juju"] {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background: var(--juju-phone-background);
+  }
+
+  .theme-juju.app-shell {
+    width: 100%;
+    min-height: 100dvh;
+    padding: 0;
+    overflow-x: hidden;
+    background: var(--juju-phone-background);
+  }
+
+  .theme-juju.app-shell::before {
+    background: var(--juju-phone-background);
+  }
+
+  .theme-juju .figma-phone-stage {
+    min-height: 100dvh;
+    place-items: start center;
+    overflow: visible;
+    background: var(--juju-phone-background);
+  }
+
+  .theme-juju .figma-phone-card,
+  .theme-juju .figma-home-card {
+    --juju-design-offset: max(0px, calc((100vw - 375px) / 2));
+    width: 100vw;
+    max-width: 100vw;
+    height: 812px;
+    min-height: 812px;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--juju-phone-background);
+  }
+
+  .theme-juju .figma-report-card.figma-report-page-card {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 0;
+  }
+
+  .theme-juju .figma-home-toolbar {
+    left: 16px;
+    width: calc(100% - 32px);
+  }
+
+  .theme-juju .figma-toolbar-frame4 {
+    width: calc(100% - 32px);
+    grid-template-columns: minmax(0, 1fr) 32px;
+  }
+
+  .theme-juju .figma-frame4-frame3-menu {
+    width: calc(100% - 63px);
+  }
+
+  .theme-juju .figma-home-card .figma-copy {
+    left: calc(var(--juju-design-offset) + 24px);
+  }
+
+  .theme-juju .figma-jd-card .figma-copy {
+    left: calc(var(--juju-design-offset) + 34px);
+  }
+
+  .theme-juju .juju-thinking-text {
+    left: calc(var(--juju-design-offset) + 28px);
+  }
+
+  .theme-juju .juju-interviewer-select-hero-orb {
+    left: calc(var(--juju-design-offset) + 87.5px);
+  }
+
+  .theme-juju .juju-interviewer-select-copy {
+    left: calc(var(--juju-design-offset) + 16px);
+  }
+
+  .theme-juju .juju-interviewer-select-option.option-1 {
+    left: calc(var(--juju-design-offset) + 6px);
+  }
+
+  .theme-juju .juju-interviewer-select-option.option-2 {
+    left: calc(var(--juju-design-offset) + 189px);
+  }
+
+  .theme-juju .juju-interviewer-select-option.option-3 {
+    left: calc(var(--juju-design-offset) + 98px);
+  }
+
+  .theme-juju .juju-interview-orb {
+    left: calc(var(--juju-design-offset) + 87.5px);
+  }
+
+  .theme-juju .juju-interview-question-frame {
+    left: calc(var(--juju-design-offset) + 18px);
+  }
+
+  .theme-juju .juju-interview-listening-label {
+    left: calc(var(--juju-design-offset) + 28px);
+  }
+
+  .theme-juju .juju-interview-controls {
+    left: calc(var(--juju-design-offset) + 32px);
+  }
+
+  .theme-juju .juju-interview-toast {
+    left: calc(var(--juju-design-offset) + 88px);
+  }
+}
+
+@keyframes juju-orb-ellipse10-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 0 34px rgba(255, 255, 255, 0.46);
+  }
+}
+
+@keyframes juju-orb-outer-arc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes juju-question-text-scroll {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  72% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(-100% - 88px));
+  }
+}
