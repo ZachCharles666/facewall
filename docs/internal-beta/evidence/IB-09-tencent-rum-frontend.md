@@ -45,6 +45,12 @@
 | OBS-003 | Partial | 同一 requestId 的 response/RUM/local log 对账 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
+## Release Provenance
+
+- RUM adapter 已进入 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737` 并推送 `origin/release/preview`。
+- 从该 commit 导出的 post-freeze 归档通过独立 68/68、typecheck、33/33 build 和 source/bundle security；摘要和排除项见 `IB-07-release-freeze-2026-07-28.md`。
+- 当前仍未把 RUM 公共配置写入 staging 或部署该归档，真实接收证据不变。
+
 ## Cost/Stop Boundary
 
 - 控制台抽样只能降低上报量，不等于账号级自动硬停或费用封顶。

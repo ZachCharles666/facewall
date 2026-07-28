@@ -59,3 +59,15 @@
 - Final privacy/service policy version, domain access relationship, HTTP webblock and certificate renewal.
 - G0 two-user/admin integrated E2E and one-workday observation.
 - PILOT-001–005 remain Pending; no real pilot has started.
+
+## Post-Freeze Candidate Artifact — 2026-07-29
+
+- Release source commit: `9607f9e7d912b20baca58245e8e4e20e989fe737` (`[IB-07] Prepare post-freeze staging candidate`), pushed to `origin/release/preview`.
+- Scope: 33 paths, 1184 insertions/50 deletions, no deleted path；包含产品协议草案、IB-08 语音契约/故障隔离和 IB-09 腾讯云 RUM 国内前端接入。
+- Archive: `outputs/passbuddy-release-post-freeze-9607f9e-20260729.tar.gz`.
+- SHA-256: `3fb91f2686001dbd08a629e68bb8cd4c77fceb91214e479a6ea67f703de45418`.
+- Final archive audit: 424 entries；`outputs/`、`.docx`、`.env.local`、`.env.production.local`、`.git`、`.next`、`node_modules`、私钥/证书/数据库 dump/zip 命中 0；必需 package、RUM、evidence 和 migration 文件缺失 0。
+- 第一次导出因 Git 已跟踪的历史 `outputs/dev-review`/`outputs/phase9` 被带入而拒绝；第二次导出因根目录 3 份产品 `.docx` 被带入而拒绝。两份无效归档均未上传并被最终文件替换。
+- 独立 `C:\tmp` 解包后执行锁定依赖安装：68/68 internal-beta、typecheck、production build 33/33、source security 196 files、bundle security 60 files 全部 Pass。
+- 首个仓库内 `outputs/.verify-*` 目录虽然测试 68/68 Pass，但因 Windows sandbox 阻止 `.next`/`tsbuildinfo` 写入且 Next 检测到父目录 lockfile，不作为 build 证据；改用仓库外独立目录后闭环。
+- 两个临时验证目录已在解析绝对路径后删除；最终 tar.gz 保留。本证据不代表 staging 已部署、RUM 已上报或真实灰度已开始。

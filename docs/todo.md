@@ -2283,3 +2283,13 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
 - [ ] OBS-001～004 全部保持 Partial：缺真实 captured payload、requestId 远端对账、服务端/DB/备份外部故障与恢复通知。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
+
+## IB-07 Post-Freeze 候选归档 - 2026-07-29
+
+- [x] 用户授权后将协议草案、IB-08 和 IB-09 共 33 个路径提交为 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737`，并推送到 `origin/release/preview`；commit 前 staged=33、unstaged=0、untracked=0、删除=0。
+- [x] 从确定 commit 以 `core.autocrlf=false` 导出 `outputs/passbuddy-release-post-freeze-9607f9e-20260729.tar.gz`，SHA-256=`3fb91f2686001dbd08a629e68bb8cd4c77fceb91214e479a6ea67f703de45418`。
+- [x] 最终归档 424 entries，禁入路径 0、必需文件缺失 0；显式排除 Git 已跟踪的历史 `outputs/` 和非运行时产品 `.docx`。
+- [x] 两次不合格导出分别因包含 tracked outputs 和 `.docx` 被拒绝且未上传；最终归档替换后重新计算摘要。
+- [x] 仓库外独立解包后 `npm ci`、68/68 internal-beta、typecheck、production build（33/33）、source security（196 files）和 bundle security（60 files）Pass；临时目录已删除。
+- [ ] 下一步上传最终归档到 staging，远端核对 SHA、继承既有 server-only 配置并增加 RUM 三项 public build config，再从归档构建候选。
+- [ ] 上传/构建不等于上线；仍需隔离端口 health/root/auth-negative/fixture/security smoke、旧版本回滚确认和首条真实 RUM payload review。
