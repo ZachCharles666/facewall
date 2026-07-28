@@ -2216,5 +2216,7 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 821 个初始 untracked 中有 657 个为 `outputs/.cdp-debug*` 浏览器 profile/cache/dump 和临时日志；补充 `.gitignore` 后仅排除这些运行产物，没有删除文件。
 - [x] release manifest 为 198 个路径：33 个 tracked 修改、165 个新增 application/migration/contracts/evidence/operations/tests；候选中未发现 `.env.local`、私钥、证书、数据库 dump、归档或 zip。
 - [x] 冻结前验证：60/60 internal-beta、typecheck、production build（33/33）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
-- [ ] 当前公网 3001 仍来自 SHA-256 验证归档，不冒充“从冻结 commit 构建”；冻结 commit 后需生成新归档、校验 digest，并在 promotion 前重复最小 staging smoke。
+- [x] release source commit=`19d791f26640edcc583053c4b9f70d4186d1faa4`；以 `core.autocrlf=false` 从该 commit 导出 `outputs/passbuddy-release-freeze-19d791f-20260728.tar.gz`，SHA-256=`3e9ada8c7f332a491cfca112ec2621c2bdb22b1ce72489199174bdd0ff58dbac`。
+- [x] 冻结归档 416 个条目，`.docx`/禁入路径/必需文件缺失均为 0；独立解包后 60/60、无增量 typecheck、production build 33/33 和 source security（189 files）Pass。首次受 Windows autocrlf 影响的 CRLF 归档已判废并替换。
+- [ ] 当前公网 3001 仍运行先前 SHA-256 验证候选；promotion 前需上传冻结归档、服务器校验 digest、从冻结 commit artifact 构建并重复最小 staging smoke。
 - [ ] 本 freeze 不关闭 AUTH/SESSION/OBS/法务/域名证书/G0/PILOT 门禁，也不授权真实灰度。

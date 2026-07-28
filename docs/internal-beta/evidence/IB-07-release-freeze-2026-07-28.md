@@ -39,7 +39,18 @@
 - Public staging currently runs `/home/ubuntu/releases/passbuddy-20260728-112135` through `facewall-candidate` on 3001; old `facewall` 3000 and the Nginx rollback configuration remain available.
 - The public candidate already passed health/root/auth-negative/fixture/security-header smoke, readiness timer checks and the one permitted LLM fixture measurement.
 - This freeze creates the authoritative Git source for the next rebuild. It does not claim that the currently running archive was built from the resulting commit.
-- Promotion must build a fresh archive from the frozen commit, verify its digest, and repeat minimum staging smoke before replacing the current candidate identity.
+- Promotion must upload the frozen artifact, verify its digest, build it on staging and repeat minimum smoke before replacing the current candidate identity.
+
+## Frozen Artifact
+
+- Release source commit: `19d791f26640edcc583053c4b9f70d4186d1faa4` (`[IB-07] Freeze staging candidate`).
+- Export explicitly used `core.autocrlf=false` so archive text bytes match Git blobs on Windows; `outputs/` and historical `.docx` product-source files were excluded because they are not server runtime inputs.
+- Archive: `outputs/passbuddy-release-freeze-19d791f-20260728.tar.gz`.
+- SHA-256: `3e9ada8c7f332a491cfca112ec2621c2bdb22b1ce72489199174bdd0ff58dbac`.
+- Archive audit: 416 entries, 0 `.docx`, 0 forbidden paths, 0 missing required runtime/release files.
+- An initial Windows export inherited global `core.autocrlf=true` and caused two LF-sensitive source-contract assertions to fail after extraction. That archive was rejected and replaced; Git blob equality was verified before accepting the final artifact.
+- Final archive-only validation: 60/60 internal-beta, `tsc --noEmit --incremental false`, production build 33/33 and source security 189 files Pass.
+- Temporary extraction/build directories were removed after their exact paths were verified. The final tar.gz remains ignored and is not part of the provenance commit.
 
 ## Open Gates
 

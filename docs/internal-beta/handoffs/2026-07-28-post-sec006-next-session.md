@@ -38,13 +38,14 @@
 - AUTH-001 Pending：浙大域名单次 template probe 已到达；仍缺 QQ、163、两所学校域名各 3 次应用 OTP 送达/登录矩阵。任何 OTP 每次发送前必须单独获得明确确认。
 - 一次经授权的 AUTH-006 浏览器“发送验证码”点击在等待响应时控制通道超时，服务端结果未审计、页面未确认进入 OTP；没有重试，用户选择停止该路径。该不确定尝试不计任何 Acceptance 证据。
 - 最终隐私/服务协议及 policyVersion 未冻结；腾讯云接入备案关系、HTTP webblock 和证书自动续期未闭环。
-- 当前候选来自 SHA-256 验证归档，但本地全量改动尚未形成确定 commit；正式 release freeze 仍未完成。
+- 当前公网候选仍来自先前 SHA-256 验证归档；本地 release source 已冻结，但尚未把冻结 artifact 上传并 promotion。
 - release freeze 审计已完成：排除 657 个本地浏览器/日志运行产物后，候选 manifest 为 198 个路径；60/60、typecheck、build、source/bundle security 和 diff check Pass。对应证据为 `evidence/IB-07-release-freeze-2026-07-28.md`。
+- release source commit 为 `19d791f26640edcc583053c4b9f70d4186d1faa4`；最终归档 `passbuddy-release-freeze-19d791f-20260728.tar.gz` SHA-256 为 `3e9ada8c7f332a491cfca112ec2621c2bdb22b1ce72489199174bdd0ff58dbac`，416 条目且禁入为 0，独立解包 tests/typecheck/build/security Pass。尚未上传或部署该冻结归档。
 - 真实灰度仍未启动。
 
 ## 达到既定上线目标的顺序
 
-1. 先做 release freeze：复查当前大工作树、确认 release scope，获得用户授权后再 stage/commit；从确定 commit 重建候选并记录版本。未授权前不得 stage/commit/push。
+1. release freeze 已完成；下一次 promotion 只使用 commit `19d791f…` 对应的已校验 artifact，服务器先验 SHA 再构建。仍不得未经要求 push。
 2. 产品 owner 冻结隐私/服务协议正文与 policyVersion；确认邀请码学校、额度、过期时间、负责人和暂停方式。
 3. 关闭真实 Auth 门禁：AUTH-006 Secure Cookie/logout/401、SESSION-003 真实退出重登，以及 AUTH-001 邮箱矩阵。每次 OTP 继续逐次请求明确确认，用户自行输入 OTP。
 4. 接入轻量外部应用监控/告警，取得前端异常、服务端异常、requestId 关联、登录/关键 API/DB/备份失败通知证据；本机 JSON/readiness 只能作为信号源。
