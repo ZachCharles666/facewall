@@ -50,6 +50,7 @@
 | CONSENT-004 | Versioning | 新协议版本要求重新同意，历史记录保留 | `evidence/IB-04-consent-deletion.md` | Pass |
 | CONSENT-005 | Functional | 用户可提交删除请求并查看状态 | `evidence/IB-04-consent-deletion.md` | Pass |
 | CONSENT-006 | Privacy | 管理员能执行一次删除演练，正文删除且保留最小审计摘要 | `evidence/IB-04-consent-deletion.md` | Pass |
+| CONSENT-007 | Release Gate | 用户服务协议、隐私政策、运营主体/联系方式和数据处理承诺经专业审核后冻结版本 | `evidence/IB-07-policy-product-draft-2026-07-28.md`；产品原文和 `2026-07-28-product-draft` 已接入，仍待专业审核与真实能力核对 | Partial |
 
 ## E. Feedback And Events
 
@@ -69,9 +70,9 @@
 
 | ID | Dimension | Acceptance Criterion | Evidence Form | Status |
 | --- | --- | --- | --- | --- |
-| OBS-001 | Functional | 前端未捕获异常和服务端异常进入监控平台 | `evidence/IB-06-admin-observability.md` | Partial |
-| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` | Partial |
-| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` | Partial |
+| OBS-001 | Functional | 前端未捕获异常和服务端异常进入监控平台 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；RUM 本地接线已完成，尚缺 staging 首条前端/服务端真实远端事件 | Partial |
+| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；本地 payload policy 通过，尚缺远端 captured payload 人工复核 | Partial |
+| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；RUM 仅 allowlist `x-request-id`，尚缺同一 staging requestId 远端对账 | Partial |
 | OBS-004 | Alerting | 登录不可用、关键 API 高失败率和数据库错误能触发告警 | `evidence/IB-06-admin-observability.md` + `evidence/IB-07-staging-foundation-2026-07-27.md`；本机 readiness/backup 检查已实现，仍缺应用/DB/备份失败外部告警 | Partial |
 | OBS-005 | Metrics | 管理页展示注册、开始、完成、失败、fallback、反馈和用量 | `evidence/IB-06-admin-observability.md` | Pass |
 | OBS-006 | Performance | 关键 API 记录 P50/P95 或可计算原始耗时 | `evidence/IB-06-admin-observability.md` | Pass |
@@ -89,6 +90,11 @@
 | COMP-002 | Contract | 原 `CommonResponse`、稳定枚举和 questionId 语义未漂移 | `evidence/IB-07-local-security-contract.md` | Pass |
 | COMP-003 | Compatibility | Azure/Web Speech、STT 手动编辑、流/非流报告和复制兜底继续通过 | `evidence/IB-07-local-compatibility.md` | Pass |
 | COMP-004 | Compatibility | classic/figma/juju 三主题的主闭环不因认证/持久化接线破坏 | `evidence/IB-07-local-compatibility.md` | Pass |
+| VOICE-001 | Contract | `/api/tts`、`/api/stt` 和现有状态枚举不因主/备 provider 改变；TTS/STT 故障可独立注入 | `04_api_and_event_contracts.md`、`../04_api_contracts.md` + contract test | Pass |
+| VOICE-002 | Recovery | TTS 按 Azure→备用 API→Web Speech→文本有界降级，每个服务端 provider 每次最多调用一次 | `evidence/IB-08-speech-provider-failover.md` | Pending |
+| VOICE-003 | Recovery | STT 按 Azure→备用 API→浏览器识别→手动编辑降级，失败始终保留已有答案 | `evidence/IB-08-speech-provider-failover.md` | Pending |
+| VOICE-004 | Privacy/Traceability | 原始音频不持久化；只记录 provider/时长/latency/attempts/result/requestId，不记录正文或原始响应 | `evidence/IB-08-speech-provider-failover.md`；既有 Azure/手动路径通过，备用 provider payload 待真实复核 | Partial |
+| VOICE-005 | Integration | HTTPS 桌面和手机真实验证主 provider 故障、备用成功，以及双失败后的浏览器/手动兜底 | `evidence/IB-08-speech-provider-failover.md` | Pending |
 | SEC-001 | Security | secret/service key 不进入客户端 bundle、日志或文档 | `evidence/IB-07-local-security-contract.md` | Pass |
 | SEC-002 | Security | IDOR、角色伪造、非法 owner 字段和跨学校查询被阻断 | `evidence/IB-07-local-security-contract.md` | Pass |
 | SEC-003 | Security | Auth/feedback/event/admin 写接口具备 schema、body size 和限流保护 | `evidence/IB-07-local-security-contract.md` | Pass |

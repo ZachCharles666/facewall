@@ -48,6 +48,28 @@ const errorMessages: Record<string, string> = {
   PRIVACY_OPERATION_FAILED: "隐私操作暂时失败，请稍后重试。"
 };
 
+const emphasizedPolicyParagraphPrefixes = [
+  "2.1 AI生成内容性质说明",
+  "4.2 退款规则",
+  "5. 免责声明与责任限制",
+  "5.1 服务中断",
+  "5.2 面试结果免责",
+  "6.2 法律适用与管辖"
+];
+
+function renderPolicyContent(content: string) {
+  return content.split("\n\n").map((paragraph, index) => {
+    const emphasized = emphasizedPolicyParagraphPrefixes.some((prefix) =>
+      paragraph.startsWith(prefix)
+    );
+    return (
+      <p key={`${index}-${paragraph.slice(0, 24)}`}>
+        {emphasized ? <strong>{paragraph}</strong> : paragraph}
+      </p>
+    );
+  });
+}
+
 async function readFailure(response: Response) {
   const body = (await response.json().catch(() => ({}))) as ApiFailure;
   const code = body.error?.code || "UNKNOWN";
@@ -105,7 +127,7 @@ export function AuthGate({
             setMessage("删除申请正在处理，当前账号不能开始新的训练。");
           } else if (body.data?.needsConsent) {
             setStep("consent");
-            setMessage("开始新训练前，请阅读并同意当前版本隐私说明。");
+            setMessage("开始新训练前，请阅读并同意当前版本用户服务协议与隐私政策。");
           } else {
             setStep("authenticated");
             setMessage("");
@@ -158,7 +180,7 @@ export function AuthGate({
         setDeletionRequest((deletionBody?.data as DeletionRequest | null) ?? null);
       })
       .catch(() => {
-        if (!cancelled) setMessage("隐私说明加载失败，请稍后重试。");
+        if (!cancelled) setMessage("用户服务协议与隐私政策加载失败，请稍后重试。");
       });
     return () => {
       cancelled = true;
@@ -223,7 +245,7 @@ export function AuthGate({
         setMessage("删除申请正在处理，当前账号不能开始新的训练。");
       } else if (body.data.needsConsent) {
         setStep("consent");
-        setMessage("登录成功。开始新训练前，请阅读并同意当前版本隐私说明。");
+        setMessage("登录成功。开始新训练前，请阅读并同意当前版本用户服务协议与隐私政策。");
       } else {
         setStep("authenticated");
         setMessage("");
@@ -252,7 +274,7 @@ export function AuthGate({
       const body = (await response.json()) as { data: { needsConsent: boolean } };
       if (body.data.needsConsent) {
         setStep("consent");
-        setMessage("内测资格已激活。开始新训练前，请阅读并同意隐私说明。");
+        setMessage("内测资格已激活。开始新训练前，请阅读并同意用户服务协议与隐私政策。");
       } else {
         setStep("authenticated");
         setMessage("");
@@ -358,7 +380,7 @@ export function AuthGate({
             <div className="privacy-panel-header">
               <div>
                 <p className="auth-eyebrow">PRIVACY & DATA</p>
-                <h2>{policy?.title || "正在加载隐私说明…"}</h2>
+                <h2>{policy?.title || "正在加载用户服务协议与隐私政策…"}</h2>
               </div>
               <button onClick={() => setShowPrivacy(false)} type="button">
                 关闭
@@ -367,9 +389,7 @@ export function AuthGate({
             {policy && (
               <>
                 <div className="privacy-copy">
-                  {policy.content.split("\n\n").map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
+                  {renderPolicyContent(policy.content)}
                 </div>
                 <p className="privacy-meta">
                   协议版本：{policy.policyVersion}
@@ -412,7 +432,7 @@ export function AuthGate({
             : step === "invite"
               ? "开通内测体验"
               : step === "consent"
-                ? policy?.title || "阅读隐私说明"
+                ? policy?.title || "阅读用户服务协议与隐私政策"
                 : step === "privacy"
                   ? "删除申请处理中"
               : "欢迎登录 PassBuddy"}
@@ -425,7 +445,7 @@ export function AuthGate({
               : step === "consent"
                 ? "同意当前版本后才能开始新的面试训练；你仍可退出或提交数据删除申请。"
                 : step === "privacy"
-                  ? "你仍可查看隐私说明和申请状态，或退出登录。"
+                  ? "你仍可查看用户服务协议、隐私政策和申请状态，或退出登录。"
               : "使用邮箱验证码注册或登录，无需设置密码。"}
         </p>
 
@@ -512,9 +532,7 @@ export function AuthGate({
           <form className="auth-form" onSubmit={acceptConsent}>
             <div className="privacy-copy">
               {policy ? (
-                policy.content.split("\n\n").map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))
+                renderPolicyContent(policy.content)
               ) : (
                 <p>正在从服务端加载当前协议版本…</p>
               )}
@@ -528,7 +546,7 @@ export function AuthGate({
                     onChange={(event) => setPolicyChecked(event.target.checked)}
                     type="checkbox"
                   />
-                  我已阅读并同意当前版本隐私说明
+                  我已阅读并同意当前版本《用户服务协议》和《隐私政策》
                 </label>
               </>
             )}
@@ -555,11 +573,9 @@ export function AuthGate({
           <div className="auth-form">
             <div className="privacy-copy">
               {policy ? (
-                policy.content.split("\n\n").map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))
+                renderPolicyContent(policy.content)
               ) : (
-                <p>正在加载隐私说明和删除申请状态…</p>
+                <p>正在加载用户服务协议、隐私政策和删除申请状态…</p>
               )}
             </div>
             <p className="privacy-meta">

@@ -51,3 +51,9 @@
 - 浏览器 fixture 仅在 development 且显式 `INTERNAL_BETA_BROWSER_FIXTURES=true` 时可用。
 - 自动签名 fixture Cookie 只用于本地兼容测试，不是 OTP 登录证据。
 - SESSION-003 退出重登、AUTH-001 邮箱矩阵、AUTH-006 HTTPS Secure Cookie、SESSION-008 真实 LLM usage、OBS 真实平台和 SEC-006 staging 回滚均未因此升级。
+
+## Post-IB-07 speech fault isolation · 2026-07-28
+
+- 根因修复：`/api/stt` 的开发故障注入此前误用 `tts` fault kind，导致服务端 STT 独立故障不能按预期触发；现新增独立 `stt` kind 并修正 route。
+- targeted dev/persistence/alerts/observability/security contract 18/18 Pass，覆盖 TTS/STT header 隔离和源码接线。
+- 用户新增“第二个服务端 TTS/STT API”要求，已登记为 D-13 和 VOICE-001～005；厂商未选择前只关闭公开契约，真实冗余保持 Pending/Partial，见 `IB-08-speech-provider-failover.md`。

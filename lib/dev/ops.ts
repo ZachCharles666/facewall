@@ -1,4 +1,4 @@
-export type DevFaultKind = "llm" | "tts" | "database";
+export type DevFaultKind = "llm" | "tts" | "stt" | "database";
 
 const DEMO_MODE_HEADER = "x-facewall-demo-mode";
 const FAULT_HEADER = "x-facewall-fault";

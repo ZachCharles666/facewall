@@ -13,7 +13,7 @@ function pickTranscript(payload: AzureSimpleSttResponse) {
 }
 
 async function handlePost(request: Request) {
-  if (shouldInjectDevFault(request, "tts")) {
+  if (shouldInjectDevFault(request, "stt")) {
     return NextResponse.json({ error: "开发故障注入：Azure STT 不可用。" }, { status: 503 });
   }
 

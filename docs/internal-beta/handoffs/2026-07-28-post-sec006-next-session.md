@@ -26,33 +26,41 @@
 - `facewall-candidate` 3001 与上一稳定版 `facewall` 3000 均 online；回滚配置为 `/etc/nginx/conf.d/facewall.conf.pre-ib07-20260728-120806`。
 - `passbuddy-local-readiness.timer` enabled/active；PostgreSQL 仍仅监听 localhost，migration `0011`；本机+COS backup timer 保持 enabled/active。
 - 远端 release、归档、Nginx 备份和数据库备份保留，不删除。候选现在承担 staging 流量，不能按“临时进程”直接清理。
-- 本地工作树包含 IB-02 至本轮全部修改；未 reset、checkout、stash、clean、stage、commit 或 push。
+- IB-02 至 IB-07 release freeze 已形成两个本地 commit 并按用户明确要求推送到 `origin/release/preview`；随后接入的产品协议草案是新的未提交工作树增量。全程未 reset、checkout 覆盖、stash、clean 或删除用户改动。
 
 ## Acceptance 现状
 
-- Matrix 共 64 行：52 Pass、5 Partial、7 Pending。剔除只能由真实灰度产生证据的 PILOT-001–005，预上线项为 52/59 Pass。
+- Matrix 共 70 行：53 Pass、7 Partial、10 Pending。新增 CONSENT-007 Partial 与 VOICE-001～005（1 Pass、1 Partial、3 Pending）；剔除只能由真实灰度产生证据的 PILOT-001–005，预上线项为 53/65 Pass。
 - 本轮新关闭：SEC-006、SESSION-008。
 - AUTH-006 仍 Pending：缺真实登录后的 Secure Cookie、退出及受保护 API 401 浏览器矩阵。
 - SESSION-003 仍 Partial：刷新和 Node 重启恢复通过；真实 OTP 退出重登未完成。
 - OBS-001–004 仍 Partial：主机指标与邮件/微信触发已有真实证据；仍缺应用异常远端聚合、requestId 远端关联、数据库/备份失败外部告警。CLS 本轮不采用。
 - AUTH-001 Pending：浙大域名单次 template probe 已到达；仍缺 QQ、163、两所学校域名各 3 次应用 OTP 送达/登录矩阵。任何 OTP 每次发送前必须单独获得明确确认。
 - 一次经授权的 AUTH-006 浏览器“发送验证码”点击在等待响应时控制通道超时，服务端结果未审计、页面未确认进入 OTP；没有重试，用户选择停止该路径。该不确定尝试不计任何 Acceptance 证据。
-- 最终隐私/服务协议及 policyVersion 未冻结；腾讯云接入备案关系、HTTP webblock 和证书自动续期未闭环。
-- 当前公网候选仍来自先前 SHA-256 验证归档；本地 release source 已冻结，但尚未把冻结 artifact 上传并 promotion。
+- 产品提供的《用户服务协议》《隐私政策》已以 `2026-07-28-product-draft` 接入并触发版本升级；专业审核、运营主体/联系方式验真和承诺与实现一致性仍未闭环，CONSENT-007 保持 Partial。腾讯云接入备案关系、HTTP webblock 和证书自动续期同样未闭环。
+- 当前公网候选仍来自先前 SHA-256 验证归档；已推送的 release source 基线已冻结，但不包含随后新增的产品协议草案。最终 promotion 前需从包含该增量的后续确定 commit 重新导出归档。
 - release freeze 审计已完成：排除 657 个本地浏览器/日志运行产物后，候选 manifest 为 198 个路径；60/60、typecheck、build、source/bundle security 和 diff check Pass。对应证据为 `evidence/IB-07-release-freeze-2026-07-28.md`。
 - release source commit 为 `19d791f26640edcc583053c4b9f70d4186d1faa4`；最终归档 `passbuddy-release-freeze-19d791f-20260728.tar.gz` SHA-256 为 `3e9ada8c7f332a491cfca112ec2621c2bdb22b1ce72489199174bdd0ff58dbac`，416 条目且禁入为 0，独立解包 tests/typecheck/build/security Pass。尚未上传或部署该冻结归档。
 - 真实灰度仍未启动。
 
 ## 达到既定上线目标的顺序
 
-1. release freeze 已完成；下一次 promotion 只使用 commit `19d791f…` 对应的已校验 artifact，服务器先验 SHA 再构建。仍不得未经要求 push。
-2. 产品 owner 冻结隐私/服务协议正文与 policyVersion；确认邀请码学校、额度、过期时间、负责人和暂停方式。
+1. release freeze 流程和基线已完成并推送；因产品协议草案是后续增量，下一次 promotion 必须使用包含该增量的后续确定 commit，服务器先验 SHA 再构建。仍不得未经要求再次 stage、commit 或 push。
+2. 产品协议草案已接入；由专业人士复核并冻结最终正文、运营主体、联系方式和 policyVersion，同时确认邀请码学校、额度、过期时间、负责人和暂停方式。
 3. 关闭真实 Auth 门禁：AUTH-006 Secure Cookie/logout/401、SESSION-003 真实退出重登，以及 AUTH-001 邮箱矩阵。每次 OTP 继续逐次请求明确确认，用户自行输入 OTP。
 4. 接入轻量外部应用监控/告警，取得前端异常、服务端异常、requestId 关联、登录/关键 API/DB/备份失败通知证据；本机 JSON/readiness 只能作为信号源。
 5. 关闭腾讯云接入关系、HTTP webblock、证书自动续期；复核 PM2 开机恢复和 candidate→正式进程命名/端口收敛。
 6. 用两个真实 user + 一个 admin 做 staging G0 整体 E2E/故障/删除/回滚矩阵并观察一个完整工作日；此前已过的局部证据可复用，但不能替代整体验收。
 7. 所有预上线 P0 关闭后才把 PILOT-001 升 Pass并启动 G1 10–20 人；运行 2–3 天并按阈值形成 Go/No-Go。G2 50 人和 G3 100 人必须顺序取得真实数据，不能提前标 Pass。
 8. 在上述既定上线目标达成前只处理门禁缺陷，不插入新的 P1/P2 优化需求。
+
+## 本地优先收敛与新增语音冗余要求
+
+- 用户确认公网语音主流程需增加第二个服务端 TTS/STT API。D-13、VOICE-001～005 和 IB-08 instruction 已建立；公开 API、主备顺序、重试/隐私硬约束先冻结。
+- 修复 `/api/stt` 开发故障注入误用 `tts` 标识；TTS/STT 现在可独立注入，targeted contracts 18/18 Pass。
+- 备用 provider 厂商、地域、计费、配额、隐私条款和账号未决定；未安装 SDK、未调用外部 API，VOICE-002/003/005 Pending、VOICE-004 Partial。
+- OBS 的本地 adapter/scrubber/requestId/rules 已无待补核心代码；剩余 OBS-001～004 必须取得真实外部平台证据。
+- 尝试启动本机 Docker/PostgreSQL，但 Docker Desktop engine 因 WSL `E_ACCESSDENIED` 未就绪；本轮启动的 Docker Desktop 进程已关闭。数据库型 integration 未重跑，不影响既有 staging PostgreSQL 证据。
 
 ## 约束与停止条件
 

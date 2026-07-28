@@ -2208,7 +2208,7 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] LLM drill 相邻回归：60/60 internal-beta、typecheck、production build（33/33 static generation）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
 - [ ] 这只是 staging 公网候选部署，不是 10–20/100 人灰度；AUTH-006 仍缺合法登录后的 Secure Cookie/退出/401，OBS-001–004 不因本机日志升级。
 - [ ] 一次经用户单独授权的 AUTH-006 浏览器“发送验证码”点击在等待响应时控制通道超时；页面未确认进入 OTP，服务端结果未审计且没有重试。用户决定停止该路径；该不确定尝试不计 AUTH-001/006 或 SESSION-003 证据。
-- [x] 上线差距复核：Matrix 52 Pass、5 Partial、7 Pending；剔除 PILOT-001–005 后预上线项 52/59 Pass。后续先关闭 release freeze、法务/域名证书、真实 Auth、外部应用监控和 G0 整体 E2E，再接受优化需求。
+- [x] 当次上线差距快照为 Matrix 52 Pass、5 Partial、7 Pending；本轮产品协议草案接入后新增 CONSENT-007 Partial，最新计数见下方“五组门禁复核”。
 
 ## IB-07 release freeze - 2026-07-28
 
@@ -2220,3 +2220,66 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 冻结归档 416 个条目，`.docx`/禁入路径/必需文件缺失均为 0；独立解包后 60/60、无增量 typecheck、production build 33/33 和 source security（189 files）Pass。首次受 Windows autocrlf 影响的 CRLF 归档已判废并替换。
 - [ ] 当前公网 3001 仍运行先前 SHA-256 验证候选；promotion 前需上传冻结归档、服务器校验 digest、从冻结 commit artifact 构建并重复最小 staging smoke。
 - [ ] 本 freeze 不关闭 AUTH/SESSION/OBS/法务/域名证书/G0/PILOT 门禁，也不授权真实灰度。
+
+## IB-07 产品协议草案与上线五组门禁复核 - 2026-07-28
+
+### 产品协议草案
+
+- [x] 按产品提供原文，将《用户服务协议》《隐私政策》替换原开发占位正文；未擅自修改邮箱拼写、运营主体或承诺内容。
+- [x] policyVersion 升级为 `2026-07-28-product-draft`；旧版本同意记录保留，已有用户必须重新同意后才能开始新 Session。
+- [x] AuthGate 的加载、提示和勾选文案同时指向《用户服务协议》和《隐私政策》；隐私契约最小测试 5/5 Pass。
+- [x] 相邻回归：60/60 internal-beta、typecheck、production build（33/33）、source security（190 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [ ] CONSENT-007 保持 Partial：正文尚未经过专业审核，运营主体/联系邮箱未验真，账号字段、LLM 前脱敏、语音分析、数据库密文和用户权利入口等承诺尚未与真实能力逐项闭环。
+- [ ] 当前只完成本地源码接入，尚未部署 staging，也未触发 OTP 或外部调用。
+
+### 上线前五组门禁 · 最新状态
+
+1. **Release freeze / promotion**
+   - [x] release source 基线 `19d791f…`、归档摘要、独立重建验证和 provenance commit 已完成，两个 commit 已按用户授权推送到 `origin/release/preview`。
+   - [ ] 本协议草案是冻结后的新增改动；最终 promotion 需在用户授权后形成后续确定 commit，重新导出/校验归档并从该 commit 构建。
+   - [ ] staging 需验证 PM2 开机恢复，并明确 `facewall-candidate` → 正式进程的名称、端口和即时回滚步骤。
+2. **真实认证闭环**
+   - [ ] AUTH-001：QQ、163、两所学校邮箱各 3 次真实应用 OTP 送达/登录；浙大单次 SES 模板探针不替代该矩阵。
+   - [ ] AUTH-006：合法登录 Session 的 Secure Cookie、退出和退出后受保护 API 401。
+   - [ ] SESSION-003：真实退出重登后的 Session 恢复。每次 OTP 发送前继续单独请求明确确认。
+3. **外部应用监控**
+   - [ ] OBS-001–004 保持 Partial：仍缺前端/服务端异常进入真实外部接收面、requestId 关联、登录/关键 API/PostgreSQL/备份失败外部告警及恢复通知。
+   - [x] 主机告警、本机 readiness 和 vendor-neutral JSON/requestId 是可复用基础，但不冒充外部应用监控验收；不要求购买 CLS。
+4. **法务、域名和证书运维**
+   - [ ] 专业审核并冻结最终协议正文、真实运营主体/联系方式和最终 policyVersion。
+   - [ ] 确认腾讯云接入备案关系，解决 HTTP DNSPod webblock，建立证书自动续期。
+   - [ ] 明确邀请码学校、额度、有效期、负责人和暂停方式。
+5. **G0 整体验收**
+   - [ ] 两个真实 user + 一个 admin 覆盖登录、邀请码、同意、完整面试、反馈、恢复、删除、A/B 隔离和 admin 权限。
+   - [ ] 覆盖 DB/LLM/TTS/STT/monitor 故障、暂停邀请、应用回滚和备份恢复，并至少观察一个完整工作日。
+
+当前决策：**产品协议草案已进入本地候选，但专业审核和其余上线门禁未关闭；10–20 人真实灰度仍为 NO-GO。**
+
+## Pre-G0 本地优先收敛与语音 provider 冗余 - 2026-07-28
+
+- [x] 完成本地/公网边界复核：OBS 本地 instrumentation、AUTH logout/401 本地路径、Session 刷新/Node 重启和语音浏览器/文字兜底已有证据；不得重复包装为外部 Pass。
+- [x] 修复 `/api/stt` 开发故障注入误用 `tts` kind；新增独立 `stt` kind、源码回归和实际 header 隔离测试。
+- [x] targeted dev/persistence/alerts/observability/security contracts 18/18 Pass。
+- [x] 用户新增 P0 语音冗余要求：Azure 为主，增加一个真实服务端备用 TTS/STT provider；主备均失败后保留 Web Speech/浏览器识别/手动编辑。
+- [x] 完成 D-13、API/Event Contract、VOICE-001～005 和 IB-08 instruction；VOICE-001 仅关闭公开契约兼容。
+- [ ] 备用 provider 的厂商、地域、中文能力、价格/配额、隐私条款和测试账号待产品决策；此前不安装 SDK、不调用真实 API、不创建生产 stub。
+- [ ] VOICE-002/003/005 Pending；VOICE-004 Partial。真实主备故障切换、HTTPS 桌面/手机麦克风和 provider requestId/latency 必须在公网 staging 取得。
+- [x] OBS 本地部分无需为“做本地”重复开发；剩余 OBS-001～004 必须接真实外部接收面并验证告警触发/恢复。
+- [ ] 本地 PostgreSQL integration 本轮无法重跑：Docker Desktop engine 因 WSL `E_ACCESSDENIED` 未就绪；本轮启动进程已关闭。既有 staging DB integration 证据保持有效。
+- [x] 最终本地回归：62/62 internal-beta、typecheck、production build（33/33）、source security（192 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [x] 最新 Matrix 对账：70 行，53 Pass、7 Partial、10 Pending；剔除 PILOT-001～005 后预上线 53/65 Pass。
+
+下一顺序：先确认外部监控接收面和备用语音 provider；本地实现 adapter/timeout/error/scrub 后，再部署最终候选执行公网 Auth、语音、PM2、G0 和工作日观察。
+
+## IB-09 腾讯云 RUM 前端接收面 · 本地接入 - 2026-07-28
+
+- [x] 产品确认拒绝跨境 telemetry，选择腾讯云 RUM 广州作为 staging 前端真实接收面；继续不购买 CLS，服务端保持 vendor-neutral JSON/requestId。
+- [x] RUM 业务系统和 staging web 应用已在控制台创建；抽样按错误优先、性能/PV 降量配置。字段枚举模板仅影响 ext4–ext10 展示，本轮不使用。
+- [x] 安装并锁定 `aegis-web-sdk@1.41.14`；新增 exact enable + 合法 ID fail-off gate，SDK 加载/上报失败不影响业务。
+- [x] 固定中国大陆接收域；显式关闭持久 aid、真实 uin、device、whitelist、自动 JS listener、console/click、静态资源测速、白屏截图、lag/memory 和 request/response detail。
+- [x] 既有 `reportClientError` 同时接本地 ingestion 与 RUM 最小事件；错误只保留类型、技术栈、来源和归一化路径，资源加载失败纳入受控 source。
+- [x] API speed 只保留 method/status/duration、去 query/hash 且聚合动态 ID 的 path，以及响应 `x-request-id`；请求 headers/body、响应 body 和业务 retcode 不上报。
+- [x] 本地 RUM contract 6/6、全量 internal-beta 68/68、typecheck、production build（33/33）、source security（196 files）、bundle security（60 files）和 `git diff --check` Pass；本轮 npm 临时 cache 已删除。
+- [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
+- [ ] OBS-001～004 全部保持 Partial：缺真实 captured payload、requestId 远端对账、服务端/DB/备份外部故障与恢复通知。
+- [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。

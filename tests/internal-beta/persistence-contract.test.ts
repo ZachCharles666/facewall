@@ -82,3 +82,14 @@ test("figma and juju preserve a manual answer path when speech input is unavaila
   assert.match(interview, /inputMode: "text"/);
   assert.match(interview, /输入后点击中间按钮继续/);
 });
+
+test("TTS and STT development faults are independently injectable", async () => {
+  const devOps = await source("lib/dev/ops.ts");
+  const ttsRoute = await source("app/api/tts/route.ts");
+  const sttRoute = await source("app/api/stt/route.ts");
+
+  assert.match(devOps, /"tts"\s*\|\s*"stt"/);
+  assert.match(ttsRoute, /shouldInjectDevFault\(request,\s*"tts"\)/);
+  assert.match(sttRoute, /shouldInjectDevFault\(request,\s*"stt"\)/);
+  assert.doesNotMatch(sttRoute, /shouldInjectDevFault\(request,\s*"tts"\)/);
+});

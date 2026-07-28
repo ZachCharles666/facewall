@@ -1,5 +1,7 @@
 "use client";
 
+import { captureTencentRumClientError } from "@/lib/observability/tencentRum";
+
 const MAX_MESSAGE_LENGTH = 300;
 
 function safeMessage(value: unknown) {
@@ -13,7 +15,13 @@ function safeMessage(value: unknown) {
 
 export function reportClientError(
   error: unknown,
-  context: { source: "error-boundary" | "window-error" | "unhandled-rejection" }
+  context: {
+    source:
+      | "error-boundary"
+      | "window-error"
+      | "unhandled-rejection"
+      | "resource-error";
+  }
 ) {
   const payload = {
     name: error instanceof Error ? error.name.slice(0, 80) : "ClientError",
@@ -21,6 +29,12 @@ export function reportClientError(
     source: context.source,
     path: typeof window === "undefined" ? "/" : window.location.pathname
   };
+  captureTencentRumClientError({
+    name: payload.name,
+    source: payload.source,
+    path: payload.path,
+    stack: error instanceof Error ? error.stack : undefined
+  });
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     const body = new Blob([JSON.stringify(payload)], { type: "application/json" });
     if (navigator.sendBeacon("/api/monitor/client-error", body)) return;

@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 const allowedSources = new Set([
   "error-boundary",
   "window-error",
-  "unhandled-rejection"
+  "unhandled-rejection",
+  "resource-error"
 ]);
 
 function validatePayload(value: unknown) {

@@ -325,6 +325,23 @@ Request:
 禁止事件属性包含正文、OTP、Cookie、token、密钥或 provider 原始响应。
 provider 未返回 usage 时 token 字段写 `null`，不得估算或用 `0` 冒充真实测量。`demo_fallback` 固定 `provider=local_demo`，`model/latency/attempts/usage=null`；不得把本地 adapter 或 fixture 数字冒充真实 provider 测量。
 
+### 7.1 Speech Provider Failover
+
+- `/api/tts`、`/api/stt` 的公开字段保持 `docs/04_api_contracts.md` 兼容，provider 选择不得成为客户端输入。
+- TTS 服务端链为 Azure→备用 provider，之后由客户端执行 Web Speech→文本；STT 服务端链为 Azure→备用 provider，之后由客户端执行浏览器识别→手动编辑。
+- 同一用户操作对每个服务端 provider 最多调用一次；仅超时、网络错误、429/5xx 等 retryable dependency failure 进入下一 provider。
+- 语音技术事件允许字段：`provider`、`operation`、`durationSec` 或 `characterCount`、`latencyMs`、`attempts`、`result`、`errorCode`、`requestId`。
+- 禁止记录 TTS 正文、STT 音频/转写正文、密钥或 provider 原始响应；备用 provider 未取得真实 payload review 前 VOICE-004 保持 Partial。
+
+### 7.2 Tencent RUM Frontend Receiver
+
+- staging 前端 RUM 仅在 `NEXT_PUBLIC_TENCENT_RUM_ENABLED=true` 且应用 ID 合法时初始化；缺失、无效、SDK 加载或上报失败均 fail-open。
+- 接收域固定为中国大陆 `https://rumt-zh.com`；不允许通过环境变量切换到跨境 endpoint。
+- 允许类型：手动脱敏的前端错误类型/栈帧/来源/归一化路径、API method/status/duration/去参数化 route/响应 `x-request-id`、页面性能和 Web Vitals。
+- 禁止类型：真实 `uin`、持久 `aid`、设备详情、Cookie/Authorization、任意请求 header、请求/响应正文、query/hash、简历/JD/答案/报告/prompt、点击/console 全量日志、页面 DOM 或截图。
+- SDK 自动 JS error listener 关闭，由既有 `reportClientError` 统一生成最小事件；API speed 不解析业务 retcode，不上报 request/response detail。
+- RUM 只覆盖浏览器接收面。服务端异常、PostgreSQL、备份和告警恢复通知仍由 vendor-neutral server/readiness/外部通知链关闭，不得由 RUM 前端数据替代。
+
 ## 8. Metric Definitions
 
 | Metric | Definition |

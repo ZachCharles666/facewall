@@ -150,4 +150,11 @@
 - 成功 API 在原业务 `data` 不变的前提下增加可选 generation meta；profile/questions/stream/non-stream report 均传播 measurement。
 - Session 事件保存 provider、model、latencyMs、attempts、inputTokens、outputTokens、requestId。
 - fallback 明确为 `provider=local_demo`，不可获得或不适用字段保存 null；持久化层拒绝 fallback 伪造 token/latency/model。
+
+## Pre-G0 local/public boundary review · 2026-07-28
+
+- 本地已完成：browser/server capture 入口、scrubber、response/header/log requestId、四类应用告警规则、低流量抑制、provider 缺失/失败时 fail-open。
+- 本轮 targeted dev/persistence/alerts/observability/security contracts 18/18 Pass；没有新增外部 provider，也没有发送通知。
+- 继续本地重复运行不能关闭 OBS-001～004。剩余验收必须使用真实外部接收面取得 captured event、脱敏 payload review、requestId trace、登录/关键 API/DB/备份失败告警与恢复通知。
+- 外部平台/接收面未由产品确认；在确认厂商、费用、数据地域和接收对象前不安装 SDK、不调用外部服务，OBS-001～004 保持 Partial。
 - fixture PostgreSQL 对账和正文隐私扫描 Pass；没有真实 LLM key/model，因此不升级 SESSION-008。

@@ -57,6 +57,13 @@
 | 最终法律文本与新 policyVersion | 灰度发布门禁 | 文本 owner 为产品/法务，开发不自行作合规承诺 |
 | staging 浏览器/HTTPS 复核 | IB-07 staging drill | 本地 390×844 已通过；仍需在真实域名、HTTPS、Secure Cookie 环境复核 |
 
+## IB-07 产品协议草案升级 · 2026-07-28
+
+- 产品提供的《用户服务协议》《隐私政策》已替换本文件验收时使用的开发占位正文。
+- 当前版本为 `2026-07-28-product-draft`，因此既有 `2026-07` 同意记录不会放行新 Session，版本升级行为继续符合 CONSENT-004。
+- 本次只关闭原文接入和本地版本门禁，不关闭专业法律审核、运营主体/联系方式验真、承诺与实现一致性或 staging 浏览器复核。
+- 详细证据和已知风险见 `IB-07-policy-product-draft-2026-07-28.md`；新增 CONSENT-007 为 Partial。
+
 ## Post-IB-06 390×844 浏览器矩阵 · 2026-07-26
 
 | Theme | Result | Evidence |

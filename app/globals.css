@@ -376,6 +376,10 @@ input[type="range"] {
   margin-bottom: 0;
 }
 
+.privacy-copy strong {
+  color: var(--foreground);
+}
+
 .privacy-meta {
   color: var(--muted);
   font-size: var(--font-size-xs);

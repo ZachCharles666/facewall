@@ -30,6 +30,7 @@
     "smoke:security": "tsx scripts/security-api-smoke.ts"
   },
   "dependencies": {
+    "aegis-web-sdk": "1.41.14",
     "better-auth": "^1.6.25",
     "next": "^15.3.4",
     "pg": "^8.22.0",

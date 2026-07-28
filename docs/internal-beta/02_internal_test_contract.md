@@ -28,8 +28,8 @@
 | 认证层 | Next.js 内自托管 Better Auth，管理 Session/OTP 验证记录 |
 | 数据层 | 腾讯云 PostgreSQL（线上同地域/VPC）或本地 PostgreSQL（开发），承载身份和业务数据、RLS、备份 |
 | 邮件层 | 腾讯云 SES SendEmail API；已审核模板和发信域名；不得由浏览器直连 |
-| 监控平台 | 前后端异常、性能采样、告警；不得发送简历/JD/答案全文 |
-| 既有外部依赖 | OpenAI-compatible LLM、Azure TTS/STT、Web Speech |
+| 监控平台 | 腾讯云 RUM 只接前端脱敏异常/API 性能/Web Vitals；服务端继续 provider-neutral；不得发送简历/JD/答案全文 |
+| 既有/新增外部依赖 | OpenAI-compatible LLM、Azure TTS/STT、待选备用 TTS/STT、Web Speech |
 
 ## 4. Roles And Authorization
 
@@ -78,6 +78,8 @@
 - 未同意当前有效协议版本的 user 不得开始新的训练会话。
 - 同意记录不可被普通更新覆盖；新版本产生新记录。
 - 日志、监控、事件表不得写入简历、JD、答案、报告全文、OTP、Session token 或真实密钥。
+- 腾讯云 RUM 不设置真实 `uin`，不生成持久 `aid`，不采集设备详情、Cookie、query、请求/响应正文、任意 header、点击日志或页面截图；API 仅允许响应 `x-request-id` 用于关联。
+- RUM SDK 缺配置、加载失败或上报失败时不得阻断页面、Auth 或面试主闭环；本地 server-side capture 入口继续保留。
 - 管理看板默认只展示聚合值和技术 ID。
 - 删除采用 `requested → approved → executing → completed|failed` 状态；执行前记录范围，执行后保留不含用户正文的审计记录。
 - 内测结束后默认保留 90 天；到期处置必须由产品/管理员确认并记录。
@@ -85,6 +87,10 @@
 ## 8. Interface Compatibility
 
 - `docs/04_api_contracts.md` 中画像、出题、报告、TTS、STT 的请求/响应字段继续有效。
+- 语音 provider 切换不得改变 `/api/tts`、`/api/stt` 的客户端请求/响应；provider 选择、密钥和原始错误只存在于服务端。
+- 单次用户操作对每个服务端语音 provider 最多调用一次；只有超时、网络错误、429 或 5xx 等可重试依赖错误才进入下一个 provider，4xx 输入错误不得触发备用调用。
+- TTS 顺序为 Azure → 备用服务端 provider → Web Speech → 文本；STT 顺序为 Azure → 备用服务端 provider → 浏览器识别 → 保留文本并手动编辑。
+- 任一 STT provider 失败不得清空已有答案；任何路径均不得持久化原始音频。
 - 新增持久化不能改变 `interviewerStyleId`、`questionId`、`sessionStep` 和现有报告字段语义。
 - 现有非流式报告接口继续作为流式失败保底。
 - 现有 Demo fallback 继续可用于开发与明确的失败兜底，但生产 UI 必须能区分。
@@ -124,6 +130,7 @@
 
 - 每个 API 请求拥有 `requestId`，重要业务操作还应带 `userId` 哈希/内部 ID、`sessionId` 和 event name。
 - 监控平台只接收脱敏上下文，不接收正文。
+- RUM 中的页面/API URL 必须移除 query/hash 并归一化数字、UUID 和长 opaque path segment；前端错误只发送错误类型、技术栈帧、来源和归一化路径。
 - 至少告警：登录完全不可用、5 分钟内关键 API 高失败率、严重前端异常、数据库不可用、完成写入失败。
 - usage 事件记录 LLM token、TTS 字符数、STT 音频秒数和重试次数；不得记录密钥或全文。
 
@@ -136,6 +143,7 @@
 - IB-05：FEED-001 至 FEED-005、EVENT-001 至 EVENT-004
 - IB-06：OBS-001 至 OBS-006、ADMIN-002 至 ADMIN-005
 - IB-07：SEC-001 至 SEC-006、PILOT-001 至 PILOT-005
+- IB-08：VOICE-001 至 VOICE-005
 
 ## 13. Change And Risk Registration
 

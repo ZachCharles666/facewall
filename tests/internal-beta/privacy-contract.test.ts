@@ -4,12 +4,14 @@ import test from "node:test";
 
 const read = (path: string) => readFile(path, "utf8");
 
-test("current privacy policy is server-owned and marked as pre-freeze copy", async () => {
+test("current service terms and privacy policy are server-owned product draft", async () => {
   const policy = await read("lib/privacy/policy.ts");
   const route = await read("app/api/consent/accept/route.ts");
-  assert.match(policy, /version:\s*"2026-07"/);
-  assert.match(policy, /待产品\/法务冻结/);
-  assert.match(policy, /不保存原始音频/);
+  assert.match(policy, /version:\s*"2026-07-28-product-draft"/);
+  assert.match(policy, /产品草案，待专业审核/);
+  assert.match(policy, /一、 用户服务协议/);
+  assert.match(policy, /二、 隐私政策/);
+  assert.match(policy, /Surport_PassBuddy@qq\.com/);
   assert.match(route, /acceptCurrentConsent/);
   assert.doesNotMatch(route, /CURRENT_PRIVACY_POLICY\s*=/);
 });
@@ -31,6 +33,9 @@ test("auth UI and session creation both enforce current consent", async () => {
   const persistence = await read("lib/persistence/interviewSessions.ts");
   assert.match(gate, /needsConsent/);
   assert.match(gate, /\/api\/consent\/accept/);
+  assert.match(gate, /我已阅读并同意当前版本《用户服务协议》和《隐私政策》/);
+  assert.match(gate, /emphasizedPolicyParagraphPrefixes/);
+  assert.match(gate, /key=\{`\$\{index\}-\$\{paragraph\.slice\(0, 24\)\}`\}/);
   assert.match(sessionRoute, /getCurrentConsent/);
   assert.match(persistence, /CURRENT_PRIVACY_POLICY\.version/);
   assert.match(persistence, /isConsentGateEnabled\(\)/);

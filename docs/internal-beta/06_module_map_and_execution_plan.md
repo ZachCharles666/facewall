@@ -16,6 +16,7 @@ flowchart TD
   F --> G
   B --> G
   C --> G
+  H["IB-08 Speech Provider Failover"] --> G
 ```
 
 ## 2. Tier Table
@@ -29,6 +30,7 @@ flowchart TD
 | IB-05 反馈与事件 | L2 | No | Yes | Medium | 不阻断主闭环，但决定数据质量 |
 | IB-06 看板与监控 | L2 | No | Yes | Medium | 跨 UI/DB/日志/第三方监控 |
 | IB-07 安全与灰度 | L1 | Yes | Yes | High | 是真实用户开放前的系统级门禁 |
+| IB-08 语音 provider 冗余 | L1 | Yes | Yes | High | 语音在主闭环上且跨两个外部 provider、浏览器能力和隐私边界 |
 
 ## 3. Work Estimates
 
