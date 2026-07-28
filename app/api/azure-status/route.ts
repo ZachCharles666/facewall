@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { azureVoiceOptions } from "@/lib/speech/settings";
+import { observeRoute } from "@/lib/observability/route";
 
-export async function GET(request: Request) {
+async function handleGet(request: Request) {
   const azureKey = process.env.AZURE_SPEECH_KEY;
   const azureRegion = process.env.AZURE_SPEECH_REGION || "eastasia";
 
@@ -11,4 +12,10 @@ export async function GET(request: Request) {
     region: azureRegion,
     voices: azureVoiceOptions
   });
+}
+
+export async function GET(request: Request) {
+  return observeRoute(request, { route: "/api/azure-status" }, () =>
+    handleGet(request)
+  );
 }

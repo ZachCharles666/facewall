@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { generateInterviewReport, toReportGenerationError } from "@/lib/report/generation";
+import { generateInterviewReportWithMeasurement, toReportGenerationError } from "@/lib/report/generation";
 import { errorResponse, validateReportRequest } from "@/lib/schemas/contracts";
 import type { InterviewReport } from "@/lib/types";
+import { structuredLog } from "@/lib/observability/logger";
+import { observeRoute } from "@/lib/observability/route";
 
 function encodeSse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -20,6 +22,7 @@ export async function POST(request: Request) {
   }
 
   const encoder = new TextEncoder();
+  const generationStartedAt = performance.now();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(encodeSse(event, data)));
@@ -28,7 +31,8 @@ export async function POST(request: Request) {
         send("progress", { stage: "queued", message: "正在准备报告生成任务" });
         send("progress", { stage: "scoring", message: "正在评估 3 道题的回答质量" });
 
-        const report = await generateInterviewReport(payload, request);
+        const result = await generateInterviewReportWithMeasurement(payload, request);
+        const report = result.data;
 
         report.questionReports.forEach((questionReport, index) => {
           send("questionReport", {
@@ -39,15 +43,23 @@ export async function POST(request: Request) {
         });
 
         send("progress", { stage: "finalizing", message: "正在汇总最终复盘报告" });
+        send("measurement", result.measurement);
         send("final", report);
       } catch (error) {
         const reportError = toReportGenerationError(error);
+        structuredLog("error", "report.stream.failed", {
+          errorCode: reportError.code,
+          durationMs: Math.round(performance.now() - generationStartedAt)
+        });
         send("error", {
           code: reportError.code,
           message: reportError.message,
           retryable: reportError.retryable
         });
       } finally {
+        structuredLog("info", "report.stream.completed", {
+          durationMs: Math.round(performance.now() - generationStartedAt)
+        });
         controller.close();
       }
     }
@@ -60,4 +72,12 @@ export async function POST(request: Request) {
       Connection: "keep-alive"
     }
   });
+}
+
+export async function POST(request: Request) {
+  return observeRoute(
+    request,
+    { route: "/api/report/generate-stream", critical: true },
+    () => handlePost(request)
+  );
 }

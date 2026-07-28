@@ -1,10 +1,11 @@
 import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErrorCode } from "@/lib/ai/provider";
+import { fallbackMeasurement, llmMeasurement } from "@/lib/ai/measurement";
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { buildFallbackReport } from "@/lib/demo/fallback";
 import { buildReportPrompt } from "@/lib/prompts/interview";
 import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { validateReportOutput } from "@/lib/schemas/contracts";
-import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
+import type { CandidateProfile, GenerationResult, InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
 
 const REPORT_LLM_TIMEOUT_MS = 60000;
 
@@ -30,23 +31,32 @@ export class ReportGenerationError extends Error {
   }
 }
 
-export async function generateInterviewReport(payload: ReportGenerationPayload, request?: Request): Promise<InterviewReport> {
+export async function generateInterviewReportWithMeasurement(
+  payload: ReportGenerationPayload,
+  request?: Request
+): Promise<GenerationResult<InterviewReport>> {
   if (shouldInjectDevFault(request, "llm")) {
     throw new ReportGenerationError("LLM_PROVIDER_FAILED", "开发故障注入：报告生成失败。", true, 502);
   }
 
   if (shouldForceDemoFallback(request) || !isLlmConfigured()) {
-    return buildFallbackReport(payload.questions, payload.answers);
+    return {
+      data: buildFallbackReport(payload.questions, payload.answers),
+      measurement: fallbackMeasurement()
+    };
   }
 
   const timeout = createTimeoutSignal(REPORT_LLM_TIMEOUT_MS);
   try {
     const promptOverrides = await resolvePromptOverrides(payload);
     const result = await generateJsonWithRetry(buildReportPrompt(payload, promptOverrides), { signal: timeout.signal });
-    return validateReportOutput(
-      result.json,
-      payload.questions.map((question) => question.id)
-    );
+    return {
+      data: validateReportOutput(
+        result.json,
+        payload.questions.map((question) => question.id)
+      ),
+      measurement: llmMeasurement(result)
+    };
   } catch (error) {
     const code = getLlmErrorCode(error);
     const message =
@@ -55,6 +65,13 @@ export async function generateInterviewReport(payload: ReportGenerationPayload, 
   } finally {
     timeout.clear();
   }
+}
+
+export async function generateInterviewReport(
+  payload: ReportGenerationPayload,
+  request?: Request
+): Promise<InterviewReport> {
+  return (await generateInterviewReportWithMeasurement(payload, request)).data;
 }
 
 export async function regenerateQuestionReport(

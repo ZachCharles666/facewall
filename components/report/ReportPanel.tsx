@@ -114,7 +114,8 @@ export function ReportPanel({
   onRetry,
   onUseNonStreamingFallback,
   onUseFallback,
-  onRegenerateQuestion
+  onRegenerateQuestion,
+  sessionId
 }: {
   report: InterviewReport | null;
   questions: InterviewQuestion[];
@@ -131,6 +132,7 @@ export function ReportPanel({
   onUseNonStreamingFallback: () => void;
   onUseFallback: () => void;
   onRegenerateQuestion: (questionId: string) => void;
+  sessionId: string | null;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "failed">("idle");
   const [copyMessage, setCopyMessage] = useState("");
@@ -179,22 +181,52 @@ export function ReportPanel({
     selectManualCopyText(report.finalReport.copyText);
   }
 
+  function emitCopyEvent(
+    eventName: "copy_succeeded" | "copy_failed",
+    target: string
+  ) {
+    if (!sessionId) return;
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        eventName,
+        sessionId,
+        idempotencyKey: crypto.randomUUID(),
+        properties: { target, theme: visualTheme }
+      })
+    }).catch(() => undefined);
+  }
+
   async function copyReport() {
     if (!report) return;
-    await copyText(report.finalReport.copyText, "已复制优化答案和复盘报告。");
+    await copyText(
+      report.finalReport.copyText,
+      "已复制优化答案和复盘报告。",
+      "full_report"
+    );
   }
 
   async function copyQuestion(questionReport: QuestionReport, mode: "optimized" | "oral") {
     const title = mode === "optimized" ? "优化答案" : "60 秒口述版";
     const text = `${questionReport.questionId} ${title}\n${mode === "optimized" ? questionReport.optimizedAnswer : questionReport.oralVersion60s}`;
-    await copyText(text, `已复制 ${questionReport.questionId} ${title}。`);
+    await copyText(
+      text,
+      `已复制 ${questionReport.questionId} ${title}。`,
+      mode === "optimized" ? "optimized_answer" : "oral_version"
+    );
   }
 
-  async function copyText(text: string, successMessage: string) {
+  async function copyText(
+    text: string,
+    successMessage: string,
+    target = "full_report"
+  ) {
     if (shouldInjectClientFault("clipboard")) {
       setCopyState("failed");
       setCopyMessage("剪贴板权限失败，已选中对应文本，可按 Ctrl/Cmd + C 手动复制。");
       selectManualCopyText(text);
+      emitCopyEvent("copy_failed", target);
       return;
     }
 
@@ -203,16 +235,19 @@ export function ReportPanel({
       setCopyState("success");
       setCopyMessage(successMessage);
       setManualCopyVisible(false);
+      emitCopyEvent("copy_succeeded", target);
     } catch {
       if (fallbackCopy(text)) {
         setCopyState("success");
         setCopyMessage(successMessage);
         setManualCopyVisible(false);
+        emitCopyEvent("copy_succeeded", target);
         return;
       }
       setCopyState("failed");
       setCopyMessage("剪贴板权限失败，已选中对应文本，可按 Ctrl/Cmd + C 手动复制。");
       selectManualCopyText(text);
+      emitCopyEvent("copy_failed", target);
     }
   }
 
@@ -418,6 +453,20 @@ export function ReportPanel({
           <div className="figma-statusbar">
             <FigmaReportClock />
           </div>
+          <button
+            aria-label="复制整份报告"
+            className="figma-report-copy-all"
+            onClick={() =>
+              copyText(
+                report.finalReport.copyText,
+                "已复制优化答案和复盘报告。",
+                "full_report"
+              )
+            }
+            type="button"
+          >
+            复制整份报告
+          </button>
 
           <section className="figma-report-score-hero">
             <div className={`figma-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
@@ -749,7 +798,11 @@ function JujuReportPanel({
   answers: InterviewAnswer[];
   answeredCount: number;
   missingAnswers: InterviewQuestion[];
-  copyText: (text: string, successMessage: string) => Promise<void>;
+  copyText: (
+    text: string,
+    successMessage: string,
+    target?: string
+  ) => Promise<void>;
   copyState: "idle" | "success" | "failed";
   copyMessage: string;
   manualCopyVisible: boolean;
@@ -798,6 +851,20 @@ function JujuReportPanel({
         </div>
 
         <div className="juju-report-scroll">
+          <button
+            aria-label="复制整份报告"
+            className="juju-report-copy-all"
+            onClick={() =>
+              copyText(
+                report.finalReport.copyText,
+                "已复制优化答案和复盘报告。",
+                "full_report"
+              )
+            }
+            type="button"
+          >
+            复制整份报告
+          </button>
           <section className="juju-report-hero">
             <div className={`juju-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
             <div className="juju-report-hero-score">
@@ -879,7 +946,13 @@ function JujuReportPanel({
                 <button
                   type="button"
                   className="juju-report-copy-inline"
-                  onClick={() => copyText(selectedMouthpieceText, `已复制 ${tabs[selectedQuestionIndex]?.label ?? "当前题"} 嘴替内容。`)}
+                  onClick={() =>
+                    copyText(
+                      selectedMouthpieceText,
+                      `已复制 ${tabs[selectedQuestionIndex]?.label ?? "当前题"} 嘴替内容。`,
+                      "mouthpiece"
+                    )
+                  }
                 >
                   <svg
                     viewBox="0 0 16 16"

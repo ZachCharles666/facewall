@@ -1,4 +1,4 @@
-export type DevFaultKind = "llm" | "tts";
+export type DevFaultKind = "llm" | "tts" | "database";
 
 const DEMO_MODE_HEADER = "x-facewall-demo-mode";
 const FAULT_HEADER = "x-facewall-fault";
@@ -23,6 +23,12 @@ export function shouldForceDemoFallback(request?: Request) {
 
 export function shouldInjectDevFault(request: Request | undefined, fault: DevFaultKind) {
   if (!isDevelopmentRuntime()) return false;
+  if (
+    fault === "database" &&
+    process.env.INTERNAL_BETA_BROWSER_FIXTURES?.trim().toLowerCase() !== "true"
+  ) {
+    return false;
+  }
   const requestFaults = splitFaults(request?.headers.get(FAULT_HEADER));
   const envFaults = splitFaults(process.env.FACEWALL_DEV_FAULTS);
   return requestFaults.includes(fault) || envFaults.includes(fault);

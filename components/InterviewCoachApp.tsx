@@ -1,23 +1,34 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
+  completePersistedInterviewSession,
+  createPersistedInterviewSession,
   generateQuestions,
   generateReport,
   generateReportStream,
   getActivePromptOverrides,
+  getCurrentPersistedInterviewSession,
+  getPersistedInterviewSession,
   parseProfile,
   regenerateQuestionReport,
+  savePersistedAnswer,
+  savePersistedMilestone,
+  savePersistedReport,
   saveActivePromptOverrides
 } from "@/lib/api/client";
+import type { InterviewPersistenceMode } from "@/lib/config/internalBeta";
 import { buildFallbackReport } from "@/lib/demo/fallback";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES, SESSION_STEPS } from "@/lib/state/constants";
 import type {
   CandidateProfile,
+  GenerationMeasurement,
+  GenerationSource,
   InterviewAnswer,
   InterviewQuestion,
   InterviewReport,
+  InterviewSessionSnapshot,
   InterviewerStyleId,
   QuestionReport,
   SessionStep,
@@ -29,6 +40,7 @@ import { DevOpsPanel } from "@/components/dev/DevOpsPanel";
 import { cloneDefaultPromptOverrides, PromptDebugPanel } from "@/components/dev/PromptDebugPanel";
 import { JujuOrb } from "@/components/JujuOrb";
 import { ReportPanel } from "@/components/report/ReportPanel";
+import { FeedbackPanel } from "@/components/feedback/FeedbackPanel";
 import { SetupPanel } from "@/components/setup/SetupPanel";
 
 const stepLabels: Record<SessionStep, string> = {
@@ -39,7 +51,22 @@ const stepLabels: Record<SessionStep, string> = {
   report: "Report"
 };
 
+const activeSessionStorageKey = "passbuddy:active-interview-session:v1";
+
 type FigmaSetupStep = "home" | "jd";
+
+function localFallbackMeasurement(): GenerationMeasurement {
+  return {
+    source: "demo_fallback",
+    provider: "local_demo",
+    model: null,
+    latencyMs: null,
+    attempts: null,
+    inputTokens: null,
+    outputTokens: null,
+    requestId: null
+  };
+}
 
 function formatPromptTimestamp(value: string | null) {
   if (!value) return "未保存";
@@ -64,7 +91,13 @@ function StatusBarClock() {
   return <span suppressHydrationWarning>{time ?? "9:41"}</span>;
 }
 
-export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVisualTheme?: VisualTheme }) {
+export function InterviewCoachApp({
+  initialVisualTheme = "figma",
+  initialPersistenceMode = "off"
+}: {
+  initialVisualTheme?: VisualTheme;
+  initialPersistenceMode?: InterviewPersistenceMode;
+}) {
   const isFigmaLikeTheme = initialVisualTheme === "figma" || initialVisualTheme === "juju";
   const [step, setStep] = useState<SessionStep>("setup");
   const [figmaSetupInitialStep, setFigmaSetupInitialStep] = useState<FigmaSetupStep>("home");
@@ -78,6 +111,10 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
   const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
   const [answers, setAnswers] = useState<InterviewAnswer[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
+  const [persistedSessionId, setPersistedSessionId] = useState<string | null>(null);
+  const [persistedVersion, setPersistedVersion] = useState(0);
+  const [persistedStatus, setPersistedStatus] =
+    useState<InterviewSessionSnapshot["status"] | null>(null);
   const [streamedQuestionReports, setStreamedQuestionReports] = useState<QuestionReport[]>([]);
   const [reportState, setReportState] = useState<{
     kind: "idle" | "loading" | "streaming" | "ready" | "error";
@@ -98,6 +135,13 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     kind: "idle" | "loading" | "success" | "error";
     message: string;
   }>({ kind: "idle", message: "当前为本页草稿；保存后会成为 figma 主题和全局接口默认 Prompt。" });
+  const createIdempotencyKeyRef = useRef(crypto.randomUUID());
+  const persistedSessionIdRef = useRef<string | null>(null);
+  const persistedVersionRef = useRef(0);
+  const answersRef = useRef<InterviewAnswer[]>([]);
+  const answerSaveTimersRef = useRef(
+    new Map<string, ReturnType<typeof setTimeout>>()
+  );
 
   const selectedStyle = useMemo(
     () => INTERVIEWER_STYLES.find((style) => style.id === form.interviewerStyleId) ?? INTERVIEWER_STYLES[0],
@@ -110,6 +154,62 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
       delete document.body.dataset.visualTheme;
     };
   }, [initialVisualTheme]);
+
+  useEffect(() => {
+    persistedSessionIdRef.current = persistedSessionId;
+  }, [persistedSessionId]);
+
+  useEffect(() => {
+    persistedVersionRef.current = persistedVersion;
+  }, [persistedVersion]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    return () => {
+      answerSaveTimersRef.current.forEach((timer) => clearTimeout(timer));
+      answerSaveTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initialPersistenceMode !== "source") return;
+    let cancelled = false;
+
+    async function restorePersistedSession() {
+      try {
+        const storedId =
+          typeof window === "undefined"
+            ? null
+            : window.localStorage.getItem(activeSessionStorageKey);
+        let snapshot: InterviewSessionSnapshot | null = null;
+        if (storedId) {
+          snapshot = await getPersistedInterviewSession(storedId).catch(() => null);
+        }
+        snapshot ??= await getCurrentPersistedInterviewSession();
+        if (cancelled || !snapshot) return;
+        applyPersistedSnapshot(snapshot);
+        setStatus({
+          kind: "success",
+          message: "已从数据库恢复上次提交的面试进度。"
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setStatus({
+            kind: "error",
+            message: `${error instanceof Error ? error.message : "恢复失败"} 可保留当前页面草稿后重试。`
+          });
+        }
+      }
+    }
+
+    void restorePersistedSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialPersistenceMode]);
 
   useEffect(() => {
     if (isFigmaLikeTheme || typeof window === "undefined") return;
@@ -182,7 +282,188 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     }
   }
 
+  function rememberPersistedSession(snapshot: InterviewSessionSnapshot) {
+    setPersistedSessionId(snapshot.sessionId);
+    setPersistedVersion(snapshot.version);
+    setPersistedStatus(snapshot.status);
+    persistedSessionIdRef.current = snapshot.sessionId;
+    persistedVersionRef.current = snapshot.version;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(activeSessionStorageKey, snapshot.sessionId);
+    }
+  }
+
+  function applyPersistedSnapshot(snapshot: InterviewSessionSnapshot) {
+    rememberPersistedSession(snapshot);
+    setForm({
+      resumeText: snapshot.resumeText,
+      jdText: snapshot.jdText,
+      interviewerStyleId: snapshot.interviewerStyleId
+    });
+    setProfile(snapshot.candidateProfile);
+    setQuestions(snapshot.questions);
+    const restoredAnswers =
+      snapshot.questions.length > 0
+        ? snapshot.questions.map(
+            (question) =>
+              snapshot.answers.find(
+                (answer) => answer.questionId === question.id
+              ) ?? {
+                questionId: question.id,
+                answerText: "",
+                inputMode: "text" as const,
+                durationSec: 0,
+                sttStatus: "manual" as const
+              }
+          )
+        : snapshot.answers;
+    setAnswers(restoredAnswers);
+    setReport(snapshot.report);
+    setStreamedQuestionReports([]);
+    if (snapshot.report) {
+      setStep("report");
+      setReportState({
+        kind: "ready",
+        message: "已恢复数据库中的复盘报告。",
+        usedFallback: snapshot.generationSource !== "llm"
+      });
+    } else if (
+      snapshot.status === "questions_ready" ||
+      snapshot.status === "in_progress"
+    ) {
+      setStep("interview");
+      setReportState({ kind: "idle", message: "", usedFallback: false });
+    } else if (snapshot.candidateProfile) {
+      setStep("profile");
+      setFigmaProfileStage("profile");
+    } else {
+      setStep("setup");
+    }
+  }
+
+  function clearPersistedSession() {
+    setPersistedSessionId(null);
+    setPersistedVersion(0);
+    setPersistedStatus(null);
+    persistedSessionIdRef.current = null;
+    persistedVersionRef.current = 0;
+    createIdempotencyKeyRef.current = crypto.randomUUID();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(activeSessionStorageKey);
+    }
+  }
+
+  async function ensurePersistedSession(nextForm: SetupForm) {
+    if (initialPersistenceMode === "off") return null;
+    if (persistedSessionIdRef.current) {
+      return {
+        sessionId: persistedSessionIdRef.current,
+        version: persistedVersionRef.current
+      };
+    }
+    try {
+      const created = await createPersistedInterviewSession({
+        ...nextForm,
+        idempotencyKey: createIdempotencyKeyRef.current
+      });
+      setPersistedSessionId(created.sessionId);
+      setPersistedVersion(created.version);
+      setPersistedStatus(created.status);
+      persistedSessionIdRef.current = created.sessionId;
+      persistedVersionRef.current = created.version;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(activeSessionStorageKey, created.sessionId);
+      }
+      return created;
+    } catch (error) {
+      if (initialPersistenceMode === "source") throw error;
+      console.warn("[persistence/mirror] create failed");
+      return null;
+    }
+  }
+
+  async function persistMilestone(
+    milestone: "profile_ready" | "questions_ready",
+    value: CandidateProfile | InterviewQuestion[],
+    generationSource: GenerationSource,
+    measurement?: GenerationMeasurement
+  ) {
+    const sessionId = persistedSessionIdRef.current;
+    if (initialPersistenceMode === "off" || !sessionId) return null;
+    try {
+      const snapshot = await savePersistedMilestone(sessionId, {
+        expectedVersion: persistedVersionRef.current,
+        milestone,
+        candidateProfile:
+          milestone === "profile_ready"
+            ? (value as CandidateProfile)
+            : undefined,
+        questions:
+          milestone === "questions_ready"
+            ? (value as InterviewQuestion[])
+            : undefined,
+        generationSource,
+        measurement,
+        idempotencyKey: crypto.randomUUID()
+      });
+      rememberPersistedSession(snapshot);
+      return snapshot;
+    } catch (error) {
+      if (initialPersistenceMode === "source") throw error;
+      console.warn("[persistence/mirror] milestone failed");
+      return null;
+    }
+  }
+
+  async function persistAnswersNow(nextAnswers: InterviewAnswer[]) {
+    const sessionId = persistedSessionIdRef.current;
+    if (initialPersistenceMode === "off" || !sessionId) return;
+    answerSaveTimersRef.current.forEach((timer) => clearTimeout(timer));
+    answerSaveTimersRef.current.clear();
+    for (const answer of nextAnswers) {
+      try {
+        const snapshot = await savePersistedAnswer(
+          sessionId,
+          answer,
+          crypto.randomUUID()
+        );
+        rememberPersistedSession(snapshot);
+      } catch (error) {
+        if (initialPersistenceMode === "source") throw error;
+        console.warn("[persistence/mirror] answer failed");
+      }
+    }
+  }
+
+  function handleAnswersChange(nextAnswers: InterviewAnswer[]) {
+    setAnswers(nextAnswers);
+    answersRef.current = nextAnswers;
+    const sessionId = persistedSessionIdRef.current;
+    if (initialPersistenceMode === "off" || !sessionId) return;
+    nextAnswers.forEach((answer) => {
+      const existing = answerSaveTimersRef.current.get(answer.questionId);
+      if (existing) clearTimeout(existing);
+      const timer = setTimeout(() => {
+        answerSaveTimersRef.current.delete(answer.questionId);
+        void savePersistedAnswer(
+          sessionId,
+          answer,
+          crypto.randomUUID()
+        )
+          .then(rememberPersistedSession)
+          .catch(() => {
+            setStatus({
+              kind: "error",
+              message: "答案保存失败，当前输入仍保留在页面中，可继续编辑或重试生成报告。"
+            });
+          });
+      }, 700);
+      answerSaveTimersRef.current.set(answer.questionId, timer);
+    });
+  }
+
   function resetDownstream(nextForm: SetupForm) {
+    if (persistedSessionIdRef.current) clearPersistedSession();
     setForm(nextForm);
     setProfile(null);
     setQuestions([]);
@@ -233,26 +514,83 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     }
 
     try {
+      setStatus({ kind: "loading", message: "正在创建面试 Session 并占用 1 次额度..." });
+      await ensurePersistedSession(nextForm);
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "创建面试 Session 失败，输入已保留。"
+      });
+      return;
+    }
+
+    let nextProfile: CandidateProfile;
+    let generationSource: GenerationSource = "mixed";
+    let measurement: GenerationMeasurement | undefined;
+    let generationMessage = "";
+    try {
       setStatus({ kind: "loading", message: "正在生成候选人画像..." });
-      const nextProfile = await parseProfile({ ...nextForm, promptOverrides: activePromptOverrides });
-      setProfile(nextProfile);
+      const generated = await parseProfile({
+        ...nextForm,
+        promptOverrides: activePromptOverrides
+      });
+      nextProfile = generated.data;
+      generationSource = generated.measurement.source;
+      measurement = generated.measurement;
+    } catch (error) {
+      nextProfile = demoScenario.candidateProfile;
+      generationSource = "demo_fallback";
+      measurement = localFallbackMeasurement();
+      generationMessage = `${error instanceof Error ? error.message : "画像生成失败"} 已使用演示兜底画像继续。`;
+    }
+
+    setProfile(nextProfile);
+    try {
+      await persistMilestone(
+        "profile_ready",
+        nextProfile,
+        generationSource,
+        measurement
+      );
       setFigmaProfileStage("profile");
       setStep("profile");
-      setStatus({ kind: "success", message: isFigmaLikeTheme ? "画像已生成，点击 Next 选择面试官。" : "画像已生成，下一步生成 3 道面试题。" });
+      setStatus({
+        kind: generationSource === "demo_fallback" ? "error" : "success",
+        message:
+          generationMessage ||
+          (isFigmaLikeTheme
+            ? "画像已生成并保存，点击 Next 选择面试官。"
+            : "画像已生成并保存，下一步生成 3 道面试题。")
+      });
     } catch (error) {
-      setProfile(demoScenario.candidateProfile);
       setFigmaProfileStage("profile");
       setStep("profile");
       setStatus({
         kind: "error",
-        message: `${error instanceof Error ? error.message : "画像生成失败"} 已使用演示兜底画像继续。${isFigmaLikeTheme ? " 点击 Next 选择面试官。" : ""}`
+        message: `${error instanceof Error ? error.message : "画像保存失败"} 画像草稿仍保留，可再次点击下一步重试保存。`
       });
     }
   }
 
   async function handleGenerateQuestions() {
+    await generateAndPersistQuestions(false);
+  }
+
+  async function generateAndPersistQuestions(startInterview: boolean) {
     const sourceProfile = profile ?? demoScenario.candidateProfile;
+    let nextQuestions: InterviewQuestion[];
+    let generationSource: GenerationSource = "mixed";
+    let measurement: GenerationMeasurement | undefined;
+    let generationMessage = "";
     try {
+      if (
+        initialPersistenceMode !== "off" &&
+        persistedStatus !== "profile_ready" &&
+        persistedStatus !== "questions_ready" &&
+        persistedStatus !== "in_progress"
+      ) {
+        await persistMilestone("profile_ready", sourceProfile, "mixed");
+      }
       setStatus({ kind: "loading", message: "正在生成面试题..." });
       const data = await generateQuestions({
         candidateProfile: sourceProfile,
@@ -260,76 +598,50 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         questionCount: 3,
         promptOverrides: activePromptOverrides
       });
-      setQuestions(data.questions);
-      setAnswers(
-        data.questions.map((question) => ({
-          questionId: question.id,
-          answerText: "",
-          inputMode: "text",
-          durationSec: 0,
-          sttStatus: "manual"
-        }))
-      );
-      setStep("questions");
-      setStatus({ kind: "success", message: "已生成 3 道题，可进入答题。" });
+      nextQuestions = data.data.questions;
+      generationSource = data.measurement.source;
+      measurement = data.measurement;
     } catch (error) {
-      setQuestions(demoScenario.questions);
-      setAnswers(
-        demoScenario.questions.map((question) => ({
-          questionId: question.id,
-          answerText: "",
-          inputMode: "text",
-          durationSec: 0,
-          sttStatus: "manual"
-        }))
+      nextQuestions = demoScenario.questions;
+      generationSource = "demo_fallback";
+      measurement = localFallbackMeasurement();
+      generationMessage = `${error instanceof Error ? error.message : "题目生成失败"} 已使用演示题目继续。`;
+    }
+    const nextAnswers = nextQuestions.map((question) => ({
+      questionId: question.id,
+      answerText: "",
+      inputMode: "text" as const,
+      durationSec: 0,
+      sttStatus: "manual" as const
+    }));
+    setQuestions(nextQuestions);
+    setAnswers(nextAnswers);
+    try {
+      await persistMilestone(
+        "questions_ready",
+        nextQuestions,
+        generationSource,
+        measurement
       );
-      setStep("questions");
+      setStep(startInterview ? "interview" : "questions");
+      setStatus({
+        kind: generationSource === "demo_fallback" ? "error" : "success",
+        message:
+          generationMessage ||
+          (startInterview
+            ? "已生成并保存 3 道题，开始答题。"
+            : "已生成并保存 3 道题，可进入答题。")
+      });
+    } catch (error) {
       setStatus({
         kind: "error",
-        message: `${error instanceof Error ? error.message : "题目生成失败"} 已使用演示题目继续。`
+        message: `${error instanceof Error ? error.message : "题目保存失败"} 题目草稿仍保留，请重试。`
       });
     }
   }
 
   async function handleGenerateQuestionsAndStartInterview() {
-    const sourceProfile = profile ?? demoScenario.candidateProfile;
-    try {
-      setStatus({ kind: "loading", message: "正在生成面试题..." });
-      const data = await generateQuestions({
-        candidateProfile: sourceProfile,
-        interviewerStyleId: form.interviewerStyleId,
-        questionCount: 3,
-        promptOverrides: activePromptOverrides
-      });
-      setQuestions(data.questions);
-      setAnswers(
-        data.questions.map((question) => ({
-          questionId: question.id,
-          answerText: "",
-          inputMode: "text",
-          durationSec: 0,
-          sttStatus: "manual"
-        }))
-      );
-      setStep("interview");
-      setStatus({ kind: "success", message: "已生成 3 道题，开始答题。" });
-    } catch (error) {
-      setQuestions(demoScenario.questions);
-      setAnswers(
-        demoScenario.questions.map((question) => ({
-          questionId: question.id,
-          answerText: "",
-          inputMode: "text",
-          durationSec: 0,
-          sttStatus: "manual"
-        }))
-      );
-      setStep("interview");
-      setStatus({
-        kind: "error",
-        message: `${error instanceof Error ? error.message : "题目生成失败"} 已使用演示题目进入答题。`
-      });
-    }
+    await generateAndPersistQuestions(true);
   }
 
   async function handleGenerateReport(nextAnswers = answers) {
@@ -344,12 +656,24 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     };
 
     try {
-      setStep("report");
-      setReport(null);
-      setStreamedQuestionReports([]);
-      setReportState({ kind: "streaming", message: "正在启动流式复盘报告...", usedFallback: false });
-      setStatus({ kind: "loading", message: "正在流式生成复盘报告..." });
-      const nextReport = await generateReportStream(reportPayload, {
+      await persistAnswersNow(nextAnswers);
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        message: `${error instanceof Error ? error.message : "答案保存失败"} 当前答案草稿仍保留，请重试。`
+      });
+      return;
+    }
+
+    setStep("report");
+    setReport(null);
+    setStreamedQuestionReports([]);
+    setReportState({ kind: "streaming", message: "正在启动流式复盘报告...", usedFallback: false });
+    setStatus({ kind: "loading", message: "正在流式生成复盘报告..." });
+    let nextReport: InterviewReport;
+    let measurement: GenerationMeasurement;
+    try {
+      const generated = await generateReportStream(reportPayload, {
         onProgress: (progress) => {
           setReportState({ kind: "streaming", message: progress.message, usedFallback: false });
         },
@@ -358,14 +682,37 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           setReportState({ kind: "streaming", message: questionReport.message ?? "单题报告已生成。", usedFallback: false });
         }
       });
-      setReport(nextReport);
-      setReportState({ kind: "ready", message: "报告已生成。", usedFallback: false });
-      setStatus({ kind: "success", message: "报告已生成，可复制优化答案和复盘报告。" });
+      nextReport = generated.data;
+      measurement = generated.measurement;
     } catch (error) {
       const message = error instanceof Error ? error.message : "流式报告生成失败";
       setReportState({ kind: "loading", message: `${message} 正在切换到非流式保底...`, usedFallback: false });
       setStatus({ kind: "loading", message: `${message} 正在切换到非流式保底...` });
       await handleGenerateReportNonStreaming(reportPayload, "流式报告失败，已使用非流式保底生成报告。");
+      return;
+    }
+
+    try {
+      const saved = await persistReportSnapshot(
+        nextReport,
+        measurement.source,
+        measurement
+      );
+      setReport(nextReport);
+      setReportState({ kind: "ready", message: "报告已生成并保存。", usedFallback: false });
+      setStatus({ kind: "success", message: "报告已生成并保存，可复制优化答案和复盘报告。" });
+      schedulePersistedCompletion(saved);
+    } catch (error) {
+      setReport(nextReport);
+      setReportState({
+        kind: "error",
+        message: "报告已生成但保存失败；页面内容已保留，请重试保存或生成。",
+        usedFallback: false
+      });
+      setStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "报告保存失败，页面内容已保留。"
+      });
     }
   }
 
@@ -380,13 +727,42 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     successMessage = "已使用非流式保底生成报告。"
   ) {
     try {
+      await persistAnswersNow(reportPayload.answers);
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        message: `${error instanceof Error ? error.message : "答案保存失败"} 当前答案草稿仍保留，请重试。`
+      });
+      return;
+    }
+    try {
       setStep("report");
       setReportState({ kind: "loading", message: "正在调用非流式报告保底...", usedFallback: false });
-      const nextReport = await generateReport(reportPayload);
-      setReport(nextReport);
-      setStreamedQuestionReports([]);
-      setReportState({ kind: "ready", message: successMessage, usedFallback: false });
-      setStatus({ kind: "success", message: successMessage });
+      const generated = await generateReport(reportPayload);
+      const nextReport = generated.data;
+      try {
+        const saved = await persistReportSnapshot(
+          nextReport,
+          generated.measurement.source,
+          generated.measurement
+        );
+        setReport(nextReport);
+        setStreamedQuestionReports([]);
+        setReportState({ kind: "ready", message: successMessage, usedFallback: false });
+        setStatus({ kind: "success", message: successMessage });
+        schedulePersistedCompletion(saved);
+      } catch (error) {
+        setReport(nextReport);
+        setReportState({
+          kind: "error",
+          message: "报告已生成但保存失败；页面内容已保留，请重试。",
+          usedFallback: false
+        });
+        setStatus({
+          kind: "error",
+          message: error instanceof Error ? error.message : "报告保存失败。"
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "报告生成失败";
       setReport(null);
@@ -402,9 +778,65 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
     }
   }
 
-  function handleUseFallbackReport() {
+  async function persistReportSnapshot(
+    nextReport: InterviewReport,
+    generationSource: GenerationSource,
+    measurement?: GenerationMeasurement
+  ) {
+    const sessionId = persistedSessionIdRef.current;
+    if (initialPersistenceMode === "off" || !sessionId) return null;
+    try {
+      const snapshot = await savePersistedReport(sessionId, {
+        expectedVersion: persistedVersionRef.current,
+        report: nextReport,
+        generationSource,
+        measurement,
+        idempotencyKey: crypto.randomUUID()
+      });
+      rememberPersistedSession(snapshot);
+      return snapshot;
+    } catch (error) {
+      if (initialPersistenceMode === "source") throw error;
+      console.warn("[persistence/mirror] report failed");
+      return null;
+    }
+  }
+
+  function schedulePersistedCompletion(snapshot: InterviewSessionSnapshot | null) {
+    if (!snapshot || initialPersistenceMode === "off") return;
+    window.setTimeout(() => {
+      void completePersistedInterviewSession(
+        snapshot.sessionId,
+        snapshot.version,
+        crypto.randomUUID()
+      )
+        .then(rememberPersistedSession)
+        .catch(() => {
+          setStatus({
+            kind: "error",
+            message: "报告已保存，但完成状态同步失败；刷新后可继续当前 Session。"
+          });
+        });
+    }, 0);
+  }
+
+  async function handleUseFallbackReport() {
     const sourceQuestions = questions.length === 3 ? questions : demoScenario.questions;
     const fallbackReport = buildFallbackReport(sourceQuestions, answers);
+    try {
+      await persistAnswersNow(answers);
+      const saved = await persistReportSnapshot(
+        fallbackReport,
+        "demo_fallback",
+        localFallbackMeasurement()
+      );
+      schedulePersistedCompletion(saved);
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        message: `${error instanceof Error ? error.message : "兜底报告保存失败"} 页面内容仍会保留。`
+      });
+    }
     setReport(fallbackReport);
     setStreamedQuestionReports([]);
     setReportState({ kind: "ready", message: "已使用演示兜底报告。", usedFallback: true });
@@ -456,6 +888,21 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
         <div className="soft-box">
           <strong>{selectedStyle.label}</strong>
           <p className="helper">{selectedStyle.description}</p>
+          {(persistedStatus === "report_ready" ||
+            persistedStatus === "completed") && (
+            <button
+              type="button"
+              onClick={() =>
+                resetDownstream({
+                  resumeText: "",
+                  jdText: "",
+                  interviewerStyleId: form.interviewerStyleId
+                })
+              }
+            >
+              开始新的面试
+            </button>
+          )}
         </div>
       </header>
 
@@ -551,25 +998,34 @@ export function InterviewCoachApp({ initialVisualTheme = "figma" }: { initialVis
           interviewerStyleId={form.interviewerStyleId}
           questions={questions}
           visualTheme={initialVisualTheme}
-          onAnswersChange={setAnswers}
+          onAnswersChange={handleAnswersChange}
           onGenerateReport={handleGenerateReport}
         />
       )}
 
       {!showJujuThinking && step === "report" && (
-        <ReportPanel
-          report={report}
-          answers={answers}
-          questions={questions.length === 3 ? questions : demoScenario.questions}
-          state={reportState}
-          streamedQuestionReports={streamedQuestionReports}
-          interviewerStyleId={form.interviewerStyleId}
-          visualTheme={initialVisualTheme}
-          onRetry={() => handleGenerateReport()}
-          onUseNonStreamingFallback={() => handleGenerateReportNonStreaming()}
-          onUseFallback={handleUseFallbackReport}
-          onRegenerateQuestion={handleRegenerateQuestion}
-        />
+        <>
+          <ReportPanel
+            report={report}
+            answers={answers}
+            questions={questions.length === 3 ? questions : demoScenario.questions}
+            state={reportState}
+            streamedQuestionReports={streamedQuestionReports}
+            interviewerStyleId={form.interviewerStyleId}
+            visualTheme={initialVisualTheme}
+            onRetry={() => handleGenerateReport()}
+            onUseNonStreamingFallback={() => handleGenerateReportNonStreaming()}
+            onUseFallback={handleUseFallbackReport}
+            onRegenerateQuestion={handleRegenerateQuestion}
+            sessionId={persistedSessionId}
+          />
+          {report && (
+            <FeedbackPanel
+              sessionId={persistedSessionId}
+              visualTheme={initialVisualTheme}
+            />
+          )}
+        </>
       )}
     </main>
   );

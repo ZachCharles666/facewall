@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { readActivePromptOverrides, saveActivePromptOverrides } from "@/lib/prompts/promptStore";
 import { errorResponse, okResponse } from "@/lib/schemas/contracts";
 import type { PromptStoreSnapshot } from "@/lib/types";
+import { observeRoute } from "@/lib/observability/route";
 
-export async function GET() {
+async function handleGet() {
   try {
     const snapshot = await readActivePromptOverrides();
     return NextResponse.json(okResponse(snapshot));
@@ -14,7 +15,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -30,4 +31,14 @@ export async function POST(request: Request) {
       status: 500
     });
   }
+}
+
+export async function GET(request: Request) {
+  return observeRoute(request, { route: "/api/prompts/active" }, handleGet);
+}
+
+export async function POST(request: Request) {
+  return observeRoute(request, { route: "/api/prompts/active" }, () =>
+    handlePost(request)
+  );
 }

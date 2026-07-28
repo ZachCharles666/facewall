@@ -13,7 +13,8 @@ const faultLabels: Array<{ key: keyof DevControlState["faults"]; label: string }
   { key: "llm", label: "LLM 失败" },
   { key: "tts", label: "TTS 失败" },
   { key: "stt", label: "STT 失败" },
-  { key: "clipboard", label: "Clipboard 失败" }
+  { key: "clipboard", label: "Clipboard 失败" },
+  { key: "database", label: "PostgreSQL 写入失败" }
 ];
 
 export function DevOpsPanel() {

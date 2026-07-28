@@ -1,4 +1,12 @@
-import type { InterviewerStyleId, SpeechTuning, VoiceOption } from "@/lib/types";
+import type { InterviewerStyleId, PersonaSpeechTunings, SpeechTuning, VoiceOption } from "@/lib/types";
+
+export const interviewerSpeechLabels: Record<InterviewerStyleId, string> = {
+  strictHr: "温婉HR小姐姐",
+  techBro: "技术老哥",
+  gentleSister: "资深业务大佬"
+};
+
+export const interviewerSpeechStyleIds: InterviewerStyleId[] = ["strictHr", "techBro", "gentleSister"];
 
 export const azureVoiceOptions: VoiceOption[] = [
   { value: "auto", label: "按人设自动选择" },
@@ -36,6 +44,33 @@ export const personaSpeechDefaults: Record<InterviewerStyleId, SpeechTuning> = {
     volume: 1
   }
 };
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number) {
+  const numericValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(numericValue)) return fallback;
+  return Math.max(min, Math.min(max, numericValue));
+}
+
+export function normalizeSpeechTuning(value: unknown, fallback: SpeechTuning): SpeechTuning {
+  const candidate = value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<SpeechTuning>) : {};
+  return {
+    voiceName: typeof candidate.voiceName === "string" && candidate.voiceName.trim() ? candidate.voiceName : fallback.voiceName,
+    rate: clampNumber(candidate.rate, fallback.rate, 0.6, 1.5),
+    pitch: clampNumber(candidate.pitch, fallback.pitch, 0.1, 1.5),
+    volume: clampNumber(candidate.volume, fallback.volume, 0, 1)
+  };
+}
+
+export function normalizePersonaSpeechTunings(value: unknown): PersonaSpeechTunings {
+  const candidate = value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<PersonaSpeechTunings>) : {};
+  return interviewerSpeechStyleIds.reduce<PersonaSpeechTunings>(
+    (result, styleId) => ({
+      ...result,
+      [styleId]: normalizeSpeechTuning(candidate[styleId], personaSpeechDefaults[styleId])
+    }),
+    { ...personaSpeechDefaults }
+  );
+}
 
 export function toAzureRate(value: number | string | undefined) {
   if (typeof value === "string") return value;

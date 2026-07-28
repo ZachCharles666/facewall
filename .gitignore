@@ -10,7 +10,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 outputs/active-prompt-overrides.json
+outputs/active-speech-settings.json
 outputs/*.tar.gz
+outputs/*.log
+outputs/.cdp-debug*/
+.tmp/
+outputs/passbuddy-*.log
 
 # 本地开发/素材产物，不进仓库，也不该被 clone 到服务器
 venv/

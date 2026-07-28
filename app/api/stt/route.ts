@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
+import { observeRoute } from "@/lib/observability/route";
 
 type AzureSimpleSttResponse = {
   RecognitionStatus?: string;
@@ -11,7 +12,7 @@ function pickTranscript(payload: AzureSimpleSttResponse) {
   return (payload.DisplayText || payload.NBest?.[0]?.Display || payload.NBest?.[0]?.Lexical || "").trim();
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   if (shouldInjectDevFault(request, "tts")) {
     return NextResponse.json({ error: "开发故障注入：Azure STT 不可用。" }, { status: 503 });
   }
@@ -66,4 +67,10 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Failed to reach Azure STT." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(request, { route: "/api/stt", critical: true }, () =>
+    handlePost(request)
+  );
 }

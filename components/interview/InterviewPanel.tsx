@@ -1,8 +1,8 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { getAzureSpeechStatus, requestSttTranscript, requestTtsAudio } from "@/lib/api/client";
+import { getActiveSpeechSettings, getAzureSpeechStatus, requestSttTranscript, requestTtsAudio, saveActiveSpeechSettings } from "@/lib/api/client";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
-import { azureVoiceOptions, personaSpeechDefaults } from "@/lib/speech/settings";
+import { azureVoiceOptions, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
 import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
 import { JujuOrb } from "@/components/JujuOrb";
@@ -10,6 +10,7 @@ import type {
   InterviewAnswer,
   InterviewQuestion,
   InterviewerStyleId,
+  PersonaSpeechTunings,
   SpeechTuning,
   SttStatus,
   TtsEngine,
@@ -21,6 +22,7 @@ import { VoiceControls } from "@/components/voice/VoiceControls";
 
 type FigmaAnswerPhase = "prompt" | "recording";
 type QuestionTextMotionPhase = "idle" | "playing" | "finished";
+const classicSpeechSettingsStorageKey = "facewall:classic:speech-settings:v1";
 
 function FigmaInterviewClock() {
   const [time, setTime] = useState<string | null>(null);
@@ -54,6 +56,31 @@ function formatDuration(seconds: number) {
   return `${minutes}:${remainingSeconds}`;
 }
 
+function readCachedClassicSpeechTunings() {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawValue = window.localStorage.getItem(classicSpeechSettingsStorageKey);
+    if (!rawValue) return null;
+    const parsedValue = JSON.parse(rawValue) as unknown;
+    const value =
+      parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue) && "speechTunings" in parsedValue
+        ? (parsedValue as { speechTunings?: unknown }).speechTunings
+        : parsedValue;
+    return normalizePersonaSpeechTunings(value);
+  } catch {
+    return null;
+  }
+}
+
+function cacheClassicSpeechTunings(speechTunings: PersonaSpeechTunings) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(classicSpeechSettingsStorageKey, JSON.stringify({ speechTunings, updatedAt: new Date().toISOString() }));
+  } catch {
+    // Local cache is best-effort; server persistence remains the source of truth when available.
+  }
+}
+
 export function InterviewPanel({
   questions,
   answers,
@@ -77,7 +104,8 @@ export function InterviewPanel({
   const [azureConfigured, setAzureConfigured] = useState(false);
   const [azureVoices, setAzureVoices] = useState<VoiceOption[]>(azureVoiceOptions);
   const [webVoices, setWebVoices] = useState<VoiceOption[]>([{ value: "auto", label: "自动匹配中文发音人" }]);
-  const [speechTuning, setSpeechTuning] = useState<SpeechTuning>(personaSpeechDefaults[interviewerStyleId]);
+  const [classicSpeechTunings, setClassicSpeechTunings] = useState<PersonaSpeechTunings>(() => normalizePersonaSpeechTunings(null));
+  const [speechSettingsMessage, setSpeechSettingsMessage] = useState("classic 主题可分别锁定 3 位面试官声线，保存后对全站生效。");
   const [voiceMessage, setVoiceMessage] = useState("语音提问优先 Azure TTS，失败后使用浏览器 Web Speech。");
   const [figmaAnswerPhase, setFigmaAnswerPhase] = useState<FigmaAnswerPhase>("prompt");
   const [figmaElapsedSec, setFigmaElapsedSec] = useState(0);
@@ -94,6 +122,7 @@ export function InterviewPanel({
   const autoPlayedIndexRef = useRef<number | null>(null);
   const currentQuestion = questions[currentIndex];
   const currentAnswer = answers.find((answer) => answer.questionId === currentQuestion?.id);
+  const speechTuning = visualTheme === "classic" ? classicSpeechTunings[interviewerStyleId] : personaSpeechDefaults[interviewerStyleId];
 
   const missingCount = useMemo(
     () => answers.filter((answer) => !answer.answerText.trim()).length,
@@ -101,12 +130,35 @@ export function InterviewPanel({
   );
 
   useEffect(() => {
-    setSpeechTuning(personaSpeechDefaults[interviewerStyleId]);
-  }, [interviewerStyleId]);
-
-  useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  useEffect(() => {
+    if (visualTheme !== "classic") return;
+    let cancelled = false;
+    const cachedSpeechTunings = readCachedClassicSpeechTunings();
+    if (cachedSpeechTunings) {
+      setClassicSpeechTunings(cachedSpeechTunings);
+      setSpeechSettingsMessage("已加载本机缓存的 classic 全局声线配置。");
+    }
+
+    getActiveSpeechSettings()
+      .then((snapshot) => {
+        if (cancelled) return;
+        const speechTunings = normalizePersonaSpeechTunings(snapshot.speechTunings);
+        setClassicSpeechTunings(speechTunings);
+        cacheClassicSpeechTunings(speechTunings);
+        setSpeechSettingsMessage(snapshot.updatedAt ? "已加载服务端全局声线配置。" : "当前使用默认声线配置，可调整后保存为全局配置。");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSpeechSettingsMessage(cachedSpeechTunings ? "服务端声线配置暂不可用，当前使用本机缓存。" : "服务端声线配置暂不可用，当前使用默认配置。");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visualTheme]);
 
   useEffect(() => {
     setFigmaAnswerPhase("prompt");
@@ -437,6 +489,7 @@ export function InterviewPanel({
   }
 
   function startFigmaAnswer() {
+    stopTts();
     setFigmaAnswerPhase("recording");
     setFigmaElapsedSec(0);
     startStt();
@@ -481,11 +534,37 @@ export function InterviewPanel({
     });
   }
 
+  function updateClassicSpeechTuning(styleId: InterviewerStyleId, patch: Partial<SpeechTuning>) {
+    setClassicSpeechTunings((current) => {
+      const nextSpeechTunings = normalizePersonaSpeechTunings({
+        ...current,
+        [styleId]: {
+          ...current[styleId],
+          ...patch
+        }
+      });
+      cacheClassicSpeechTunings(nextSpeechTunings);
+      return nextSpeechTunings;
+    });
+    setSpeechSettingsMessage("声线配置已更新，点击保存后写入服务端全局配置。");
+  }
+
   function updateSpeechTuning(patch: Partial<SpeechTuning>) {
-    setSpeechTuning((current) => ({
-      ...current,
-      ...patch
-    }));
+    updateClassicSpeechTuning(interviewerStyleId, patch);
+  }
+
+  async function saveClassicSpeechSettings() {
+    const speechTunings = normalizePersonaSpeechTunings(classicSpeechTunings);
+    setSpeechSettingsMessage("正在保存 classic 全局声线配置...");
+    try {
+      const snapshot = await saveActiveSpeechSettings(speechTunings);
+      setClassicSpeechTunings(snapshot.speechTunings);
+      cacheClassicSpeechTunings(snapshot.speechTunings);
+      setSpeechSettingsMessage("已保存为服务端全局声线配置，后续 classic 面试会按面试官自动使用。");
+    } catch {
+      cacheClassicSpeechTunings(speechTunings);
+      setSpeechSettingsMessage("服务端保存失败，已保存在本机缓存；请确认线上实例的 outputs 目录可写。");
+    }
   }
 
   if (!currentQuestion || !currentAnswer) {
@@ -498,6 +577,10 @@ export function InterviewPanel({
 
   if (visualTheme === "juju") {
     const isRecording = figmaAnswerPhase === "recording";
+    const showManualAnswer =
+      currentAnswer.sttStatus === "failed" ||
+      currentAnswer.sttStatus === "unsupported" ||
+      (isRecording && currentAnswer.sttStatus === "manual");
     const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
     const interviewerName =
       interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
@@ -524,9 +607,10 @@ export function InterviewPanel({
             </section>
           )}
 
-          {isRecording && (
+          {isRecording && !showManualAnswer && (
             <>
               <p className="juju-interview-listening-label">{interviewerName}正在聆听...</p>
+              <p className="juju-interview-recording-timer">{formatDuration(answerSeconds)}</p>
               <div className="figma-interview-listening-rings juju-interview-listening-rings" aria-hidden="true">
                 <span className="ring ring-outer" />
                 <span className="ring ring-large" />
@@ -536,10 +620,28 @@ export function InterviewPanel({
             </>
           )}
 
-          {(currentAnswer.sttStatus === "failed" || currentAnswer.sttStatus === "unsupported") && (
-            <div className="figma-interview-error juju-interview-error" role="alert">
-              识别失败，已保留当前状态，可重试或继续下一题。
-            </div>
+          {showManualAnswer && (
+            <>
+              <label className="figma-interview-answer juju-interview-manual-answer">
+                <span>改用文字回答</span>
+                <textarea
+                  aria-label="文字回答"
+                  value={currentAnswer.answerText}
+                  onChange={(event) =>
+                    updateCurrentAnswer({
+                      answerText: event.target.value,
+                      inputMode: "text",
+                      sttStatus: "manual",
+                      durationSec: Math.max(currentAnswer.durationSec, 30)
+                    })
+                  }
+                  placeholder="当前设备无法录音，可直接输入回答。"
+                />
+              </label>
+              <div className="figma-interview-error juju-interview-error manual-answer-visible" role="alert">
+                语音不可用，回答内容仍会保留；输入后点击中间按钮继续。
+              </div>
+            </>
           )}
 
           <div className={isRecording ? "figma-interview-orb-controls juju-interview-controls recording" : "figma-interview-orb-controls juju-interview-controls"} aria-label="回答控制">
@@ -580,6 +682,10 @@ export function InterviewPanel({
 
   if (visualTheme === "figma") {
     const isRecording = figmaAnswerPhase === "recording";
+    const showManualAnswer =
+      currentAnswer.sttStatus === "failed" ||
+      currentAnswer.sttStatus === "unsupported" ||
+      (isRecording && currentAnswer.sttStatus === "manual");
     const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
     const interviewerName =
       interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
@@ -614,10 +720,28 @@ export function InterviewPanel({
             <p>{currentQuestion.questionText}</p>
           </section>
 
-          {(currentAnswer.sttStatus === "failed" || currentAnswer.sttStatus === "unsupported") && (
-            <div className="figma-interview-error" role="alert">
-              识别失败，已保留当前状态，可重试或继续下一题。
-            </div>
+          {showManualAnswer && (
+            <>
+              <label className="figma-interview-answer">
+                <span>改用文字回答</span>
+                <textarea
+                  aria-label="文字回答"
+                  value={currentAnswer.answerText}
+                  onChange={(event) =>
+                    updateCurrentAnswer({
+                      answerText: event.target.value,
+                      inputMode: "text",
+                      sttStatus: "manual",
+                      durationSec: Math.max(currentAnswer.durationSec, 30)
+                    })
+                  }
+                  placeholder="当前设备无法录音，可直接输入回答。"
+                />
+              </label>
+              <div className="figma-interview-error manual-answer-visible" role="alert">
+                语音不可用，回答内容仍会保留；输入后点击中间按钮继续。
+              </div>
+            </>
           )}
 
           <p className="figma-interview-progress">
@@ -640,7 +764,7 @@ export function InterviewPanel({
             })}
           </div>
 
-          {isRecording && (
+          {isRecording && !showManualAnswer && (
             <div className="figma-interview-listening-rings" aria-hidden="true">
               <span className="ring ring-outer" />
               <span className="ring ring-large" />
@@ -732,6 +856,11 @@ export function InterviewPanel({
             ttsStatus={ttsStatus}
             webVoices={webVoices}
             onPlay={playQuestion}
+            currentInterviewerStyleId={interviewerStyleId}
+            personaSpeechTunings={classicSpeechTunings}
+            speechSettingsMessage={speechSettingsMessage}
+            onPersonaSpeechTuningChange={updateClassicSpeechTuning}
+            onSaveSpeechSettings={saveClassicSpeechSettings}
             onSpeechTuningChange={updateSpeechTuning}
             onSimulateSttFailure={() => simulateStt("failed")}
             onStartStt={startStt}

@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErrorCode } from "@/lib/ai/provider";
+import { fallbackMeasurement, llmMeasurement } from "@/lib/ai/measurement";
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { buildFallbackQuestions } from "@/lib/demo/fallback";
 import { buildQuestionsPrompt } from "@/lib/prompts/interview";
 import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { errorResponse, okResponse, validateQuestionRequest, validateQuestionsOutput } from "@/lib/schemas/contracts";
+import { structuredLog } from "@/lib/observability/logger";
+import { observeRoute } from "@/lib/observability/route";
 import type { InterviewQuestion } from "@/lib/types";
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -32,11 +35,21 @@ export async function POST(request: Request) {
   }
 
   if (shouldForceDemoFallback(request)) {
-    return NextResponse.json(okResponse({ questions: buildFallbackQuestions(payload.interviewerStyleId) }));
+    return NextResponse.json(
+      okResponse(
+        { questions: buildFallbackQuestions(payload.interviewerStyleId) },
+        { generation: fallbackMeasurement() }
+      )
+    );
   }
 
   if (!isLlmConfigured()) {
-    return NextResponse.json(okResponse({ questions: buildFallbackQuestions(payload.interviewerStyleId) }));
+    return NextResponse.json(
+      okResponse(
+        { questions: buildFallbackQuestions(payload.interviewerStyleId) },
+        { generation: fallbackMeasurement() }
+      )
+    );
   }
 
   const timeout = createTimeoutSignal();
@@ -44,7 +57,15 @@ export async function POST(request: Request) {
     const promptOverrides = await resolvePromptOverrides(payload);
     const result = await generateJsonWithRetry(buildQuestionsPrompt(payload, promptOverrides), { signal: timeout.signal });
     const data = validateQuestionsOutput(result.json);
-    return NextResponse.json(okResponse(data));
+    structuredLog("info", "questions.generate.completed", {
+      latencyMs: result.latencyMs,
+      attempts: result.attempts,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens
+    });
+    return NextResponse.json(
+      okResponse(data, { generation: llmMeasurement(result) })
+    );
   } catch (error) {
     const code = getLlmErrorCode(error);
     const message =
@@ -55,4 +76,12 @@ export async function POST(request: Request) {
   } finally {
     timeout.clear();
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(
+    request,
+    { route: "/api/questions/generate", critical: true },
+    () => handlePost(request)
+  );
 }

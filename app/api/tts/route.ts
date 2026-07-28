@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { isInterviewerStyleId } from "@/lib/schemas/contracts";
 import { personaVoices, toAzurePitch, toAzureRate, toAzureVolume } from "@/lib/speech/settings";
+import { observeRoute } from "@/lib/observability/route";
 
 function escapeXml(value: string) {
   return value
@@ -12,7 +13,7 @@ function escapeXml(value: string) {
     .replaceAll("'", "&apos;");
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   if (shouldInjectDevFault(request, "tts")) {
     return NextResponse.json({ error: "开发故障注入：Azure TTS 不可用。" }, { status: 503 });
   }
@@ -83,4 +84,10 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Failed to reach Azure TTS." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(request, { route: "/api/tts", critical: true }, () =>
+    handlePost(request)
+  );
 }

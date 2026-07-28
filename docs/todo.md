@@ -1755,3 +1755,466 @@
 | 画像页底部 CTA | 已完成 | 候选人画像页底部按钮区域改为 100% 宽度，按钮居中，底部半透明背景左右贯通。 |
 | 本次范围 | 已完成 | 仅调整 Juju 移动端 CSS；未改面试官数据、输入流程、状态机或其他主题。 |
 | 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+## 成本测算记录 - 2026-07-17
+
+- 测算口径：每人 1 次完整面试，正常 JD/Resume、3 道题；保守按每题最多 3 分钟（共 9 分钟 STT），另保留全场共 3 分钟的低档口径。
+- LLM：按腾讯 TokenHub `hy3-preview` 重新结合当前代码的三次真实 Prompt 核算。正常简历 1500 字、JD 800 字、每题 3 分钟回答时，三次请求正文合计约 1.42 万字符；参考输出约 4565 字符。当前未传 `reasoning_effort`，默认 `no_think`。成功链路估算约 6000-10000 Token，容量预算按 1 万 Token/人，含失败重试、单题报告重生成和协议波动按约 1.15 万 Token/人。
+- 语音：当前演示三道题实际朗读正文共 162 字；财务预算按生成波动和重播约 240 字/人。STT 按 9 分钟并增加 10% 重试预算。Azure East Asia S1 公开零售价口径为 STT 1 美元/音频小时、Neural TTS 15 美元/百万字符。
+- 服务器：1000 人分散一周、峰值约 20-40 并发；腾讯云轻量 2 核 4G / 6Mbps / 800GB 流量包刊例价 80 元/月作为基线，4 核 8G 230 元/月作为扩容档。
+- 结果（修订）：1 亿 LLM Token 理论按 1 万 Token/人可支持约 1 万次面试；计入约 15% 重试、协议波动和少量报告重生成后，建议按约 8500 人规划。1000 人满额语音内测中，LLM 付费等价值约 25 元、TTS 约 26 元、STT 约 1188 元、2 核 4G 服务器 80 元，总付费等价值约 1319 元；若 1 亿 Token 只覆盖 LLM，现金预算约 1294 元，仍建议准备 1500 元。
+- 后续建议：上线 usage 埋点，分别记录三次 LLM 调用的 prompt/completion/reasoning/cached tokens、TTS 字符数、STT 音频秒数和重试次数；完成首批 30-50 人后用真实 P50/P90 替换本估算。
+
+## Juju 题目回显计时与 classic 全局声线锁定 - 2026-07-18
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Juju 题目文字版 | 已完成 | 面试官语音播放结束后、用户开始回答前，题目文字不再透明移出，改为 30% 白色半透明文字卡片展示，卡片高度随文字实际内容自适应。 |
+| Juju 回答计时 | 已完成 | 用户开始语音回答后展示正向计时 `mm:ss`，计时文字使用纯色、不虚化、不透明。 |
+| Juju 球体动效与进度 | 已完成 | Ellipse 10 呼吸收缩幅度加大；答题页 `1/3` 进度文字下移到外侧圆环下方，题目回显卡片同步下移避免重叠。 |
+| classic 声线锁定 | 已完成 | classic 语音控制面板新增 3 位面试官的独立 Azure 声线锁定区，当前面试官播放按对应配置生效。 |
+| 全局保存 | 已完成 | 新增 `/api/speech-settings/active`，保存到 `outputs/active-speech-settings.json`；浏览器 localStorage 作为读取/保存兜底。 |
+| 本次范围 | 已完成 | 未改题目、报告、STT/TTS 接口契约；仅扩展 classic 配置 UI、服务端配置存储和 Juju 答题展示。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run build`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`POST /api/speech-settings/active` 可写入并返回全局声线配置；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## 内测新增 P0 工期评估 - 2026-07-21
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 评估范围 | 已完成 | 评估《PassBuddy 内测计划与成本测算》第六节 7 项 P0：账号登录、数据持久化、邀请码/白名单、隐私授权、运营看板、报告后反馈、异常监控。 |
+| 当前基础 | 已核对 | 核心面试闭环、语音降级、报告生成、部署和开发故障注入已有基础；账号、数据库、邀请码、授权、用户反馈、生产数据看板尚未实现，线上集中监控/报警仅有局部异常兜底基础。 |
+| 推荐工期 | 已评估 | 采用托管数据库/认证、托管监控与最小运营看板时，预计 20-28 人日；单名熟悉项目的全栈开发约 4-6 周，两名开发并行约 2.5-4 周。文档中将全部 P0 压入 1 周筹备期风险过高。 |
+| 验证方式 | 已完成 | 完整结构化读取源 DOCX；核对 `package.json`、App/API 目录、状态机、部署说明、既有 TODO 和仓库关键词。当前环境缺少 LibreOffice，未执行 DOCX 分页渲染，按 documents 技能降级为结构化审查。 |
+| 主要风险 | 待确认 | 校园身份核验方式、账号/数据库技术选型、隐私协议法律文本、数据保留/删除规则、看板指标口径会显著影响工期；学校 SSO、短信实名或自建认证不包含在最短估算内。 |
+| 下一步建议 | 建议 | 先冻结身份核验与数据模型，按 10-20 人灰度验收后再开放首批约 50 人；把正式内测开始时间放在 P0 完成后的独立稳定性验证周。 |
+
+## 内测 P0 框架化估算与现有项目工时对比 - 2026-07-21
+
+| 项目 | 估算 | 口径 |
+| --- | --- | --- |
+| 新增 P0 纯实现 | 14-19 人日 | 优先使用托管认证/数据库、托管邮件 OTP、现成监控和最小运营看板；不做学校 SSO、短信、复杂历史页或自建数据平台。 |
+| 新增 P0 可内测交付 | 18-23 人日 | 在纯实现上增加安全检查、邮件送达验证、10-20 人灰度和阻塞问题修复。 |
+| 单人日历时间 | 约 3.5-5 周 | 1 名熟悉 Next.js 的全栈开发连续投入。 |
+| 双人日历时间 | 约 2-3 周 | 认证/数据链路与运营/监控链路并行，最后共同集成验收。 |
+| 邮箱验证码登录 | 2-3 人日 | 邮箱 + 邀请码提交，邮件发送一次性验证码，验证码换安全 Session；包含过期、重发间隔、错误次数限制和退出登录。 |
+| 当前已完成项目等价工时 | 约 40-55 人日 | 使用同样的“成熟框架 + 有异常路径和集成验证”口径，覆盖规划契约、Next.js 主闭环、LLM、报告、语音、文件解析、多主题视觉、Prompt/运维工具、部署和验收迭代。 |
+| 对比结论 | 约为现有项目的 35%-50% | 新增代码量可能不大，但认证、数据、权限和合规跨模块，集成风险高于普通页面需求。 |
+| 关键边界 | 待冻结 | 用户不设密码；不做手机号/学号登录；邀请码区分学校；核心训练数据落库；用户侧历史列表延期；删除请求可先由管理员人工执行并留痕。 |
+
+## 受控内测文档规划 - 2026-07-23
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 工作流模板审查 | 已完成 | `docs/Development-Workflow-and-Instruction-Template.md` 适合作为单任务执行模板；不替代本轮共享范围、Contract、Data/API Contract 和 Acceptance Matrix。 |
+| 文档路线图 | 已完成 | 新增 `docs/internal-beta/00_document_plan.md`，定义独立内测文档层、文档优先级、9 类产物、7 个模块 instruction、开发波次和集成门禁。 |
+| 当前阶段 | 等待决策 | 需先确认目标阶段、托管平台、邮箱 OTP、邀请码规则、数据保存/保留、反馈是否阻断、管理员和指标口径，再生成正式 Contract 与 instruction。 |
+| 验证方式 | 已完成 | 核对现有 00–16 文档、旧 Alpha Contract/Acceptance/Module Map、新工作流模板和当前工作区；未修改业务代码。 |
+| 下一步 | 建议 | 确认 `docs/internal-beta/00_document_plan.md` 中 D-01 至 D-10 的推荐默认值，然后生成 `01_scope_and_decisions.md`。 |
+
+## 受控内测完整文档包 - 2026-07-23
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 默认决策 | 已确认后变更 | 2026-07-23 初始接受 Supabase 方案；2026-07-24 因国内邮箱送达约束，D-02/D-03 已按变更控制切换为 Better Auth + 腾讯云 SES API + 腾讯云 PostgreSQL。 |
+| 共享契约文档 | 已完成 | 已生成范围决策、内测 Contract、架构与数据契约、API/事件契约、63 条 Acceptance Matrix 和模块执行计划。 |
+| 开发 instructions | 已完成 | 已生成 IB-01 至 IB-07，覆盖数据底座、邮箱 OTP/邀请码、主闭环持久化、隐私删除、反馈事件、看板监控和安全灰度。 |
+| 运营与放量 | 已完成 | 已生成运营/隐私 Runbook 和 G0/G1/G2/G3 灰度发布与 Go/No-Go 验收文档。 |
+| 一致性检查 | 已通过 | 16 份 `internal-beta` Markdown 文件存在；Acceptance ID 共 63 个且唯一；`git diff --check` 无新增格式错误；未修改业务代码。 |
+| 当前状态 | Ready for execution | 建议从 `docs/internal-beta/instructions/IB-01-backend-data-foundation.md` 开始，逐 Wave 实施，禁止直接跳到放量。 |
+
+## 内测技术栈复核与 IB-01 数据底座 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 技术栈前置门禁 | 已完成 | 工作流模板新增 Stack Fit Gate；后续先核对用户地域、可达性、真实账号样本、配额成本、审核周期、合规、故障和退出策略，再生成开发指令。 |
+| 架构变更 | 已完成 | 移除 Supabase 依赖方案，改为 Next.js 自托管 Better Auth、腾讯云 SES API 邮件、同地域/VPC 腾讯云 PostgreSQL；开发测试使用 PostgreSQL 16 容器。 |
+| 国内邮箱门禁 | 已定义 | IB-02/G0 要求 QQ、163、两所学校域名各至少 3 次真实 OTP 收件测试，记录延时和垃圾箱情况；不把 provider 接受请求等同于用户收到邮件。 |
+| IB-01 实现 | 已完成 | 新增 Better Auth/pg 依赖、4 张 auth 表生成 migration、9 张业务表、FORCE RLS、原子邀请码消费、运行时/admin pool、transaction-local 用户上下文、mapper 和脱敏配置校验。 |
+| IB-01 自测 | 已通过 | 空库 migration + 重复幂等、7 个静态/单元测试、真实 DB 双用户隔离、连接池无身份泄漏、邀请码并发、typecheck/build/security 均通过；证据见 `docs/internal-beta/evidence/IB-01-data-foundation.md`。 |
+| 已知风险 | 待 IB-02/预发布关闭 | Better Auth CLI 1.4.21 与运行库 1.6.25 版本号不同；腾讯云 SES 域名/模板待审核，腾讯云 staging 地域/VPC、备份恢复和国内邮箱真实送达尚未验证。 |
+| 下一步 | Ready for IB-02 | 先完成腾讯云 SES 域名/模板和邮箱样本准备，再执行 `IB-02-email-otp-invite.md`；不使用 fake 邮件宣称通过 AUTH-001。 |
+
+## 内测邮箱 OTP 有效期变更 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 产品决策 | 已确认 | 腾讯云 SES 纯文本模板已采用“30 分钟内有效”，OTP Contract 从 10 分钟调整为 30 分钟。 |
+| 补偿控制 | 已锁定 | 6 位数字、60 秒重发、最多 3 次错误尝试、重发生成新码并使旧码失效、数据库仅保存 hash。 |
+| 代码与文档 | 已同步 | Better Auth `expiresIn` 改为 1800，增加 `resendStrategy: rotate`；同步范围决策、架构/API Contract、IB-02 instruction、测试和 IB-01 证据。 |
+| 验证 | 已通过 | `npm run test:internal-beta`、`npm run typecheck`、`git diff --check`。 |
+
+## 内测 SES 免费额度保护补充 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 30 分钟适用范围 | 已冻结 | 仅作为受控内测临时值，用于减少测试用户因验证码超时产生的重复发信；正式上线前调整为 5–10 分钟并重新执行 Auth 验收。 |
+| 额度控制口径 | 已补充 | OTP 有效期不等于发送额度控制；IB-02 增加单邮箱/IP 日限额、全局 SES 预算预警/停止阈值和停止后不调用 SES 的要求。 |
+| 配置原则 | 已冻结 | 免费额度和阈值不硬编码，使用环境变量配置，便于额度或套餐变化后调整。 |
+| 当前状态 | 待 IB-02 实现 | 本次只同步 Contract、API Contract、IB-02 instruction 和灰度门禁；发送预算计数、告警与测试在 IB-02 实施。 |
+
+## IB-02 阶段 1A · 腾讯云 SES 发送探针 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 环境配置 | 已确认 | 五项 SES 变量均已配置；只检查存在性，未输出 SecretId、SecretKey 或具体配置值。 |
+| SES adapter | 已完成 | 使用腾讯云官方 Node.js SDK；server-only 入口、10 秒请求超时、模板变量 `code`、验证码触发类型和稳定错误映射。 |
+| 安全探针 | 已完成 | `npm run ses:probe` 默认只校验配置/请求体；仅显式 `--send` 才真实发信，避免误耗免费额度。 |
+| 本地自测 | 已通过 | 11/11 internal-beta tests、typecheck、production build、security scan、diff check 通过；dry probe 返回 `SES_PROBE_CONFIG_OK`。 |
+| 真实收件 | 已确认 | 初次 CAM 权限错误已修复；重试获得腾讯云 RequestId/MessageId，用户确认测试邮箱收到。时延、垃圾箱、发件人显示和 6 位变量替换仍待补充。 |
+| Better Auth 接入 | 进行中 | 已将 sign-in `sendVerificationOTP` 接到 server-only SES adapter；其他 OTP 类型 fail-closed。尚需完成 Auth 路由、邀请码挑战、Session 与完整 E2E。 |
+| 证据 | 已记录 | `docs/internal-beta/evidence/IB-02-ses-probe.md`。 |
+
+## IB-02 阶段 1B · Better Auth 运行时路由 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 运行时 Auth | 已实现 | 新增 server-only Better Auth 实例，使用最小权限 runtime pool，不使用 migration/admin pool。 |
+| Auth 路由 | 已实现 | 新增 Node.js catch-all Auth handler，承载 Email OTP 与 Session Cookie。 |
+| Cookie | 已实现 | 生产环境强制 Secure Cookie；密码登录关闭。 |
+| SES hook | 已集成 | 仅 sign-in OTP 调用已验证的腾讯云 SES adapter；其他 OTP 类型 fail-closed。 |
+| 下一停止点 | 进行中 | 实现邀请码预检/挑战、预算限流、profile 原子初始化和项目契约 API。 |
+
+## IB-02 本地 PostgreSQL 可重复环境 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Compose | 已补充 | PostgreSQL 16 Alpine，仅绑定 `127.0.0.1:5432`，持久化命名卷和健康检查。 |
+| 账号分离 | 已补充 | 本地 `passbuddy_admin` 执行 migration，`passbuddy_app` 作为最小权限运行时账号；固定密码仅用于本机开发，不得用于部署。 |
+| 启动与迁移 | 已通过 | Docker Desktop 启动；PostgreSQL 16 容器 healthy；4 个 migration 应用成功；DB integration 验证 5 张 auth 表（含 OTP 预算表）、9 张业务表、邀请码并发与 RLS 隔离通过。 |
+| 本地运行配置 | 已完成 | `.env.local` 已配置数据库与 Auth 变量；Better Auth runtime `get-session` 冒烟返回 200/null，项目 Session 门禁匿名返回 401。 |
+
+## IB-02 邮箱 OTP、Session 与邀请码实现 - 2026-07-25
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 项目 Auth API | 已完成 | 新增 request-otp、verify-otp、session、logout；原生 Better Auth OTP 写端点封闭，不能绕过邀请码与预算。 |
+| 邀请码与 challenge | 已完成 | 邀请码仅存 HMAC；预检 valid/invalid/expired/exhausted；AES-GCM challenge 绑定邮箱、邀请码 hash、nonce 和时效；首次登录原子消费。 |
+| SES 额度保护 | 已完成 | PostgreSQL 原子记录 email/IP/global UTC 日桶；阈值可配置，停止阈值后不调用 SES；不存邮箱/IP 明文。 |
+| 登录 UI 与门禁 | 已完成 | figma/juju/classic 共用邮箱+邀请码、验证码两步 UI，支持 Session 恢复、60 秒重发倒计时和幂等退出；生产 feature flag 默认关闭。 |
+| Admin bootstrap/API | 已完成 | 首位 admin 两阶段 bootstrap；学校 GET/POST、邀请码 GET/POST/PATCH；每次校验 Session + DB role，邀请码明文只返回一次。 |
+| 自动化自测 | 已通过 | 19/19 单测、typecheck、production build、真实 PostgreSQL 集成、匿名运行时负向路径、三主题 SSR 均通过；未消耗新增 SES 邮件。 |
+| 真实验收 | 待执行 | 随机 OTP 完整登录、Cookie 刷新/退出、普通 user/admin 角色 E2E、错误/过期/3 次尝试、profile 故障恢复，以及 QQ/163/两所学校邮箱各 3 次送达矩阵。 |
+| 浏览器视觉 | 待人工复核 | 浏览器插件无法持续连接命令启动的本机服务；需在本机 `npm run dev` 后用 390×844 检查三主题登录页，无横向溢出。 |
+| 当前结论 | Implementation complete / Acceptance pending | IB-02 代码实现完成，但在上述真实 Auth/邮箱门禁完成前不得将 AUTH-001–008 或 IB-02 整体标记为 Pass，也不应进入真实放量。 |
+
+### IB-02 Bootstrap CLI 参数兼容修正 - 2026-07-25
+
+- npm 11 会将 `npm run ... -- --prepare --email ...` 中的长选项解析为 npm config，导致脚本只收到参数值。
+- CLI 已调整为稳定位置参数：`prepare <email> <school-code> "<school-name>"` 与 `promote <email>`。
+- 同时兼容 npm 11 已转发的旧三值/单值形态；首次失败发生在参数解析阶段，未写入数据库。
+
+### IB-02 首次真实 OTP 故障修正 - 2026-07-25
+
+- 有效邀请请求返回统一的“验证码发送失败”，SES dry probe 正常。
+- 只读诊断确认 runtime DB search path 为 `"$user", public` 且 verification 记录为 0；Better Auth 在发信前无法访问 `auth.verification`。
+- runtime pool 已固定 `auth,public` search path 并增加静态回归断言；失败请求没有发送邮件，但按额度保护策略保留一次尝试计数。
+
+### IB-02 注册、邀请码与体验次数契约变更 - 2026-07-25
+
+- 产品确认邮箱 OTP 独立负责注册/登录；没有内测资格的 Auth Session 再单独提交邀请码，已有 active profile 后续登录跳过邀请码。
+- 新增 `/api/auth/redeem-invite` 和 `authenticated_uninvited` 受限状态；request-otp 不再接收或预检邀请码。
+- 邀请码的可激活人数与单账号体验次数分离；当前每个激活账号默认获得 3 个新面试会话名额，快照到 profile，IB-03 创建 session 时原子占用。
+- 自测通过：22/22 单测、PostgreSQL 集成（额度 3/已用 0）、typecheck、production build、安全扫描；匿名 redeem 401、原生 OTP 写端点 404。
+
+### IB-02 OTP 浏览器 pattern 修正 - 2026-07-25
+
+- 正确 6 位验证码被浏览器原生格式校验拦截，未进入 verify API。
+- 将存在转义歧义的 `\d{6}` 改为 `[0-9]{6}`，增加 min/max length 双重约束和静态回归测试。
+- 该故障未消耗验证码错误尝试次数；未重发时原码仍按 30 分钟有效期处理。
+
+### 本地开发模式步骤切换卡顿修正 - 2026-07-25
+
+- 性能基线确认卡顿来自 Next.js 开发模式首次按路由编译：画像接口首次 4223ms、再次 79ms；出题接口首次 1115ms、再次 79ms。
+- 登录恢复或完成后，仅在开发环境后台以 `OPTIONS` 预热画像、出题、流式报告和非流式报告路由；不执行业务逻辑、不调用 LLM、不消耗外部额度。
+- 生产环境不执行预热；生产构建通过，画像接口实测首次 145ms、再次 15ms。最终内测体验仍需使用 `npm run build` + `npm run start` 验收。
+- 自测通过：24/24 internal-beta tests、typecheck、production build、diff check。
+
+### IB-02 收尾验收 - 2026-07-25
+
+- [x] IB-02 邮箱 OTP、Session、邀请码与开发路由预热实现完成。
+- 自动化复验：`test:internal-beta` 24/24、真实 PostgreSQL integration、typecheck、production build 全部 Pass。
+- 已确认 active profile 的 Session 契约返回 `needsInvite=false`；刷新/重登的真实 Cookie 浏览器复核本轮因本地 dev chunk 缓存失效及浏览器安全策略未完成，不虚报 Pass。
+- 腾讯云 SES 已有真实收件确认；QQ、163、两所学校邮箱各 3 次送达矩阵仍是放量门禁，不阻止进入 IB-03 开发。
+- 运行风险：不要在 `next dev` 存活时并行执行 `next build`，两者共用 `.next` 会使旧 dev 进程引用的 chunk 失效；build 后需重启 dev。
+
+## IB-03 面试闭环持久化 - 2026-07-25
+
+- [x] 核对现有状态机、PostgreSQL schema、RLS、Auth Session 和画像/出题/报告接口。
+- [x] 补齐创建 Session 的额度/幂等契约、`GET /current` 恢复入口与 SESSION-009 验收行。
+- [x] 实现原子额度占用、Session/答案 repository 和 API。
+- [x] 接入画像、题目、回答、报告与数据库恢复 adapter。
+- [x] 完成并发、额度耗尽、用户隔离、版本冲突、非法状态和旧 contract smoke。
+- [ ] 浏览器刷新/退出重登/Node 中途重启矩阵、真实 DB fault UI、事件 usage/耗时。
+
+### IB-03 阶段验收记录 - 2026-07-25
+
+- 阶段 1 数据/API：Pass。迁移 `0006/0007`、repository、6 类 persistence Route Handler 与 28/28 tests。
+- 阶段 2 原子/幂等：Pass。真实 PostgreSQL 并发相同 key 只建 1 个 Session、只扣 1 次、只写 1 个开始事件；3 次用尽后旧 Session 仍可推进。
+- 阶段 3 source 接线：Pass/Partial。画像、题目、三题答案、报告、completed 和 current/by-id 恢复已接 UI；真实浏览器恢复矩阵待人工。
+- 真实 production smoke：Pass。签名 Better Auth Cookie、consent gate=true、完整状态链、冲突/非法输入、双用户隔离和额度均通过；fixture 已清理。
+- 兼容回归：28/28 tests、DB integration、security check、dev contract smoke、production build、typecheck 全部 Pass。
+- 证据：`docs/internal-beta/evidence/IB-03-interview-persistence.md`。
+- 运行约束：`next dev`、`next build`、`typecheck` 涉及 `.next` 时必须顺序执行，禁止并行。
+
+## IB-04 隐私同意与删除留痕 - 2026-07-25
+
+- [x] 服务端版本化 policy、当前同意查询、接受版本/scope 校验和幂等记录。
+- [x] AuthGate 同意页、隐私与数据面板、`privacyOnly` 删除处理中状态。
+- [x] 创建 Session 的数据库二次同意门禁，新版本保留历史并要求重新同意。
+- [x] 用户创建/查看删除请求，admin 列表、审批、执行和 failed 重试。
+- [x] 完成后删除正文/身份/可关联 OTP 数据，保留无 userId/正文的表级 audit summary。
+- [ ] 产品/法务冻结最终正文并发布新 policyVersion；人工复核 390×844 浏览器视觉矩阵。
+
+### IB-04 阶段验收记录 - 2026-07-25
+
+- 阶段 1 policy/consent：Pass。旧版本 409、重复接受同一记录、历史版本共存、普通用户不能覆盖同意记录。
+- 阶段 2 UI/业务门禁：Pass/Partial。Auth/Session/DB 双重门禁和 production HTTP 已通过；浏览器插件 localhost 安全策略阻断，视觉点击矩阵未虚报。
+- 阶段 3 删除演练：Pass。仅使用 `example.test` fixture；成功删除 9 类记录，完成审计去除 user 映射；事务故障完整回滚、failed 可重试完成。
+- 安全：普通 user 调 admin execute 返回 403；production 异常响应只返回稳定错误码，不含 SyntaxError/SQL/provider 细节。
+- 自动化：33/33 tests、既有 DB integration、IB-04 DB drill、production privacy/persistence smoke、typecheck、build 均 Pass。
+- 证据：`docs/internal-beta/evidence/IB-04-consent-deletion.md`。
+- 当前结论：IB-04 implementation/contract acceptance complete；最终法务正文和人工浏览器视觉复核保留为灰度放量门禁。
+- 下一步：进入 IB-05“报告后反馈与核心产品事件”，先核对 FEED-001–005、EVENT-001–004 和事件隐私 allowlist。
+
+## IB-05 报告反馈与核心产品事件 - 2026-07-25
+
+- [x] 反馈 repository/API：owner、report 状态、1–5 星、500 字、每 Session 一条、重复返回既有。
+- [x] 三主题共用非阻断 FeedbackPanel：提交、跳过、失败可重试，报告和复制始终先渲染。
+- [x] server/client 事件字典、properties allowlist、RLS 与幂等；客户端不能声明权威完成事件。
+- [x] admin 反馈聚合只返回数量/均值/星级分布，不返回用户或正文。
+- [x] fixture reconciliation：业务完成、完成事件、反馈行、反馈事件与 report view 对齐。
+- [ ] 三主题真实浏览器提交/跳过/故障重试；provider usage/latency 真实测量。
+
+### IB-05 阶段验收记录 - 2026-07-25
+
+- 事件阶段：Pass。迁移 `0009`、strict validators、服务端事务事件、客户端 owner 派生和重放去重通过。
+- 反馈阶段：Pass/Partial。API/DB/production HTTP 全通过；浏览器插件无法访问 localhost，FEED-001/004 保留 Partial。
+- 对账阶段：Pass。fixture 范围 `completed session/event=1/1`、`feedback row/event=1/1`、`report view=1`，事件正文敏感词命中 0。
+- 自动化：38/38 tests、feedback DB integration、production persistence+feedback/events smoke、typecheck、production build 均 Pass。
+- 证据：`docs/internal-beta/evidence/IB-05-feedback-events.md`。
+- 当前结论：IB-05 implementation complete；浏览器交互与 usage/latency 是明确延期项，不阻止进入 IB-06。
+- 下一步：进入 IB-06 最小运营看板、结构化日志、错误监控与告警。
+
+## 内测开发交接快照 - 2026-07-25
+
+> 本节是内容压缩/新 Session 交接基线。详细结论仍以各模块 evidence 和 Acceptance Matrix 为准，不得用本快照把 `Partial` 提升为 `Pass`。
+
+| 模块 | 当前结论 | 未关闭项 |
+| --- | --- | --- |
+| IB-01 数据底座 | Complete | staging 地域/VPC、备份恢复仍属于放量环境验收。 |
+| IB-02 邮箱 OTP、Session、邀请码 | Implementation complete / Acceptance pending | 浏览器刷新与重新登录矩阵、完整真实邮箱送达矩阵；不得为补证据无意义重复发送真实 OTP。 |
+| IB-03 面试闭环持久化 | Core delivery complete | 浏览器刷新/退出重登/Node 重启矩阵、真实 DB 故障注入、事件 provider usage/耗时均为 `Partial`。 |
+| IB-04 隐私同意与删除 | Implementation/contract acceptance complete | 最终法务正文与 policyVersion 冻结、390×844 浏览器视觉矩阵为放量门禁。 |
+| IB-05 反馈与核心事件 | Implementation complete | 三主题浏览器交互矩阵、真实 provider usage/latency 为 `Partial`。 |
+| IB-06 管理与可观测性 | Ready to start | 先核对真实监控平台/项目配置；没有真实依赖时不得虚报监控采集、告警或演练 `Pass`。 |
+
+IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落库、恢复 API、用户隔离与 production smoke 都通过；尚未完成的是浏览器重登/Node 重启矩阵、真实 DB 故障注入和事件 usage/耗时，这些已明确标为 `Partial`，不影响进入下一模块。
+
+当前自动化基线：38/38 internal-beta tests、真实 PostgreSQL feedback integration、production persistence + feedback/events smoke、typecheck、production build 和 diff check 均通过。数据库已应用至 `0009` migration。`next dev`、`next build` 和依赖 `.next` 的检查必须顺序执行。
+
+新 Session 的可复制交接指令见 `docs/internal-beta/handoffs/2026-07-25-IB-06-new-session.md`。
+
+## IB-06 管理与可观测性 - 2026-07-25
+
+- [x] 阶段 0：核对 git/diff、技术栈、migration 0001–0009、admin/event/audit/log 现状与监控配置存在性；保留全部 IB-02–IB-05 修改。
+- [x] 阶段 1：统一 requestId、结构化日志、原始 API 耗时、隐私 scrubber、provider-neutral 监控 adapter、前端错误入口。
+- [x] 阶段 2：admin metrics repository/API、统一 admin audit 和受保护最小运营看板。
+- [x] 阶段 3：真实 PostgreSQL 对账、权限/隐私/事务故障、监控不可用和告警演练。
+
+### IB-06 阶段 1 记录
+
+- 新增 `0010_admin_observability.sql`，定义仅技术字段的 API latency 和 admin audit 表；尚待真实 PostgreSQL apply/integration。
+- auth、consent/privacy、session、feedback/events 和非流式核心生成 Route 已进入统一 request context。
+- scrubber 本地 captured payload 注入审查通过；response body/header/log requestId 可关联。
+- 自动化：41/41 internal-beta tests、typecheck Pass。
+- 真实 Sentry/等价项目未发现；OBS-001、OBS-004 和 OBS-002/003 的真实平台部分保持 `Partial`。
+- 证据：`docs/internal-beta/evidence/IB-06-admin-observability.md`。
+
+### IB-06 阶段 2 记录
+
+- migration `0010` 已应用到真实本地 PostgreSQL；API latency/admin audit 两表均 FORCE RLS。
+- 新增 admin metrics repository/API 与 `/admin` 页面，覆盖注册/激活、开始/完成/失败、fallback、反馈、额度、token usage、待删除和 global API P50/P95。
+- 学校/邀请码写操作与成功审计同事务；删除审批/执行和 bootstrap role promotion 已接统一审计。
+- 自动化：46/46 internal-beta tests、admin PostgreSQL integration、typecheck Pass。
+- PostgreSQL fixture 对账：registered/started/completed=1/1/1，P50/P95=125/125ms，审计 2 条，普通用户可见审计 0 条；fixture 已清理。
+
+### IB-06 最终验收记录
+
+- requestId/日志/监控：所有项目 API Route Handler 已进入统一 wrapper，响应体、`x-request-id`、JSON log 和 provider tag 共用同一 ID；Better Auth 原生 handler 由 Next instrumentation 捕获未处理异常。
+- admin：production HTTP 证明普通 user API 403/页面 404；admin 页面渲染、学校/邀请码创建/停用、聚合指标和 3 条写审计通过。
+- privacy：scrubber 的 token/OTP/Cookie/Authorization/简历/JD/答案/报告注入测试通过；production 日志无敏感原值。
+- failure/reconciliation：真实 PostgreSQL 指标对账、4 类本地告警触发、admin mutation 后故障整体回滚、普通用户 audit 0 行。
+- 相邻回归：IB-03 production persistence+feedback/events smoke、IB-04 production privacy smoke、base/privacy/feedback/admin PostgreSQL integration 均 Pass。
+- 最终自动化基线：50/50 internal-beta tests、typecheck、production build（33 个页面/路由）、security scan（170 files）、diff check Pass；migration 到 `0010`。
+- Acceptance：OBS-005/006、ADMIN-002–005 为 Pass；OBS-001–004 因无真实监控项目/告警渠道保持 Partial；ADMIN-001 沿用既有 Pending，不用本轮局部证据擅自替代完整 IB-02 admin E2E。
+- 既有 Partial 保持：SESSION-003/004/008、FEED-001/004 未因本轮自动升级；provider usage 尚未可靠传播到 Session events。
+- 证据：`docs/internal-beta/evidence/IB-06-admin-observability.md`。
+- 下一步：配置 staging 真实监控 provider 并完成远端 captured payload/requestId/alert drill；然后进入 IB-07 安全与灰度门禁。
+
+## Post-IB-06 遗留验收收敛与 IB-07 准备 - 2026-07-26
+
+- [x] SESSION-004：classic 浏览器真实 PostgreSQL 写故障下 Draft/画像保留；DB 保持 `draft`/version 1，画像里程碑和完成事件均为 0。
+- [x] FEED-001/004：figma、juju、classic 均完成提交、保存失败不阻断、跳过不阻断和复制；反馈/事件 DB 对账及隐私 allowlist 通过。
+- [x] ADMIN-001：admin 浏览器创建学校、批量邀请码、停用与指标查看通过；普通 user API 403、页面 404；默认每码可用次数改为 1，批量条数独立可调。
+- [x] IB-04 390×844：三主题同意/隐私基础视觉矩阵通过；修复 Juju 对比度和移动端卡片滚动。
+- [x] SESSION-003 子矩阵：浏览器刷新和 Node 重启恢复原 3 道题通过。
+- [ ] SESSION-003 退出重登：本轮禁止发送新 OTP，签名 fixture Cookie 不计真实 OTP 登录证据，整体保持 Partial。
+- [x] SESSION-008 本地接线：provider/model/requestId/真实 latency/attempts/provider usage 可传播到关联记录；不可用 usage 保存 null，fallback 不伪造 token。
+- [x] SESSION-008 真实测量：2026-07-28 staging 候选以单次 attempt guard 完成唯一一次非敏感 fixture 调用；provider usage 明确返回 input 772/output 1079 tokens，真实 latency 17171 ms、attempts=1、requestId 全链路一致，未记录业务或 prompt 正文。
+- [ ] OBS-001–004：未发现已配置可用的真实监控 provider，保持 Partial。
+- [x] IB-07 readiness 盘点完成；结论 HOLD / NO-GO，未启动 10–20 人真实灰度。
+
+### 验证记录
+
+- 浏览器：SESSION-004、三主题反馈/复制、admin 正向与普通用户负向、SESSION-003 刷新/Node 重启、三主题 390×844 同意/隐私人工矩阵。
+- 数据库：migration `0010`；persistence/privacy/feedback/admin integration Pass；故障状态、事件、批量邀请码和 audit 均以 `example.test` fixture 对账。
+- 自动化：`npm run test:internal-beta` 52/52 Pass；`npm run test:internal-beta:db`、privacy、feedback、admin PostgreSQL integration Pass。
+- 工程验证：typecheck、production build、security check、`git diff --check` Pass；所有使用 `.next` 的命令顺序执行。
+- 配置存在性：真实 LLM=false、真实监控=false、远端 staging DB=false、公开 HTTPS base=false；仅报告布尔存在性，未输出配置值。
+- 浏览器脱敏汇总：`docs/internal-beta/evidence/artifacts/post-ib06/browser-matrix-summary.json`。
+- IB-07 readiness：`docs/internal-beta/evidence/IB-07-readiness-2026-07-26.md`。
+- 下一 session：`docs/internal-beta/handoffs/2026-07-26-post-IB-06-IB-07-readiness.md`。
+
+### 剩余门禁
+
+- 真实邮箱 QQ、163、两所学校域名送达/登录矩阵；未经新许可不得发送 OTP。
+- staging PostgreSQL、备份恢复、HTTPS/域名、Secure Cookie、真实监控/告警和应用回滚证据。
+- 隐私/服务协议最终正文与 policyVersion 冻结。
+- staging compatibility/security 全矩阵和全部 P0 关闭前，不得开始放量。
+
+## IB-07 本地批次 1–2：认证、权限与接口保护 - 2026-07-26
+
+- [x] migration `0011`：PostgreSQL-backed 写限流，只保存 HMAC scope 和技术字段。
+- [x] AUTH-002：无效、过期、停用、用尽邀请码 Route/DB 负向矩阵，无 profile/计数副作用。
+- [x] AUTH-003/004：Better Auth 3 次错误限制、Session=0、通用 429/Retry-After、OTP budget/rotate 配置对账。
+- [x] AUTH-005：首次激活原子、失败不消费、重试成功、重复登录不消费第二邀请码。
+- [x] AUTH-007/008：普通 user admin 403/404；profile DB 故障保持受限、可重试。
+- [x] SEC-001：source/docs + production client bundle 实际配置值扫描，命中 0。
+- [x] SEC-002：双 user/双 school IDOR、角色伪造、非法 owner 和 RLS 负向矩阵。
+- [x] SEC-003：Auth/feedback/event/admin 统一 Content-Type、实际 body size 和数据库限流。
+- [x] SEC-004：admin role 修改只存在于受控 server bootstrap 并写 audit。
+- [x] COMP-002：CommonResponse、稳定 enum/questionId、SSE 与单题重生成 contract smoke。
+- [ ] AUTH-001、AUTH-006、SEC-006：保持 Pending，等待邮箱/HTTPS 或回滚 drill。
+- [x] COMP-003/004：classic 完成 Azure/Web Speech、STT 手动编辑、报告和复制兜底；figma/juju 完成无麦克风文字兜底三题、报告和复制。
+
+### 本批验证
+
+- `npm run test:internal-beta`：安全批次 56/56 Pass；兼容批次新增守卫后 57/57 Pass。
+- base/privacy/feedback/admin/security PostgreSQL integration：Pass。
+- auth invite negative、auth recovery Route Handler integration：Pass。
+- production security smoke：Pass；未调用邮件发送接口。
+- development contract smoke：Pass；production 正确忽略 dev fault header。
+- bundle secret scan：58 个 `.next/static` 文件，实际配置敏感值命中 0。
+- migration：`0011_write_rate_limits.sql` 已应用。
+- 证据：`docs/internal-beta/evidence/IB-07-local-security-contract.md`。
+
+### 工具等待事故与修正
+
+- `Get-NetTCPConnection` 在当前受控环境中 30 次轮询耗时约 2557 秒，并曾误报端口状态。
+- 后续禁止用它做服务就绪轮询；统一使用唯一日志 `Ready in` + 直接 Node PID + `netstat` 最终复核。
+- production/development runner 均在 `finally` 关闭本轮进程。
+
+## IB-07 本地兼容与三主题闭环 - 2026-07-26
+
+- [x] COMP-003：真实 Azure TTS fixture 返回 `200 audio/mpeg`，classic 人工确认 Azure 有声。
+- [x] COMP-003：注入 TTS 故障后 classic 自动切换 Web Speech，人工确认有声。
+- [x] COMP-003：STT 失败后 fixture 答案保留且可手动追加文本；默认流式报告进入报告页。
+- [x] COMP-003：非流式报告由 contract smoke 覆盖；复制成功和 Clipboard 手动复制兜底均人工通过。
+- [x] COMP-004：classic 主闭环通过。
+- [x] COMP-004：figma/juju 新增无麦克风文字回答兜底，均实际完成 3 题、报告与复制；juju 配色清晰、无遮挡。
+- [x] 自动化守卫：speech input unavailable 时 figma/juju 必须保留文字输入、questionId Draft 更新和继续按钮语义。
+
+### 本批验证
+
+- 浏览器：classic Azure/Web Speech/STT edit/report/copy；figma、juju 无麦克风三题闭环。
+- API：`npm run smoke:contract -- http://127.0.0.1:3000` Pass。
+- 自动化：`npm run test:internal-beta` 57/57 Pass。
+- 工程：typecheck Pass；production build Pass（33 routes）。
+- 真实 Azure STT 录音没有可用麦克风，未伪造为 Pass；留待 HTTPS staging 有麦克风设备复验。
+- 证据：`docs/internal-beta/evidence/IB-07-local-compatibility.md`。
+
+### 工具等待事故补充
+
+- 带 stdout/stderr 重定向的 `Start-Process` 虽在 6.5 秒 Ready，但工具执行单元持续追踪子进程，造成约 21 分钟无返回；后续禁止用该方式托管长驻 Next。
+- 自动浏览器访问 localhost fixture 被控制层拦截；普通根路径又因浏览器插件外部统计请求超时耗时约 143 秒。后续 localhost fixture 使用用户前台 Next + 短人工矩阵，不再重复自动浏览器探测。
+
+## IB-07 staging foundation：HTTPS 现状、PostgreSQL 与备份恢复 - 2026-07-27
+
+- [x] 上海腾讯云 Lighthouse（此前口头称 CVM，控制台实例为 `lhins-*`）安装 PostgreSQL 16.14；仅监听 `127.0.0.1:5432`，SCRAM-SHA-256。
+- [x] 创建 `passbuddy_app` runtime 与 `passbuddy_admin` migration/admin 双角色；两者均非 superuser，admin 仅按契约启用 `BYPASSRLS`。
+- [x] staging 空库顺序应用 migration `0001`–`0011`，二次运行幂等通过。
+- [x] persistence/privacy/feedback/admin/security 五组真实 staging PostgreSQL integration Pass。
+- [x] 57/57 internal-beta、typecheck、security check、production build 和真实配置 bundle secret scan Pass。
+- [x] migration 前/后 dump 可读；恢复到独立临时数据库，核对 migrations=11、auth tables=6、public base tables=12；临时库已删除。
+- [x] 清理全部明确 fixture；主库 users/schools/sessions/events/OTP counters=0，migration=11。
+- [x] 生成 clean baseline 0011 dump，SHA-256 `800f75f290a1f397dfe77f4f209452847d051047d1fb83ef538ba94f346d36e0`。
+- [x] 独立 release 候选在 `127.0.0.1:3001` smoke：root 200、anonymous session 401、production fixture 404、Azure status 200；结束后 PM2 candidate 删除且 3001 释放，旧 3000 未中断。
+- [x] Nginx HTTPS 安全头和真实 client IP 转发加固；HTTPS 200。
+- [ ] 腾讯云接入备案关系当前无法确认，公网 HTTP 被 DNSPod webblock；TrustAsia 证书未被 certbot 管理，自动续期未闭环。
+- [x] systemd 每日自动本机备份：首次 oneshot `status=0/SUCCESS`，timer 下一次 03:17 CST，dump/sha256 校验 OK，本机保留 14 天。
+- [x] COS 异地备份与恢复：上海私有单 AZ、SSE-COS、`passbuddy/staging/db/` 最小权限、90 天生命周期；`.dump`/`.sha256` 上传成功，本地/远端 CRC64 一致，COS 下载 SHA-256 `OK`，独立恢复库核对 11/6/12；临时库和下载目录最终确认 `ABSENT`/removed。
+- [x] systemd 已升级为每日本机+COS：60/120 秒超时、最多 3 次短重试、远端对象检查；人工触发 `status=0/SUCCESS`、`PASSBUDDY_BACKUP_OK ... cos=verified`，下一次 03:18 CST。
+- [ ] COS 上传失败的邮件/微信真实告警仍待监控渠道；不得把 systemd/journal 本地结果冒充外部告警。
+- [ ] AUTH-001/006、SESSION-003/008、OBS-001–004、SEC-006 保持原 Pending/Partial；未发送 OTP，未启动真实灰度。
+
+当前决策：**可以继续 staging drill；10–20 人真实灰度 NO-GO。** COS 异地备份与恢复已关闭，下一步接真实监控邮件/微信告警；当前候选未切换公网 3000。
+
+### IB-07 腾讯云主机告警 - 2026-07-28
+
+- [x] 创建邮件+微信通知模板；未启用短信、电话、企业微信或接口回调。
+- [x] Lighthouse 正式策略覆盖 CPU >80%、内存 >85%、磁盘 >80%，均为 1 分钟粒度连续 5 点，任一触发、每小时最多重复一次。
+- [x] 临时 CPU >0% 策略真实触发，用户确认通知测试通过。
+- [ ] 修改测试阈值后未收到恢复通知，不伪造为 Pass；不执行 CPU 压测，留待自然告警或后续可控演练。
+- [x] 决定不为约 100 人受控内测购买 CLS：日志保持 vendor-neutral JSON/requestId，本机轮转；后续可迁移到 Loki、OpenTelemetry、Sentry 或其他平台。
+- [x] 候选代码新增 `GET /api/health`：实际查询 runtime PostgreSQL，正常返回 200，数据库不可用返回 503；响应不含配置或原始错误，禁用缓存且不写高频 DB metric。
+- [x] 健康端点变更完成 `npm run typecheck` 与 `npm run security:check`（183 files）Pass。
+- [x] Lighthouse PM2 日志接入系统 `logrotate`：每日轮转、单文件 10 MiB 提前轮转、保留 14 份、延迟压缩、`copytruncate`；当前和轮转文件均为 `ubuntu:ubuntu`/`640`。
+- [x] 人工强制轮转后 `pm2 ping=pong`、`facewall=online`，四个原日志完整进入 `.log.1`，当前日志清零后可继续写入；无需重启服务。
+- [x] 新候选包 `passbuddy-staging-candidate-health-20260728-003535.tar.gz` 已校验并构建；migration 幂等、typecheck、source/bundle security 和 production build Pass，production bundle 包含 `/api/health`。
+- [x] 隔离候选 `127.0.0.1:3001` smoke：health 200 且 application/database up、root 200、anonymous session 401、production fixture 404；旧 3000 与候选均 online。
+- [x] SEC-006：Nginx 3 处 upstream 临时切到 3001；候选 HTTPS health/root/auth/fixture/security headers Pass；EXIT trap 恢复 3000，回滚 root 200、旧版 health 404，实际切换/回滚闭环完成。
+- [ ] AUTH-006 不随 SEC-006 升级：仍需真实登录 Session 的 Secure Cookie 与退出后 401 浏览器证据。
+- [ ] 当前只关闭主机指标真实触达和本地 readiness 接线；应用异常远端聚合、requestId 远端关联及数据库/COS 备份失败外部告警仍未完成，OBS-001–004 保持 Partial。
+
+## IB-07 Post-SEC-006 本地 readiness 收敛 - 2026-07-28
+
+- [x] 隔离候选使用不可达 fixture DB 验证 `/api/health`：当前候选返回 `503`，仅包含 application up/database down，`Cache-Control=no-store`；未停止或修改真实 PostgreSQL。
+- [x] 两次临时候选均在阶段结束关闭，最终本机 3001 已释放；第一次旧 `.next` 返回 404，顺序执行 production build 后复测 503，不把旧构建结果冒充通过。
+- [x] 新增 vendor-neutral 本机 readiness/backup 检查脚本与 systemd oneshot/timer 模板，覆盖 HTTPS health、local Next health、PM2 online、PostgreSQL readiness、backup timer/service、备份 36 小时新鲜度和 SHA-256。
+- [x] 检查结果只写 vendor-neutral JSON 技术字段；网络/命令均有 3–15 秒短超时；不调用邮件、微信、Webhook、Sentry/CLS，也不记录 URL、DSN、响应正文或 credential。
+- [x] 本地契约验证 59/59、typecheck、production build、security check 和 `git diff --check` Pass。
+- [x] 已准备未上传候选归档 `outputs/passbuddy-staging-candidate-post-sec006-20260728-012941.tar.gz`，SHA-256 `0484e97689f299aaf98fe2e51610ee6ff9003076e9c71786505004d074b05a7f`；2001 个条目中 `.env.local/.git/.next/node_modules/outputs` 命中 0。
+- [ ] 当前 Windows 的 WSL/bash 启动被系统权限拒绝，Linux `bash -n` 与 systemd 实际执行必须在 staging 部署前复核；不得把静态测试等同于远端运行 Pass。
+- [x] 为真实 LLM drill 增加仅候选进程启用的单次 attempt 开关和脱敏 fixture 探针；只输出 provider/model/latency/usage 或 null/attempts/requestId，不输出简历、JD、回答、报告或 prompt。
+- [x] 更新候选归档为 `outputs/passbuddy-staging-candidate-post-sec006-20260728-112135.tar.gz`，SHA-256 `83ec25bb0d4930f3fa2c0c0cbd7258107e8bc03081bc1a4f014578226f634d49`；2002 个条目，禁入目录命中 0，包含 health/readiness/LLM probe。
+- [x] 相邻回归更新为 60/60、typecheck、production build、security check（188 files）和 `git diff --check` Pass；尚未调用真实 LLM。
+- [ ] Chrome 已进入登录后的 OrcaTerm，但远程截图/输入通道反复超时；只读远端侦察命令已交给用户在 WebShell 执行，等待脱敏输出后再部署。
+- [x] 经用户逐次确认，腾讯云 SES 探针向浙大校园邮箱调用 1 次并被 provider 接受；用户确认邮件进入收件箱，收件端显示 11:12，与 provider 接受时间同一分钟。公网旧稳定版 OTP API 为 404 且该 404 未调用 SES；本证据只关闭浙大域名单次模板可达子项，不能冒充完整 OTP 登录。
+- [x] 首次 LLM 探针在 `tsx/esbuild` CJS 转译阶段因 top-level await 失败，模块与 `fetch` 均未执行；旧 marker/result 保留为预检失败证据。修正脚本经本地/远端 CJS 纯编译后使用独立 marker 完成唯一一次真实 provider 调用，无重试。
+- [x] SESSION-008 升 Pass：真实 provider=`tokenhub.tencentmaas.com`、model=`hy3-preview`、latency=17171 ms、attempts=1、input/output usage=772/1079、requestId 匹配；输出仅含测量字段，不含简历、JD、回答、报告或 prompt。
+- [ ] OBS-001–004 保持 Partial；AUTH-001/006 和 SESSION-003 不变。
+
+## IB-07 staging candidate public deployment - 2026-07-28
+
+- [x] 用户通过 WebShell 完成远端只读侦察：旧 `facewall` online；仅 3000/5432 监听；Nginx 三处均指向 3000；PostgreSQL active/ready、migration=11；backup timer enabled/active 且上次 success；根盘使用 21%；临时候选不存在且 3001 释放。
+- [x] 新 release `/home/ubuntu/releases/passbuddy-20260728-112135` 从 SHA-256 已验证归档解包；Linux `bash -n` Pass；继承上一候选 `.env.production.local`，权限 600。
+- [x] 远端 `npm ci`、migration 幂等、60/60 internal-beta、typecheck、source security（188 files）、production build（33 routes）和 bundle security（57 files）Pass。
+- [x] 隔离 `facewall-candidate`/3001 smoke：health/root=200、DB ready、匿名 session=401、OTP GET=405、production fixture GET=404；单次 LLM attempt guard enabled；旧 3000 和 Nginx 均未受影响。
+- [x] 服务器候选初始缺 SES 配置；通过 SSH stdin 仅传输五项 SES 配置，不在命令行/聊天/日志显示值；合并前保留 600 权限 env 备份，候选重启后 health ready，incoming secret fragment 已删除。本步骤未发送邮件。
+- [x] 修正 root systemd readiness 读取 ubuntu PM2 daemon 的 `runuser`/`PM2_HOME` 接线；脚本 SHA 与 `bash -n` Pass。真实主机 local-only dry run 的 HTTPS/local/PM2/PostgreSQL/backup timer/service/freshness/checksum 和 summary 全部 Pass。
+- [x] `passbuddy-local-readiness.timer` 已启用并 active；首次 oneshot 的 9 条 vendor-neutral JSON 检查记录全部 Pass，service Result=success/ExecMainStatus=0，下一次运行已排期。该证据仅为本机日志，不冒充外部监控，OBS-001–004 保持 Partial。
+- [x] 公网候选切换成功：Nginx 配置备份为 `/etc/nginx/conf.d/facewall.conf.pre-ib07-20260728-120806`，三处 upstream 从 3000 精确切至 3001；`nginx -t` 和 reload Pass。
+- [x] 公网 HTTPS 验证：health/root=200、匿名 session=401、OTP GET=405、production fixture=404；HSTS/CSP/nosniff/frame/referrer/permissions headers Pass。旧 `facewall` 3000 与候选 3001 均 online，保留即时回滚。
+- [x] 修正 LLM 探针远端 SHA 与 CJS 纯编译 Pass；新的 provider-call marker 原子保留后完成唯一一次 fixture 调用，HTTP 200/source llm、provider/model、真实 latency、attempts=1、usage 和 requestId 对账全部通过；禁止重跑，SESSION-008 升 Pass。
+- [x] LLM drill 相邻回归：60/60 internal-beta、typecheck、production build（33/33 static generation）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [ ] 这只是 staging 公网候选部署，不是 10–20/100 人灰度；AUTH-006 仍缺合法登录后的 Secure Cookie/退出/401，OBS-001–004 不因本机日志升级。
+- [ ] 一次经用户单独授权的 AUTH-006 浏览器“发送验证码”点击在等待响应时控制通道超时；页面未确认进入 OTP，服务端结果未审计且没有重试。用户决定停止该路径；该不确定尝试不计 AUTH-001/006 或 SESSION-003 证据。
+- [x] 上线差距复核：Matrix 52 Pass、5 Partial、7 Pending；剔除 PILOT-001–005 后预上线项 52/59 Pass。后续先关闭 release freeze、法务/域名证书、真实 Auth、外部应用监控和 G0 整体 E2E，再接受优化需求。
+
+## IB-07 release freeze - 2026-07-28
+
+- [x] 基线审计：`release/preview` 的 pre-freeze HEAD 为 `d62daff931540f406802608c6986b760044706c0`；当前冻结范围完整保留 IB-02 至 IB-07 修改，无 tracked deletion。
+- [x] 821 个初始 untracked 中有 657 个为 `outputs/.cdp-debug*` 浏览器 profile/cache/dump 和临时日志；补充 `.gitignore` 后仅排除这些运行产物，没有删除文件。
+- [x] release manifest 为 198 个路径：33 个 tracked 修改、165 个新增 application/migration/contracts/evidence/operations/tests；候选中未发现 `.env.local`、私钥、证书、数据库 dump、归档或 zip。
+- [x] 冻结前验证：60/60 internal-beta、typecheck、production build（33/33）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [ ] 当前公网 3001 仍来自 SHA-256 验证归档，不冒充“从冻结 commit 构建”；冻结 commit 后需生成新归档、校验 digest，并在 promotion 前重复最小 staging smoke。
+- [ ] 本 freeze 不关闭 AUTH/SESSION/OBS/法务/域名证书/G0/PILOT 门禁，也不授权真实灰度。

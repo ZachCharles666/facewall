@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractTextFromFile } from "@/lib/files/textExtraction";
 import { errorResponse, okResponse } from "@/lib/schemas/contracts";
+import { observeRoute } from "@/lib/observability/route";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ interface ParsedUploadResponse {
   warnings: string[];
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -51,4 +52,10 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(request, { route: "/api/files/parse" }, () =>
+    handlePost(request)
+  );
 }

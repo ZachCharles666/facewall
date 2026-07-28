@@ -25,7 +25,8 @@ export function chooseWebSpeechVoice(voiceName: string, persona: InterviewerStyl
   if (voices.length === 0) return null;
 
   if (voiceName && voiceName !== "auto") {
-    return voices.find((voice) => voice.voiceURI === voiceName || voice.name === voiceName) ?? null;
+    const requestedVoice = voices.find((voice) => voice.voiceURI === voiceName || voice.name === voiceName);
+    if (requestedVoice) return requestedVoice;
   }
 
   const zhVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("zh"));

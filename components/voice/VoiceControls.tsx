@@ -1,4 +1,5 @@
-import type { SpeechTuning, SttStatus, TtsEngine, TtsStatus, VoiceOption } from "@/lib/types";
+import { interviewerSpeechLabels, interviewerSpeechStyleIds } from "@/lib/speech/settings";
+import type { InterviewerStyleId, PersonaSpeechTunings, SpeechTuning, SttStatus, TtsEngine, TtsStatus, VoiceOption } from "@/lib/types";
 
 export function VoiceControls({
   ttsStatus,
@@ -9,10 +10,15 @@ export function VoiceControls({
   azureVoices,
   webVoices,
   speechTuning,
+  currentInterviewerStyleId,
+  personaSpeechTunings,
+  speechSettingsMessage,
   onPlay,
   onStopTts,
   onTtsEngineChange,
   onSpeechTuningChange,
+  onPersonaSpeechTuningChange,
+  onSaveSpeechSettings,
   onStartStt,
   onStopStt,
   onSimulateSttFailure
@@ -25,15 +31,22 @@ export function VoiceControls({
   azureVoices: VoiceOption[];
   webVoices: VoiceOption[];
   speechTuning: SpeechTuning;
+  currentInterviewerStyleId: InterviewerStyleId;
+  personaSpeechTunings: PersonaSpeechTunings;
+  speechSettingsMessage: string;
   onPlay: () => void;
   onStopTts: () => void;
   onTtsEngineChange: (engine: TtsEngine) => void;
   onSpeechTuningChange: (patch: Partial<SpeechTuning>) => void;
+  onPersonaSpeechTuningChange: (styleId: InterviewerStyleId, patch: Partial<SpeechTuning>) => void;
+  onSaveSpeechSettings: () => void;
   onStartStt: () => void;
   onStopStt: () => void;
   onSimulateSttFailure: () => void;
 }) {
   const voiceOptions = ttsEngine === "azure" ? azureVoices : webVoices;
+  const lockedVoiceOptions = azureVoices;
+  const selectedVoiceValue = voiceOptions.some((voice) => voice.value === speechTuning.voiceName) ? speechTuning.voiceName : "auto";
   const isRecording = sttStatus === "recording";
   const avatarState = isRecording ? "recording" : ttsStatus === "speaking" ? "speaking" : "";
 
@@ -69,7 +82,7 @@ export function VoiceControls({
 
         <label className="field compact-field">
           <span>发音人</span>
-          <select value={speechTuning.voiceName} onChange={(event) => onSpeechTuningChange({ voiceName: event.target.value })}>
+          <select value={selectedVoiceValue} onChange={(event) => onSpeechTuningChange({ voiceName: event.target.value })}>
             {voiceOptions.map((voice) => (
               <option key={voice.value} value={voice.value}>
                 {voice.label}
@@ -78,6 +91,30 @@ export function VoiceControls({
           </select>
         </label>
       </div>
+
+      <section className="persona-voice-locks" aria-label="面试官声线锁定">
+        <div className="persona-voice-locks-header">
+          <div>
+            <h4>面试官声线锁定</h4>
+            <p className="helper">{speechSettingsMessage}</p>
+          </div>
+          <button onClick={onSaveSpeechSettings}>保存全局声线</button>
+        </div>
+        <div className="persona-voice-locks-grid">
+          {interviewerSpeechStyleIds.map((styleId) => (
+            <label className={styleId === currentInterviewerStyleId ? "field compact-field active" : "field compact-field"} key={styleId}>
+              <span>{interviewerSpeechLabels[styleId]}</span>
+              <select value={personaSpeechTunings[styleId].voiceName} onChange={(event) => onPersonaSpeechTuningChange(styleId, { voiceName: event.target.value })}>
+                {lockedVoiceOptions.map((voice) => (
+                  <option key={`${styleId}-${voice.value}`} value={voice.value}>
+                    {voice.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </section>
 
       <div className="slider-grid">
         <label>
