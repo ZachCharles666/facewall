@@ -2276,12 +2276,17 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 产品确认拒绝跨境 telemetry，选择腾讯云 RUM 广州作为 staging 前端真实接收面；继续不购买 CLS，服务端保持 vendor-neutral JSON/requestId。
 - [x] RUM 业务系统和 staging web 应用已在控制台创建；抽样按错误优先、性能/PV 降量配置。字段枚举模板仅影响 ext4–ext10 展示，本轮不使用。
 - [x] 安装并锁定 `aegis-web-sdk@1.41.14`；新增 exact enable + 合法 ID fail-off gate，SDK 加载/上报失败不影响业务。
-- [x] 固定中国大陆接收域；显式关闭持久 aid、真实 uin、device、whitelist、自动 JS listener、console/click、静态资源测速、白屏截图、lag/memory 和 request/response detail。
+- [x] 固定中国大陆接收域；显式关闭持久 aid、真实 uin、device、自动 JS listener、console/click、静态资源测速、白屏截图、lag/memory 和 request/response detail。真实 Network 发现 whitelist/rateConfig 配置请求仍存在，不能继续声称 whitelist transport 已关闭。
 - [x] 既有 `reportClientError` 同时接本地 ingestion 与 RUM 最小事件；错误只保留类型、技术栈、来源和归一化路径，资源加载失败纳入受控 source。
 - [x] API speed 只保留 method/status/duration、去 query/hash 且聚合动态 ID 的 path，以及响应 `x-request-id`；请求 headers/body、响应 body 和业务 retcode 不上报。
 - [x] 本地 RUM contract 6/6、全量 internal-beta 68/68、typecheck、production build（33/33）、source security（196 files）、bundle security（60 files）和 `git diff --check` Pass；本轮 npm 临时 cache 已删除。
+- [x] staging 浏览器受控探针：匿名 Session=401、response requestId present；中国大陆 RUM collect preflight/actual=200/204；腾讯云日志查询出现 1 条与 `pre`/release 匹配的 JS 错误，远端样本无错误正文、query、凭据或用户业务正文。
+- [x] 定位真实 API 监控为空：`reportApiSpeed` 对象配置合法，旧 `beforeRequest` 把批量 speed records 根数组清洗为空；已改为逐条保留安全技术字段/requestId，空 batch 丢弃。
+- [x] 移除会覆盖子 endpoint 的 `hostUrl`；log/PV/speed/performance/web-vitals/rate-limit 逐项固定中国大陆接收域，whitelist/custom event/custom time/offline 保持空。rateConfig 作为动态采样入口继续保留。
+- [x] 修正后 RUM contract 8/8、internal-beta 70/70、typecheck、production build 33/33、source security 196、bundle security 60 和 `git diff --check` Pass。
+- [ ] 从确定 commit 构建新 staging 候选，确认 Network 不再出现 whitelist、API 监控出现匿名 Session 401 且远端仅存在 requestId 字段；在此之前 OBS-002/003 保持 Partial。
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
-- [ ] OBS-001～004 全部保持 Partial：缺真实 captured payload、requestId 远端对账、服务端/DB/备份外部故障与恢复通知。
+- [ ] OBS-001～004 全部保持 Partial：前端真实错误和首条 captured payload 已取得；仍缺服务端外部接收、API requestId 远端对账、配置请求偏差处理及服务端/DB/备份外部故障与恢复通知。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
 
 ## IB-07 Post-Freeze 候选归档 - 2026-07-29
@@ -2291,5 +2296,8 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 最终归档 424 entries，禁入路径 0、必需文件缺失 0；显式排除 Git 已跟踪的历史 `outputs/` 和非运行时产品 `.docx`。
 - [x] 两次不合格导出分别因包含 tracked outputs 和 `.docx` 被拒绝且未上传；最终归档替换后重新计算摘要。
 - [x] 仓库外独立解包后 `npm ci`、68/68 internal-beta、typecheck、production build（33/33）、source security（196 files）和 bundle security（60 files）Pass；临时目录已删除。
-- [ ] 下一步上传最终归档到 staging，远端核对 SHA、继承既有 server-only 配置并增加 RUM 三项 public build config，再从归档构建候选。
-- [ ] 上传/构建不等于上线；仍需隔离端口 health/root/auth-negative/fixture/security smoke、旧版本回滚确认和首条真实 RUM payload review。
+- [x] 最终归档已上传 staging，远端 SHA-256 与本地一致；继承既有 server-only 配置并以隐藏输入补齐 RUM public build config，`npm ci`、68/68、typecheck、source security 和 systemd 脱离会话 production build（33/33）Pass。
+- [x] 新 release `/home/ubuntu/releases/passbuddy-20260729-9607f9e` 以 `facewall-rum-candidate` 运行于 3002；bundle security Pass（58 files），隔离 health/root/auth-negative/fixture smoke Pass。
+- [x] Nginx 与本地 readiness 已由 3001 切到 3002；公网 health/root=200、anonymous session=401、OTP GET=405、production fixture=404、security headers 和 readiness oneshot Pass；3000/3001、Nginx/readiness 回滚配置仍保留。
+- [x] 首条真实 RUM 前端错误和 captured payload 脱敏复核已取得；受控正文/query/凭据/用户业务正文均未出现在远端样本。
+- [ ] 同一 requestId 远端对账、whitelist/rateConfig 配置请求偏差、服务端接收及告警触发/恢复仍待证据；OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。

@@ -70,4 +70,6 @@
 - 第一次导出因 Git 已跟踪的历史 `outputs/dev-review`/`outputs/phase9` 被带入而拒绝；第二次导出因根目录 3 份产品 `.docx` 被带入而拒绝。两份无效归档均未上传并被最终文件替换。
 - 独立 `C:\tmp` 解包后执行锁定依赖安装：68/68 internal-beta、typecheck、production build 33/33、source security 196 files、bundle security 60 files 全部 Pass。
 - 首个仓库内 `outputs/.verify-*` 目录虽然测试 68/68 Pass，但因 Windows sandbox 阻止 `.next`/`tsbuildinfo` 写入且 Next 检测到父目录 lockfile，不作为 build 证据；改用仓库外独立目录后闭环。
-- 两个临时验证目录已在解析绝对路径后删除；最终 tar.gz 保留。本证据不代表 staging 已部署、RUM 已上报或真实灰度已开始。
+- 两个临时验证目录已在解析绝对路径后删除；最终 tar.gz 保留。
+- 2026-07-29 staging 已验证该归档 SHA-256、完成依赖安装/68/68/typecheck/security/33-of-33 build，并在 3002 隔离 smoke 后将 Nginx 与 readiness 切换到 `facewall-rum-candidate`。公网 health/root/auth-negative/fixture/security headers 和 readiness 均 Pass，3000/3001 与时间戳回滚配置仍保留。
+- 该部署尚无腾讯云 RUM captured payload/requestId/告警恢复证据，也未启动真实灰度；OBS-001～004 继续 Partial。

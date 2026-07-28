@@ -102,6 +102,10 @@ function extractRequestId(value: unknown, depth = 0): string | undefined {
 }
 
 function sanitizeMetricValue(value: unknown, key: string, depth: number): unknown {
+  if (/^(x-request-id|requestId)$/i.test(key)) {
+    const requestId = String(value ?? "");
+    return REQUEST_ID_PATTERN.test(requestId) ? requestId : undefined;
+  }
   if (depth > MAX_DEPTH || SENSITIVE_KEY_PATTERN.test(key)) return undefined;
   if (
     value === null ||
@@ -136,7 +140,15 @@ function sanitizeMetricValue(value: unknown, key: string, depth: number): unknow
   return undefined;
 }
 
-function sanitizeMetricLog(value: unknown) {
+function hasMetricData(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasMetricData);
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>).length > 0;
+  }
+  return value !== undefined;
+}
+
+function sanitizeMetricRecord(value: unknown) {
   if (!value || typeof value !== "object") return {};
   const requestId = extractRequestId(value);
   const sanitized = sanitizeMetricValue(value, "root", 0);
@@ -147,6 +159,16 @@ function sanitizeMetricLog(value: unknown) {
     ...(sanitized as Record<string, unknown>),
     ...(requestId ? { requestId } : {})
   };
+}
+
+function sanitizeMetricLog(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, MAX_ARRAY_ITEMS)
+      .map(sanitizeMetricRecord)
+      .filter(hasMetricData);
+  }
+  return sanitizeMetricRecord(value);
 }
 
 function sanitizeErrorLog(value: unknown) {
@@ -188,9 +210,11 @@ export function sanitizeTencentRumEnvelope(
   if (envelope.logType === "log") {
     return { logType: "log", logs: sanitizeErrorLog(envelope.logs) };
   }
+  const logs = sanitizeMetricLog(envelope.logs);
+  if (!hasMetricData(logs)) return false;
   return {
     logType: envelope.logType,
-    logs: sanitizeMetricLog(envelope.logs)
+    logs
   };
 }
 

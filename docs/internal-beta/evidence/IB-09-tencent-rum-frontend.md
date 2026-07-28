@@ -1,8 +1,8 @@
 # IB-09 Tencent RUM Frontend Receiver Evidence
 
 - 日期：2026-07-28
-- 当前阶段：Local integration / pre-deployment
-- 结论：腾讯云 RUM 广州业务系统与 web 应用已由产品创建，前端 SDK 的本地 fail-off/privacy adapter 已完成；尚未部署或产生首条真实 RUM 数据，OBS-001～004 均保持 Partial。
+- 当前阶段：Public staging deployed / first remote frontend error captured
+- 结论：腾讯云 RUM 广州业务系统与 web 应用已由产品创建，前端 SDK 的 fail-off/privacy adapter 已从确定 commit 构建并部署到公网 staging；首条受控前端错误已在远端控制台确认且样本脱敏复核通过。服务端异常接收、API requestId 对账、配置请求偏差和告警触发/恢复仍未关闭，OBS-001～004 均保持 Partial。
 
 ## Product/Console State
 
@@ -19,7 +19,7 @@
 | Dependency | `aegis-web-sdk` exact `1.41.14` |
 | Enable gate | 仅 exact `true` + 合法应用 ID；其他情况不初始化 |
 | Receiver | 固定中国大陆 `https://rumt-zh.com` |
-| Identity | `uin=anonymous`、`aid=false`、`device=false`、whiteList request disabled |
+| Identity | `uin=anonymous`、`aid=false`、`device=false`；真实 Network 暴露 `hostUrl` 覆盖空 `whiteListUrl`，本地已改为逐项大陆 endpoint + 空 whitelist，待新候选复验 |
 | Error capture | SDK 自动 listener 关闭；既有 `reportClientError` 手动发送最小事件 |
 | API capture | method/status/duration/归一化 URL；request/response detail disabled |
 | Correlation | response header 只 allowlist `x-request-id` |
@@ -36,24 +36,47 @@
 | Source / client bundle security | Pass / 196 source files and 60 bundle files scanned |
 | `git diff --check` | Pass；仅既有 Windows LF/CRLF 提示 |
 
+## Post-Capture Local Correction — 2026-07-29
+
+- 腾讯云控制台「API 监控」在最近 3 小时无数据；这不是控制台搜索入口问题。
+- SDK `reportApiSpeed` 的对象形式符合当前 `aegis-web-sdk` 类型和官方示例。根因在本地 `beforeRequest`：真实 speed envelope 可为数组，旧 scrubber 把根数组清洗为空对象，因此 JS 错误日志可达而 API speed 无有效记录。
+- `sanitizeMetricLog` 已改为逐条清洗批量 speed records，分别保留合法 requestId、method/status/duration 和归一化 path；query、正文、凭据和非法/跨记录 requestId 仍丢弃，空 metric batch 直接返回 false。
+- `hostUrl` 会覆盖子 endpoint，解释了真实 Network 中的 whitelist 请求。适配器已移除 `hostUrl`，把 log/PV/speed/performance/web-vitals/rate-limit 逐项固定到中国大陆接收域，保持 whitelist/custom event/custom time/offline endpoint 为空。
+- 新增批量 API speed 与空 batch 契约；Tencent RUM contract 8/8、full internal-beta 70/70、typecheck、production build 33/33、source security 196 files、bundle security 60 files 和 `git diff --check` Pass。
+- 该修正尚未 commit、构建 staging 新候选或复验真实 Network/API 监控，因此不能关闭 OBS-002/003。
+
 ## Acceptance Decision
 
 | ID | Status | Remaining evidence |
 | --- | --- | --- |
-| OBS-001 | Partial | staging 首条前端异常、服务端异常真实远端事件 |
-| OBS-002 | Partial | 真实 RUM captured payload 人工复核 |
-| OBS-003 | Partial | 同一 requestId 的 response/RUM/local log 对账 |
+| OBS-001 | Partial | 受控前端异常真实远端事件已取得；仍缺服务端异常真实外部接收 |
+| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；本地 endpoint 修正已过，仍需部署后确认 whitelist 消失并复核 API payload |
+| OBS-003 | Partial | 本地批量 API speed 修正已过；仍需新候选上同一 requestId 的 response/RUM/local log 对账 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
 ## Release Provenance
 
 - RUM adapter 已进入 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737` 并推送 `origin/release/preview`。
 - 从该 commit 导出的 post-freeze 归档通过独立 68/68、typecheck、33/33 build 和 source/bundle security；摘要和排除项见 `IB-07-release-freeze-2026-07-28.md`。
-- 当前仍未把 RUM 公共配置写入 staging 或部署该归档，真实接收证据不变。
+- 最终归档在 staging 的 SHA-256 与本地记录一致；server-only 配置从既有 release 继承，RUM public build config 通过隐藏输入写入，未在命令输出或证据中显示值。
+
+## Public Staging Deployment — 2026-07-29
+
+- Release path：`/home/ubuntu/releases/passbuddy-20260729-9607f9e`。
+- 远端安装与验证：`npm ci`、68/68 internal-beta、typecheck、source security Pass；production build 通过 transient systemd unit 以 `ubuntu` 用户脱离 WebShell 完成，33/33 pages/routes generated。
+- 首次交互 build 在 `Compiled successfully` 后成为 PPID 1 的 stopped/orphan 进程；仅在核对精确 PID 身份后停止该 build，保留部分 `.next`，随后由 systemd build unit 成功重建。该过程未停止 3000/3001 运行时。
+- 远端 bundle security Pass，扫描 58 个 bundle files；RUM public config 仅做 presence/embedded 校验，不输出值。
+- `facewall-rum-candidate` 在 3002 online；隔离 health/root/anonymous session/OTP GET/production fixture 分别为 200/200/401/405/404。
+- Nginx upstream 与 `passbuddy-local-readiness` target 已切到 3002；公网 health/root/anonymous session/OTP GET/production fixture 分别为 200/200/401/405/404，security headers 与 readiness oneshot Pass。
+- 切换前 Nginx/readiness 配置均有时间戳回滚副本；旧 3000、前一候选 3001 和新 3002 均继续监听，未执行真实 pilot。
+- 浏览器 Network 已确认中国大陆接收域的预检与实际采集请求分别返回 200/204；腾讯云控制台随后出现 1 条与 release commit、`pre` 环境和测试时间匹配的 JS 错误。
+- 远端样本只显示归一化错误类型、`window-error` 来源、`/` 路径、脱敏 trace 位置、匿名用户标签、环境、release 和一般 user-agent；未显示受控错误正文、query、Cookie、OTP、token、简历/JD/答案/报告、具体 requestId 或真实用户标识。
+- 该样本证明前端 receiver 和当前错误脱敏路径有效，不证明服务端接收、API requestId 关联或告警恢复。
+- Network 同时出现 whitelist/rateConfig 配置请求，说明 `hostUrl` 与空 `whiteListUrl` 的实际 SDK 行为未达到本地“无白名单请求”假设；本地已按上节修正，但在部署复验前 OBS-002 保持 Partial。rateConfig 是控制台动态采样配置入口，继续保留在中国大陆接收域。
 
 ## Cost/Stop Boundary
 
 - 控制台抽样只能降低上报量，不等于账号级自动硬停或费用封顶。
 - 本地 adapter 可通过关闭 enable 的新构建停止 RUM；控制台也可停止应用。
 - 真正上线前仍需确认日上报量告警阈值、接收人、响应时间和停用步骤。任何真实邮件/微信测试前必须先说明接收对象和预计通知次数。
-- 本轮没有真实 RUM 上报、告警通知、部署、OTP 或其他外部调用；安装依赖使用的 workspace 临时 npm cache 已删除。
+- 本轮没有告警通知、OTP 或真实 pilot；首条前端错误已取得真实外部接收证据，但未据此升级尚未完成的服务端、API trace 或告警门禁。

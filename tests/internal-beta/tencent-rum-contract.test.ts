@@ -57,6 +57,62 @@ test("Tencent RUM metric policy omits user content and keeps only a valid reques
   assert.equal(serialized.includes("req-rum-contract-123"), true);
 });
 
+test("Tencent RUM metric policy preserves batched API speed records without mixing requestIds", () => {
+  const sanitized = sanitizeTencentRumEnvelope({
+    logType: "speed",
+    logs: [
+      {
+        url: "https://facewall.example/api/auth/session?theme=juju",
+        method: "GET",
+        status: 401,
+        duration: 37,
+        response: {
+          headers: {
+            "x-request-id": "req-rum-batch-0001",
+            authorization: "Bearer private"
+          },
+          body: {
+            email: "student@example.edu"
+          }
+        }
+      },
+      {
+        url: "https://facewall.example/api/health?secret=private",
+        method: "GET",
+        status: 200,
+        duration: 12,
+        response: {
+          headers: {
+            "x-request-id": "req-rum-batch-0002"
+          }
+        }
+      }
+    ]
+  });
+  assert.notEqual(sanitized, false);
+  if (sanitized === false) return;
+  assert.equal(Array.isArray(sanitized.logs), true);
+  assert.equal((sanitized.logs as unknown[]).length, 2);
+  const serialized = JSON.stringify(sanitized);
+  assert.equal(serialized.includes("/api/auth/session"), true);
+  assert.equal(serialized.includes("/api/health"), true);
+  assert.equal(serialized.includes("?"), false);
+  assert.equal(serialized.includes("req-rum-batch-0001"), true);
+  assert.equal(serialized.includes("req-rum-batch-0002"), true);
+  assert.equal(serialized.includes("private"), false);
+  assert.equal(serialized.includes("student@example.edu"), false);
+});
+
+test("Tencent RUM metric policy drops empty metric batches", () => {
+  assert.equal(
+    sanitizeTencentRumEnvelope({
+      logType: "speed",
+      logs: [{ payload: { resumeText: "private resume" } }]
+    }),
+    false
+  );
+});
+
 test("Tencent RUM error policy drops error text and keeps sanitized stack frames", () => {
   const sanitized = sanitizeTencentRumClientError({
     name: "TypeError",
@@ -76,7 +132,12 @@ test("Tencent RUM error policy drops error text and keeps sanitized stack frames
 test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () => {
   const source = await readFile("lib/observability/tencentRum.ts", "utf8");
   for (const required of [
-    'hostUrl: "https://rumt-zh.com"',
+    'url: "https://rumt-zh.com/collect"',
+    'pvUrl: "https://rumt-zh.com/collect/pv"',
+    'speedUrl: "https://rumt-zh.com/speed"',
+    'performanceUrl: "https://rumt-zh.com/speed/performance"',
+    'webVitalsUrl: "https://rumt-zh.com/speed/webvitals"',
+    'rateLimitUrl: "https://rumt-zh.com/collect/rateConfig"',
     'uin: "anonymous"',
     "aid: false",
     "device: false",
@@ -93,6 +154,7 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
     assert.equal(source.includes(required), true, `missing privacy lock: ${required}`);
   }
   for (const forbidden of [
+    'hostUrl: "https://rumt-zh.com"',
     "apiDetail: true",
     "reportRequest: true",
     "reportAssetSpeed: true",
