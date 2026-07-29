@@ -8,6 +8,7 @@ import {
   sanitizeTencentRumClientError,
   sanitizeTencentRumEnvelope
 } from "../../lib/observability/tencentRumPolicy";
+import { lockTencentRumEndpoints } from "../../lib/observability/tencentRum";
 
 test("Tencent RUM remains fail-off without an exact enable flag and valid application ID", () => {
   assert.equal(isTencentRumEnabled(undefined, undefined), false);
@@ -132,12 +133,9 @@ test("Tencent RUM error policy drops error text and keeps sanitized stack frames
 test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () => {
   const source = await readFile("lib/observability/tencentRum.ts", "utf8");
   for (const required of [
-    'url: "https://rumt-zh.com/collect"',
-    'pvUrl: "https://rumt-zh.com/collect/pv"',
-    'speedUrl: "https://rumt-zh.com/speed"',
-    'performanceUrl: "https://rumt-zh.com/speed/performance"',
-    'webVitalsUrl: "https://rumt-zh.com/speed/webvitals"',
-    'rateLimitUrl: "https://rumt-zh.com/collect/rateConfig"',
+    'const TENCENT_RUM_HOST = "https://rumt-zh.com"',
+    "hostUrl: TENCENT_RUM_HOST",
+    "lockTencentRumEndpoints(instance)",
     'uin: "anonymous"',
     "aid: false",
     "device: false",
@@ -154,7 +152,7 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
     assert.equal(source.includes(required), true, `missing privacy lock: ${required}`);
   }
   for (const forbidden of [
-    'hostUrl: "https://rumt-zh.com"',
+    'rateLimitUrl: `${TENCENT_RUM_HOST}/collect/rateConfig`',
     "apiDetail: true",
     "reportRequest: true",
     "reportAssetSpeed: true",
@@ -163,6 +161,29 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
   ]) {
     assert.equal(source.includes(forbidden), false, `unsafe RUM option: ${forbidden}`);
   }
+});
+
+test("Tencent RUM endpoint policy overrides SDK-derived endpoints after construction", () => {
+  let applied: Record<string, unknown> | undefined;
+  lockTencentRumEndpoints({
+    setConfig(config) {
+      applied = config;
+      return config as never;
+    }
+  });
+
+  assert.deepEqual(applied, {
+    url: "https://rumt-zh.com/collect",
+    pvUrl: "https://rumt-zh.com/collect/pv",
+    whiteListUrl: "",
+    eventUrl: "",
+    speedUrl: "https://rumt-zh.com/speed",
+    customTimeUrl: "",
+    performanceUrl: "https://rumt-zh.com/speed/performance",
+    webVitalsUrl: "https://rumt-zh.com/speed/webvitals",
+    rateLimitUrl: "https://rumt-zh.com/rateConfig",
+    offlineUrl: ""
+  });
 });
 
 test("Tencent RUM public environment example contains no application value", async () => {

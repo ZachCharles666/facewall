@@ -11,10 +11,28 @@ import {
   type TencentRumEnvelope
 } from "@/lib/observability/tencentRumPolicy";
 
-type TencentRumInstance = Pick<Aegis, "destroy" | "report">;
+type TencentRumInstance = Pick<Aegis, "destroy" | "report" | "setConfig">;
 
 let instancePromise: Promise<TencentRumInstance | null> | null = null;
 const RUM_ERROR_LEVEL = 4;
+const TENCENT_RUM_HOST = "https://rumt-zh.com";
+
+export function lockTencentRumEndpoints(
+  instance: Pick<Aegis, "setConfig">
+) {
+  instance.setConfig({
+    url: `${TENCENT_RUM_HOST}/collect`,
+    pvUrl: `${TENCENT_RUM_HOST}/collect/pv`,
+    whiteListUrl: "",
+    eventUrl: "",
+    speedUrl: `${TENCENT_RUM_HOST}/speed`,
+    customTimeUrl: "",
+    performanceUrl: `${TENCENT_RUM_HOST}/speed/performance`,
+    webVitalsUrl: `${TENCENT_RUM_HOST}/speed/webvitals`,
+    rateLimitUrl: `${TENCENT_RUM_HOST}/rateConfig`,
+    offlineUrl: ""
+  });
+}
 
 function currentPath() {
   return typeof window === "undefined"
@@ -41,16 +59,7 @@ export function initializeTencentRum() {
     .then(({ default: AegisWeb }) => {
       const instance = new AegisWeb({
         id: projectId,
-        url: "https://rumt-zh.com/collect",
-        pvUrl: "https://rumt-zh.com/collect/pv",
-        whiteListUrl: "",
-        eventUrl: "",
-        speedUrl: "https://rumt-zh.com/speed",
-        customTimeUrl: "",
-        performanceUrl: "https://rumt-zh.com/speed/performance",
-        webVitalsUrl: "https://rumt-zh.com/speed/webvitals",
-        rateLimitUrl: "https://rumt-zh.com/collect/rateConfig",
-        offlineUrl: "",
+        hostUrl: TENCENT_RUM_HOST,
         env: "pre",
         version: normalizedReleaseVersion(),
         uin: "anonymous",
@@ -91,6 +100,9 @@ export function initializeTencentRum() {
           return sanitizeTencentRumEnvelope(value);
         }
       });
+      // Aegis reconstructs every endpoint from hostUrl after applying constructor
+      // options, so privacy-sensitive endpoint overrides must happen afterwards.
+      lockTencentRumEndpoints(instance);
       return instance;
     })
     .catch(() => null);

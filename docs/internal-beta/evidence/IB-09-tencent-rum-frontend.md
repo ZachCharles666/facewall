@@ -19,7 +19,7 @@
 | Dependency | `aegis-web-sdk` exact `1.41.14` |
 | Enable gate | 仅 exact `true` + 合法应用 ID；其他情况不初始化 |
 | Receiver | 固定中国大陆 `https://rumt-zh.com` |
-| Identity | `uin=anonymous`、`aid=false`、`device=false`；真实 Network 暴露 `hostUrl` 覆盖空 `whiteListUrl`，本地已改为逐项大陆 endpoint + 空 whitelist，待新候选复验 |
+| Identity | `uin=anonymous`、`aid=false`、`device=false`；Aegis constructor 会按 `hostUrl` 重建 endpoint，现改为初始化后以公开 `setConfig` 二次锁定大陆 endpoint 和空 whitelist，待下一候选复验 |
 | Error capture | SDK 自动 listener 关闭；既有 `reportClientError` 手动发送最小事件 |
 | API capture | method/status/duration/归一化 URL；request/response detail disabled |
 | Correlation | response header 只 allowlist `x-request-id` |
@@ -36,22 +36,24 @@
 | Source / client bundle security | Pass / 196 source files and 60 bundle files scanned |
 | `git diff --check` | Pass；仅既有 Windows LF/CRLF 提示 |
 
-## Post-Capture Local Correction — 2026-07-29
+## Post-Capture Corrections — 2026-07-29 to 2026-07-30
 
 - 腾讯云控制台「API 监控」在最近 3 小时无数据；这不是控制台搜索入口问题。
 - SDK `reportApiSpeed` 的对象形式符合当前 `aegis-web-sdk` 类型和官方示例。根因在本地 `beforeRequest`：真实 speed envelope 可为数组，旧 scrubber 把根数组清洗为空对象，因此 JS 错误日志可达而 API speed 无有效记录。
 - `sanitizeMetricLog` 已改为逐条清洗批量 speed records，分别保留合法 requestId、method/status/duration 和归一化 path；query、正文、凭据和非法/跨记录 requestId 仍丢弃，空 metric batch 直接返回 false。
-- `hostUrl` 会覆盖子 endpoint，解释了真实 Network 中的 whitelist 请求。适配器已移除 `hostUrl`，把 log/PV/speed/performance/web-vitals/rate-limit 逐项固定到中国大陆接收域，保持 whitelist/custom event/custom time/offline endpoint 为空。
-- 新增批量 API speed 与空 batch 契约；Tencent RUM contract 8/8、full internal-beta 70/70、typecheck、production build 33/33、source security 196 files、bundle security 60 files 和 `git diff --check` Pass。
-- 该修正尚未 commit、构建 staging 新候选或复验真实 Network/API 监控，因此不能关闭 OBS-002/003。
+- 批量 API speed 修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 后部署到 3003。公网匿名 Session 返回 401 且 response `x-request-id` present，但该页面会话没有出现任何可见 `rumt-zh.com` 接收请求，API 监控仍没有可用于 requestId 对账的数据。
+- 对锁定依赖的实际 runtime 复核确认：Aegis constructor 在应用传入参数后仍会按 `hostUrl`（未传时使用默认大陆域）重建全部 endpoint。因此“移除 hostUrl + constructor 内逐项 endpoint”的首轮修正无效；源码字符串契约无法覆盖该 SDK 行为。
+- 二次修正以大陆 `hostUrl` 初始化 SDK，随后立即调用公开 `setConfig` 锁定最终 endpoint；whitelist/custom event/custom time/offline 为空，log/PV/speed/performance/web-vitals 保留，rateConfig 使用 SDK 实际 `/rateConfig` 路径。
+- 新增构造后 endpoint 覆写契约；Tencent RUM contract 9/9、full internal-beta 71/71、typecheck、production build 33/33、source security 196 files、bundle security 60 files 和 `git diff --check` Pass。
+- 二次修正仍未 commit、构建 staging 下一候选或复验真实 Network/API 监控，因此不能关闭 OBS-002/003。
 
 ## Acceptance Decision
 
 | ID | Status | Remaining evidence |
 | --- | --- | --- |
 | OBS-001 | Partial | 受控前端异常真实远端事件已取得；仍缺服务端异常真实外部接收 |
-| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；本地 endpoint 修正已过，仍需部署后确认 whitelist 消失并复核 API payload |
-| OBS-003 | Partial | 本地批量 API speed 修正已过；仍需新候选上同一 requestId 的 response/RUM/local log 对账 |
+| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；构造后 endpoint 锁定已本地通过，仍需下一候选确认 whitelist 消失并复核 API payload |
+| OBS-003 | Partial | 3003 response requestId present 但无可见 RUM 接收请求；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
 ## Release Provenance
@@ -59,6 +61,7 @@
 - RUM adapter 已进入 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737` 并推送 `origin/release/preview`。
 - 从该 commit 导出的 post-freeze 归档通过独立 68/68、typecheck、33/33 build 和 source/bundle security；摘要和排除项见 `IB-07-release-freeze-2026-07-28.md`。
 - 最终归档在 staging 的 SHA-256 与本地记录一致；server-only 配置从既有 release 继承，RUM public build config 通过隐藏输入写入，未在命令输出或证据中显示值。
+- 批量 API speed 首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；对应 release `/home/ubuntu/releases/passbuddy-20260729-caa52ee` 运行于 3003。二次 runtime endpoint 修正仍是未提交本地改动。
 
 ## Public Staging Deployment — 2026-07-29
 
@@ -73,6 +76,13 @@
 - 远端样本只显示归一化错误类型、`window-error` 来源、`/` 路径、脱敏 trace 位置、匿名用户标签、环境、release 和一般 user-agent；未显示受控错误正文、query、Cookie、OTP、token、简历/JD/答案/报告、具体 requestId 或真实用户标识。
 - 该样本证明前端 receiver 和当前错误脱敏路径有效，不证明服务端接收、API requestId 关联或告警恢复。
 - Network 同时出现 whitelist/rateConfig 配置请求，说明 `hostUrl` 与空 `whiteListUrl` 的实际 SDK 行为未达到本地“无白名单请求”假设；本地已按上节修正，但在部署复验前 OBS-002 保持 Partial。rateConfig 是控制台动态采样配置入口，继续保留在中国大陆接收域。
+
+## 3003 Runtime Recheck — 2026-07-30
+
+- `facewall-rum-fix-candidate` 在 3003 online；Nginx upstream 与 readiness target 已切到 3003。公网 health/root/anonymous session/OTP GET/production fixture 分别为 200/200/401/405/404，security headers 和 readiness oneshot Pass。
+- Nginx/readiness 切换前配置已保留时间戳回滚副本；3000/3001/3002/3003 均继续监听，未执行 `pm2 save`、旧进程清理、OTP 或真实 pilot。
+- 浏览器在 Juju 公网页面主动请求匿名 Session，返回 401，response `x-request-id` present；等待后 Network 中没有可见 `rumt-zh.com` 请求。
+- 该结果只证明业务 API 和 response requestId 正常，不证明 RUM API speed 接收。它否定了首轮 constructor endpoint 假设，OBS-002/003 继续 Partial。
 
 ## Cost/Stop Boundary
 

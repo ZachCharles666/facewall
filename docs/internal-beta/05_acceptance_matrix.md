@@ -71,8 +71,8 @@
 | ID | Dimension | Acceptance Criterion | Evidence Form | Status |
 | --- | --- | --- | --- | --- |
 | OBS-001 | Functional | 前端未捕获异常和服务端异常进入监控平台 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；staging 受控前端异常已进入腾讯云 RUM，仍缺服务端异常真实外部接收 | Partial |
-| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；首条远端错误样本脱敏复核通过，endpoint 覆盖偏差已本地修正，待新候选确认 whitelist 消失并复核 API payload | Partial |
-| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；真实 API 监控为空的批量 speed scrub 根因已本地修正，待新候选同一 staging requestId 远端对账 | Partial |
+| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；首条远端错误样本脱敏复核通过；3003 暴露 constructor endpoint 假设失效，构造后 `setConfig` 锁定已本地通过，待下一候选确认 whitelist 消失并复核 API payload | Partial |
+| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；3003 匿名 Session response requestId present，但该会话无可见 RUM 接收请求；批量 scrub 与 runtime endpoint 二次修正待下一候选远端对账 | Partial |
 | OBS-004 | Alerting | 登录不可用、关键 API 高失败率和数据库错误能触发告警 | `evidence/IB-06-admin-observability.md` + `evidence/IB-07-staging-foundation-2026-07-27.md`；本机 readiness/backup 检查已实现，仍缺应用/DB/备份失败外部告警 | Partial |
 | OBS-005 | Metrics | 管理页展示注册、开始、完成、失败、fallback、反馈和用量 | `evidence/IB-06-admin-observability.md` | Pass |
 | OBS-006 | Performance | 关键 API 记录 P50/P95 或可计算原始耗时 | `evidence/IB-06-admin-observability.md` | Pass |

@@ -2282,9 +2282,11 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 本地 RUM contract 6/6、全量 internal-beta 68/68、typecheck、production build（33/33）、source security（196 files）、bundle security（60 files）和 `git diff --check` Pass；本轮 npm 临时 cache 已删除。
 - [x] staging 浏览器受控探针：匿名 Session=401、response requestId present；中国大陆 RUM collect preflight/actual=200/204；腾讯云日志查询出现 1 条与 `pre`/release 匹配的 JS 错误，远端样本无错误正文、query、凭据或用户业务正文。
 - [x] 定位真实 API 监控为空：`reportApiSpeed` 对象配置合法，旧 `beforeRequest` 把批量 speed records 根数组清洗为空；已改为逐条保留安全技术字段/requestId，空 batch 丢弃。
-- [x] 移除会覆盖子 endpoint 的 `hostUrl`；log/PV/speed/performance/web-vitals/rate-limit 逐项固定中国大陆接收域，whitelist/custom event/custom time/offline 保持空。rateConfig 作为动态采样入口继续保留。
-- [x] 修正后 RUM contract 8/8、internal-beta 70/70、typecheck、production build 33/33、source security 196、bundle security 60 和 `git diff --check` Pass。
-- [ ] 从确定 commit 构建新 staging 候选，确认 Network 不再出现 whitelist、API 监控出现匿名 Session 401 且远端仅存在 requestId 字段；在此之前 OBS-002/003 保持 Partial。
+- [x] 首轮 endpoint 修正已进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并部署到公网 3003；health/root/auth-negative/fixture/security headers/readiness 均 Pass，但浏览器执行匿名 Session 401（response requestId present）后未出现任何 `rumt-zh.com` 接收请求，API 监控仍无可验收数据。
+- [x] 复核锁定 SDK 的真实运行时后确认：Aegis 构造函数会在应用 constructor options 后按 `hostUrl` 重建全部 endpoint，因此“移除 hostUrl + constructor 内逐项 endpoint”仍会被 SDK 默认值覆盖；该假设已作废，不把 3003 结果算作 OBS-002/003 证据。
+- [x] 本地改为以大陆 `hostUrl` 初始化后立即调用公开 `setConfig` 二次锁定 endpoint；whitelist/custom event/custom time/offline 置空，log/PV/speed/performance/web-vitals 保留，rateConfig 使用 SDK 实际 `/rateConfig` 路径。新增构造后覆写契约。
+- [x] 二次修正后 RUM contract 9/9、internal-beta 71/71、typecheck、production build 33/33、source security 196、bundle security 60 和 `git diff --check` Pass。
+- [ ] 经授权后 stage/commit/push 二次修正，从确定 commit 构建下一候选；确认 Network 有大陆 rateConfig/collect 或 speed 请求、没有 whitelist，再在 API 监控复核匿名 Session 401 和同一 requestId。完成前 OBS-002/003 保持 Partial。
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
 - [ ] OBS-001～004 全部保持 Partial：前端真实错误和首条 captured payload 已取得；仍缺服务端外部接收、API requestId 远端对账、配置请求偏差处理及服务端/DB/备份外部故障与恢复通知。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
@@ -2300,4 +2302,5 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 新 release `/home/ubuntu/releases/passbuddy-20260729-9607f9e` 以 `facewall-rum-candidate` 运行于 3002；bundle security Pass（58 files），隔离 health/root/auth-negative/fixture smoke Pass。
 - [x] Nginx 与本地 readiness 已由 3001 切到 3002；公网 health/root=200、anonymous session=401、OTP GET=405、production fixture=404、security headers 和 readiness oneshot Pass；3000/3001、Nginx/readiness 回滚配置仍保留。
 - [x] 首条真实 RUM 前端错误和 captured payload 脱敏复核已取得；受控正文/query/凭据/用户业务正文均未出现在远端样本。
-- [ ] 同一 requestId 远端对账、whitelist/rateConfig 配置请求偏差、服务端接收及告警触发/恢复仍待证据；OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。
+- [x] API speed 批量清洗首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；其归档部署为 `/home/ubuntu/releases/passbuddy-20260729-caa52ee`，`facewall-rum-fix-candidate` 在 3003 通过隔离与公网切换验证，Nginx/readiness 回滚配置和 3000/3001/3002 旧运行时保留。
+- [ ] 3003 浏览器匿名 Session 401 与 response requestId 已取得，但该页面会话没有可见 RUM 接收请求，不能完成远端对账；二次 runtime endpoint 修正仍待 commit/归档/部署。服务端接收及告警触发/恢复也仍待证据，OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。
