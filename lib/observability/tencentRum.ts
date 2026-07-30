@@ -23,7 +23,7 @@ export function lockTencentRumEndpoints(
   instance.setConfig({
     url: `${TENCENT_RUM_HOST}/collect`,
     pvUrl: `${TENCENT_RUM_HOST}/collect/pv`,
-    whiteListUrl: "",
+    whiteListUrl: `${TENCENT_RUM_HOST}/collect/whitelist`,
     eventUrl: "",
     speedUrl: `${TENCENT_RUM_HOST}/speed`,
     customTimeUrl: "",

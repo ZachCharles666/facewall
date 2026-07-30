@@ -136,10 +136,10 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
     'const TENCENT_RUM_HOST = "https://rumt-zh.com"',
     "hostUrl: TENCENT_RUM_HOST",
     "lockTencentRumEndpoints(instance)",
+    'whiteListUrl: `${TENCENT_RUM_HOST}/collect/whitelist`',
     'uin: "anonymous"',
     "aid: false",
     "device: false",
-    'whiteListUrl: ""',
     "onError: false",
     "consoleLog: false",
     "clickElementLog: false",
@@ -153,6 +153,7 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
   }
   for (const forbidden of [
     'rateLimitUrl: `${TENCENT_RUM_HOST}/collect/rateConfig`',
+    'whiteListUrl: ""',
     "apiDetail: true",
     "reportRequest: true",
     "reportAssetSpeed: true",
@@ -175,7 +176,7 @@ test("Tencent RUM endpoint policy overrides SDK-derived endpoints after construc
   assert.deepEqual(applied, {
     url: "https://rumt-zh.com/collect",
     pvUrl: "https://rumt-zh.com/collect/pv",
-    whiteListUrl: "",
+    whiteListUrl: "https://rumt-zh.com/collect/whitelist",
     eventUrl: "",
     speedUrl: "https://rumt-zh.com/speed",
     customTimeUrl: "",

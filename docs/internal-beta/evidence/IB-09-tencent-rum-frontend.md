@@ -19,7 +19,7 @@
 | Dependency | `aegis-web-sdk` exact `1.41.14` |
 | Enable gate | 仅 exact `true` + 合法应用 ID；其他情况不初始化 |
 | Receiver | 固定中国大陆 `https://rumt-zh.com` |
-| Identity | `uin=anonymous`、`aid=false`、`device=false`；Aegis constructor 会按 `hostUrl` 重建 endpoint，现改为初始化后以公开 `setConfig` 二次锁定大陆 endpoint 和空 whitelist，待下一候选复验 |
+| Identity | `uin=anonymous`、`aid=false`、`device=false`；Aegis constructor 会按 `hostUrl` 重建 endpoint，初始化后以公开 `setConfig` 二次锁定大陆 endpoint；3004 真实运行时证明空 whitelist 会永久阻塞日志队列，现按产品确认恢复同一大陆域官方 whitelist 配置请求，待下一候选复验请求最小化 |
 | Error capture | SDK 自动 listener 关闭；既有 `reportClientError` 手动发送最小事件 |
 | API capture | method/status/duration/归一化 URL；request/response detail disabled |
 | Correlation | response header 只 allowlist `x-request-id` |
@@ -43,17 +43,17 @@
 - `sanitizeMetricLog` 已改为逐条清洗批量 speed records，分别保留合法 requestId、method/status/duration 和归一化 path；query、正文、凭据和非法/跨记录 requestId 仍丢弃，空 metric batch 直接返回 false。
 - 批量 API speed 修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 后部署到 3003。公网匿名 Session 返回 401 且 response `x-request-id` present，但该页面会话没有出现任何可见 `rumt-zh.com` 接收请求，API 监控仍没有可用于 requestId 对账的数据。
 - 对锁定依赖的实际 runtime 复核确认：Aegis constructor 在应用传入参数后仍会按 `hostUrl`（未传时使用默认大陆域）重建全部 endpoint。因此“移除 hostUrl + constructor 内逐项 endpoint”的首轮修正无效；源码字符串契约无法覆盖该 SDK 行为。
-- 二次修正以大陆 `hostUrl` 初始化 SDK，随后立即调用公开 `setConfig` 锁定最终 endpoint；whitelist/custom event/custom time/offline 为空，log/PV/speed/performance/web-vitals 保留，rateConfig 使用 SDK 实际 `/rateConfig` 路径。
+- 二次修正以大陆 `hostUrl` 初始化 SDK，随后立即调用公开 `setConfig` 锁定最终 endpoint；custom event/custom time/offline 为空，log/PV/speed/performance/web-vitals 保留，rateConfig 使用 SDK 实际 `/rateConfig` 路径。
 - 新增构造后 endpoint 覆写契约；Tencent RUM contract 9/9、full internal-beta 71/71、typecheck、production build 33/33、source security 196 files、bundle security 60 files 和 `git diff --check` Pass。
-- 二次修正仍未 commit、构建 staging 下一候选或复验真实 Network/API 监控，因此不能关闭 OBS-002/003。
+- 二次修正进入 commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 并部署到 3004；真实运行时进一步证明空 `whiteListUrl` 会让 Aegis 1.41.14 的日志发送门控永远等待，详见下方 3004 复核。官方大陆 whitelist 修正仍待 commit/构建下一候选，因此不能关闭 OBS-002/003。
 
 ## Acceptance Decision
 
 | ID | Status | Remaining evidence |
 | --- | --- | --- |
 | OBS-001 | Partial | 受控前端异常真实远端事件已取得；仍缺服务端异常真实外部接收 |
-| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；构造后 endpoint 锁定已本地通过，仍需下一候选确认 whitelist 消失并复核 API payload |
-| OBS-003 | Partial | 3003 response requestId present 但无可见 RUM 接收请求；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
+| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；3004 证明不能以空 whitelist 实现无配置请求，待下一候选复核官方大陆 whitelist 请求只含允许的匿名技术字段，并复核 receiver payload |
+| OBS-003 | Partial | 3004 adapter/Aegis 实例与 endpoint 布尔核对均正确，但空 whitelist 阻塞 receiver；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
 ## Release Provenance
@@ -61,7 +61,8 @@
 - RUM adapter 已进入 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737` 并推送 `origin/release/preview`。
 - 从该 commit 导出的 post-freeze 归档通过独立 68/68、typecheck、33/33 build 和 source/bundle security；摘要和排除项见 `IB-07-release-freeze-2026-07-28.md`。
 - 最终归档在 staging 的 SHA-256 与本地记录一致；server-only 配置从既有 release 继承，RUM public build config 通过隐藏输入写入，未在命令输出或证据中显示值。
-- 批量 API speed 首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；对应 release `/home/ubuntu/releases/passbuddy-20260729-caa52ee` 运行于 3003。二次 runtime endpoint 修正仍是未提交本地改动。
+- 批量 API speed 首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；对应 release `/home/ubuntu/releases/passbuddy-20260729-caa52ee` 运行于 3003。
+- 构造后 endpoint 锁定进入 commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 并推送；归档摘要 `a8e48b504f6398b80219f5654b7ca835be64010175b346194d0fe4ff12e33524` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-f57a26d` 运行于 3004。
 
 ## Public Staging Deployment — 2026-07-29
 
@@ -83,6 +84,18 @@
 - Nginx/readiness 切换前配置已保留时间戳回滚副本；3000/3001/3002/3003 均继续监听，未执行 `pm2 save`、旧进程清理、OTP 或真实 pilot。
 - 浏览器在 Juju 公网页面主动请求匿名 Session，返回 401，response `x-request-id` present；等待后 Network 中没有可见 `rumt-zh.com` 请求。
 - 该结果只证明业务 API 和 response requestId 正常，不证明 RUM API speed 接收。它否定了首轮 constructor endpoint 假设，OBS-002/003 继续 Partial。
+
+## 3004 Runtime Recheck — 2026-07-30
+
+- commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 的归档在本地与 staging SHA-256 一致，425 entries、禁入路径 0、必需文件缺失 0。
+- detached systemd build `Result=success`、`ExecMainStatus=0`；71/71 internal-beta、typecheck、source security（197 files）、production build 33/33、bundle security（58 files）Pass。
+- `facewall-rum-runtime-candidate` 在 3004 online；隔离 health/root/anonymous session/OTP GET/production fixture 为 200/200/401/405/404，RUM ID 已嵌入 bundle。Nginx/readiness 从 3003 切至 3004 后公网同组 smoke、安全头、health application/database 和 readiness oneshot Pass。
+- 浏览器登录页全局 `ClientErrorMonitor` 已确认运行，受控错误进入本地 `/api/monitor/client-error` 并返回 200；Aegis 1.41.14 与 adapter chunks 均加载。
+- 通过当前页面已加载模块的只读诊断确认：Aegis instance、`report`、`setConfig` 均存在，最终 log/rateConfig endpoint 指向大陆域且 whitelist 为空；但受控错误后仍无任何 telemetry resource。
+- 锁定 SDK 源码复核定位根因：whitelist 插件在 `whiteListUrl=""` 时不发配置请求，也不会把内部完成标志置位，错误日志永久停留在内存队列。官方类型/公开 API 没有“禁用 whitelist 并放行队列”选项。
+- 产品确认采用官方支持路径：恢复同一中国大陆域 `https://rumt-zh.com/collect/whitelist`，继续保持 anonymous uin、无持久 aid/device、无正文/header/cookie 采集，并在下一候选人工复核 whitelist 请求字段。3004 当前业务健康但 RUM receiver 不工作，OBS-002/003 继续 Partial。
+- 官方大陆 whitelist 修正已在本地通过 Tencent RUM contract 9/9、full internal-beta 71/71、typecheck、production build 33/33、source security 197 files、bundle security 60 files 和 `git diff --check`；仍未 commit、归档或部署。
+- CSP 诊断曾以字符串缺少 `rumt-zh.com` 误判为连接阻断；实际公开策略只有 `base-uri/frame-ancestors/object-src`，没有 `default-src` 或 `connect-src`，不限制 RUM 连接。对应 `sed` 未匹配任何文本，Nginx 配置未发生 CSP 变化。
 
 ## Cost/Stop Boundary
 
