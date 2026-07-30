@@ -2267,7 +2267,7 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] OBS 本地部分无需为“做本地”重复开发；剩余 OBS-001～004 必须接真实外部接收面并验证告警触发/恢复。
 - [ ] 本地 PostgreSQL integration 本轮无法重跑：Docker Desktop engine 因 WSL `E_ACCESSDENIED` 未就绪；本轮启动进程已关闭。既有 staging DB integration 证据保持有效。
 - [x] 最终本地回归：62/62 internal-beta、typecheck、production build（33/33）、source security（192 files）、bundle security（59 files）和 `git diff --check` Pass。
-- [x] 最新 Matrix 对账：70 行，53 Pass、7 Partial、10 Pending；剔除 PILOT-001～005 后预上线 53/65 Pass。
+- [x] 最新 Matrix 对账：70 行，55 Pass、5 Partial、10 Pending；剔除 PILOT-001～005 后预上线 55/65 Pass。
 
 下一顺序：先确认外部监控接收面和备用语音 provider；本地实现 adapter/timeout/error/scrub 后，再部署最终候选执行公网 Auth、语音、PM2、G0 和工作日观察。
 
@@ -2296,9 +2296,11 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 控制面放行修正进入 commit `843386d079cf4ecc229522691b0d9eb20a3a911e` 并推送；归档 SHA-256=`2afc4e6709724149e1018ead6204828deb9f301d0247d3223475fe9194afab3f` 在 staging 对账通过。detached build 完成 72/72、typecheck、source security 197、33/33 build、bundle security 58，3006 隔离与公网 smoke/security/readiness Pass。
 - [x] 3006 无痕 Network 取得 whitelist/rateConfig GET 200，均无 body/Cookie/Authorization 且只有匿名技术字段；单次受控错误使本地 client-error POST 200 与大陆 collect preflight/actual 200/204；Session 401 和唯一只读 API 分别产生 `/speed` POST 204，payload 仅含归一化 path/method/status/duration 和匿名 SDK 元数据，无用户正文。
 - [x] Session response requestId 与 3006 PM2 warn JSON 精确对应；真实 `/speed` payload 证明锁定 SDK 在 `apiDetail=false` 时不把配置的 `resHeaders` 写入 duration record，因而尚不能完成 RUM requestId 对账。当前本地修正只从 Fetch Response/XHR context 提取合法 requestId，经 retcode 通道加入 speed sanitizer，仍保持正文/detail 关闭；定向契约 11/11、internal-beta 73/73、typecheck、source security 197、build 33/33、bundle security 61 Pass。
-- [ ] 经新的明确授权 stage/commit/push response requestId 最小修正；下一候选构建前把 RUM release version 更新为该 source commit（不得输出配置值），再复验 `/speed` payload 与腾讯云 API Monitor 同 requestId。完成前 OBS-002/003 保持 Partial。
+- [x] 经明确授权将 response requestId 最小修正以 commit `d963d65c788479203854ed307a4585b6a0e1831a` 推送；确定归档在 staging 对账通过，构建前已在不输出配置值的前提下把 RUM release version 更新为该 source commit。3007 detached build 完成 73/73、typecheck、source security 197、33/33 build 和 bundle security 59，隔离及公网 smoke/security/readiness Pass。
+- [x] 3007 真实 `/api/health` GET 200 产生 `/speed` POST 204；payload 中 path/method/status、`ret`、显式 `requestId` 和当前 release 均正确，Cookie/Authorization、request/response body 与禁止用户内容均 absent。同一 requestId 已与 response header、PM2 `api.request.completed` JSON 和腾讯云 API Monitor `retcode` 精确对账，OBS-002/003 升为 Pass。
+- [x] 首次只读 `/api/azure-status` 样本虽完成 response→PM2 requestId 对账但未产生 `/speed`；未重复该请求。后续 `/api/health` 生命周期探针证明完整 speed pipeline 与真实远端接收可用；将单样本不保证发送记录为低量采样/发送非完备性风险，RUM 不作为每请求审计账本。
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
-- [ ] OBS-001～004 全部保持 Partial：前端真实错误和首条 captured payload 已取得；仍缺服务端外部接收、API requestId 远端对账、配置请求偏差处理及服务端/DB/备份外部故障与恢复通知。
+- [ ] OBS-001/004 保持 Partial：仍缺服务端异常真实外部接收，以及应用/DB/备份外部告警触发和恢复通知。OBS-002/003 已由 3007 真实隐私 payload 与 requestId 远端对账关闭。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
 
 ## IB-07 Post-Freeze 候选归档 - 2026-07-29
@@ -2315,4 +2317,4 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] API speed 批量清洗首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；其归档部署为 `/home/ubuntu/releases/passbuddy-20260729-caa52ee`，`facewall-rum-fix-candidate` 在 3003 通过隔离与公网切换验证，Nginx/readiness 回滚配置和 3000/3001/3002 旧运行时保留。
 - [x] 构造后 runtime endpoint 修正 `f57a26d` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-f57a26d`，`facewall-rum-runtime-candidate` 在 3004 通过 build、隔离 smoke、公网切换和 readiness；Nginx/readiness 新回滚副本与 3000～3003 旧运行时保留。
 - [x] 官方大陆 whitelist 修正 `c4f20d8` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-c4f20d8`，`facewall-rum-whitelist-candidate` 在 3005 通过 build、隔离 smoke、公网切换和 readiness；新回滚副本与 3000～3004 旧运行时保留。
-- [ ] 3005 证明 `beforeRequest` 仍误拦截 whitelist/rateConfig 的空控制面 envelope；严格 `whiteList/null` 放行修正已完成本地门禁，仍待 commit/归档/下一候选部署与 payload/requestId 复验。服务端接收及告警触发/恢复也仍待证据，OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。
+- [x] 严格 `whiteList/null` 放行修正已以 `843386d` 部署 3006；response requestId 修正已以 `d963d65` 部署并公开切到 3007。真实 control-plane、receiver privacy、当前 release 和 response/RUM/PM2/腾讯云 API Monitor requestId 对账均 Pass；OBS-002/003 关闭。OBS-001/004、告警触发/恢复和真实灰度仍未开始。

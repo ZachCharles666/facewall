@@ -1,8 +1,8 @@
 # IB-09 Tencent RUM Frontend Receiver Evidence
 
-- 日期：2026-07-28
-- 当前阶段：Public staging deployed / first remote frontend error captured
-- 结论：腾讯云 RUM 广州业务系统与 web 应用已由产品创建，前端 SDK 的 fail-off/privacy adapter 已从确定 commit 构建并部署到公网 staging；首条受控前端错误已在远端控制台确认且样本脱敏复核通过。服务端异常接收、API requestId 对账、配置请求偏差和告警触发/恢复仍未关闭，OBS-001～004 均保持 Partial。
+- 日期：2026-07-28（最终 staging 复核更新于 2026-07-31）
+- 当前阶段：Public 3007 deployed / frontend privacy and requestId trace accepted
+- 结论：腾讯云 RUM 广州业务系统与 web 应用已由产品创建，前端 SDK 的 fail-off/privacy adapter 已从确定 commit 构建并部署到公网 staging。受控前端错误、官方大陆控制面和真实 API speed 均已到达接收面；同一 requestId 已在 API response、RUM payload、PM2 结构化日志和腾讯云 API Monitor 完成远端对账，且样本脱敏复核通过。OBS-002/003 升为 Pass；服务端异常外部接收和真实告警触发/恢复仍缺，OBS-001/004 保持 Partial。
 
 ## Product/Console State
 
@@ -19,10 +19,10 @@
 | Dependency | `aegis-web-sdk` exact `1.41.14` |
 | Enable gate | 仅 exact `true` + 合法应用 ID；其他情况不初始化 |
 | Receiver | 固定中国大陆 `https://rumt-zh.com` |
-| Identity | `uin=anonymous`、`aid=false`、`device=false`；Aegis constructor 会按 `hostUrl` 重建 endpoint，初始化后以公开 `setConfig` 二次锁定大陆 endpoint；3004 真实运行时证明空 whitelist 会永久阻塞日志队列，现按产品确认恢复同一大陆域官方 whitelist 配置请求，待下一候选复验请求最小化 |
+| Identity | `uin=anonymous`、`aid=false`、`device=false`；Aegis constructor 会按 `hostUrl` 重建 endpoint，初始化后以公开 `setConfig` 二次锁定大陆 endpoint；3004 真实运行时证明空 whitelist 会永久阻塞日志队列，现按产品确认保留同一大陆域官方 whitelist 配置请求，3007 已完成人工最小化复核 |
 | Error capture | SDK 自动 listener 关闭；既有 `reportClientError` 手动发送最小事件 |
 | API capture | method/status/duration/归一化 URL；request/response detail disabled |
-| Correlation | response header 只 allowlist `x-request-id` |
+| Correlation | response header 只 allowlist `x-request-id`；从 Fetch Response/XHR context 经 SDK retcode 通道进入 speed record，再显式提升为脱敏 `requestId` |
 | Privacy | query/hash、动态 path ID、正文、凭据、用户/设备标识、截图和 console/click logs omitted |
 | Failure behavior | dynamic import/SDK failure returns null，不影响本地 client-error route 或业务 |
 
@@ -30,10 +30,10 @@
 
 | Check | Result |
 | --- | --- |
-| Tencent RUM contract | 6/6 Pass |
-| Full internal-beta | 68/68 Pass |
+| Tencent RUM contract | 11/11 Pass |
+| Full internal-beta | 73/73 Pass |
 | TypeScript / production build | Pass / 33 of 33 pages and routes generated |
-| Source / client bundle security | Pass / 196 source files and 60 bundle files scanned |
+| Source / client bundle security | Pass / 197 source files and 61 bundle files scanned |
 | `git diff --check` | Pass；仅既有 Windows LF/CRLF 提示 |
 
 ## Post-Capture Corrections — 2026-07-29 to 2026-07-30
@@ -52,8 +52,8 @@
 | ID | Status | Remaining evidence |
 | --- | --- | --- |
 | OBS-001 | Partial | 受控前端异常真实远端事件已取得；仍缺服务端异常真实外部接收 |
-| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；3005 证明 endpoint 恢复后控制面仍被本地 `beforeRequest` 误拦截，待严格 `whiteList/null` 放行的下一候选复核请求字段与 receiver payload |
-| OBS-003 | Partial | 3005 无痕页 adapter/Aegis 实例与 endpoint 布尔核对均正确，但无任何 telemetry resource；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
+| OBS-002 | Pass | 3007 控制面 GET、错误 collect 和 API speed 均到达大陆 receiver；真实 speed payload 与腾讯云 API Monitor 样本只含匿名技术字段、归一化 API 指标、合法 requestId 和当前 release，无 request/response body、Cookie、Authorization 或用户业务正文 |
+| OBS-003 | Pass | 3007 `/api/health` GET 200 的 response requestId、speed `ret`/显式 `requestId`、PM2 JSON 与腾讯云 API Monitor `retcode` 精确一致，release/environment 也匹配 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
 ## Release Provenance
@@ -64,6 +64,8 @@
 - 批量 API speed 首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；对应 release `/home/ubuntu/releases/passbuddy-20260729-caa52ee` 运行于 3003。
 - 构造后 endpoint 锁定进入 commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 并推送；归档摘要 `a8e48b504f6398b80219f5654b7ca835be64010175b346194d0fe4ff12e33524` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-f57a26d` 运行于 3004。
 - 官方大陆 whitelist endpoint 修正进入 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 并推送；归档摘要 `6743b4635451cdc214905e73a1247ddc1d9dbe4fc3acc20e35a24bc9d6996105` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-c4f20d8` 运行于 3005。
+- 严格 `whiteList/null` 控制面放行进入 commit `843386d079cf4ecc229522691b0d9eb20a3a911e` 并推送；归档摘要 `2afc4e6709724149e1018ead6204828deb9f301d0247d3223475fe9194afab3f` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-843386d` 运行于 3006。
+- response requestId 最小关联修正进入 commit `d963d65c788479203854ed307a4585b6a0e1831a` 并推送；归档摘要 `c8f4c88a2d56c89eef5f162900a8ccbed0acf6680dd1258d1e03139f47c6924b` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-d963d65` 运行于 3007。
 
 ## Public Staging Deployment — 2026-07-29
 
@@ -121,6 +123,17 @@
 - 本地最小修正保持 `apiDetail=false`、`reportRequest=false` 和全部正文禁采：从 SDK 已传入 `retCodeHandler` 的 Fetch `Response`/XHR context 只读取通过 allowlist regex 的 `x-request-id`，经 SDK retcode 字段进入 speed record，再由 sanitizer 显式提升为 `requestId`。定向 RUM contract 11/11、full internal-beta 73/73、typecheck、source security 197、production build 33/33、bundle security 61 均 Pass。
 - Network 还显示当前 RUM release version 没有对应 3006 的确定 commit。下一候选构建前必须在不输出配置值的前提下把 `NEXT_PUBLIC_RELEASE_VERSION` 更新为该候选 source commit，再执行 build。
 - OBS-002/003 继续 Partial：前端控制面、错误 receiver、API speed、隐私 payload 和 response→server log 已取得真实证据；仍需部署上述 requestId 修正并在真实 `/speed` payload/腾讯云 API Monitor 中对账同一 requestId。服务端异常外部接收与告警触发/恢复仍不在本轮证据内。
+
+## 3007 RequestId Correlation Recheck — 2026-07-30 to 2026-07-31
+
+- response requestId 修正 commit `d963d65c788479203854ed307a4585b6a0e1831a` 的归档在本地与 staging SHA-256 一致；425 entries、禁入路径 0、必需文件缺失 0。构建前在不输出配置值的前提下将 public release version 设为该确定 commit。
+- detached systemd build `Result=success`、`ExecMainStatus=0`；73/73 internal-beta、typecheck、source security（197 files）、production build 33/33、bundle security（59 files）Pass。`facewall-rum-requestid-candidate` 在 3007 online，隔离 health/root/anonymous session/OTP GET/production fixture 为 200/200/401/405/404，bundle 中大陆 host、whitelist/config key 和当前 release commit 均 present。
+- Nginx/readiness 已从 3006 切至 3007；配置引用为 3/1 且无 3006 残留，公网同组 smoke、六个安全头、Nginx syntax 和 readiness oneshot 均 Pass。正确生成并保留回滚副本：`/etc/nginx/conf.d/facewall.conf.pre-ib09requestid-20260730-234244` 与 `/etc/passbuddy/readiness.env.pre-ib09requestid-20260730-234244`。
+- 干净页面再次取得官方 `/collect/whitelist` 与 `/rateConfig`。运行时诊断确认当前 release、大陆 `/speed` endpoint、fetch hook、requestId hook、rate config 和 speed sampling 均有效；`isWhiteList=false` 只限制普通信息日志，不阻止 speed pipeline。
+- 首次只读 `/api/azure-status` GET 200 的 response requestId 与 3007 PM2 JSON 一致，但该单条样本没有产生 `/speed`；未重跑该请求。随后一次带只读生命周期观察的 `/api/health` GET 200 显示 `beforeReportSpeed`、`beforeRequest`、sanitizer、`afterRequest` 全部通过，并产生真实 `/speed` preflight/POST 200/204。该差异作为低量采样/发送非完备性风险保留，不把 RUM 当作每请求审计账本。
+- `/api/health` speed payload 本地仅作布尔复核，不在文档粘贴原文：path/method/status 为 `/api/health`/GET/200；同一合法 requestId 同时存在于 SDK `ret` 和显式 `requestId`；release 为当前确定 commit；request/response body 和禁止用户内容均 absent。POST Request Headers 中 Cookie 与 Authorization 均 absent。
+- 同一 requestId 在 3007 PM2 info JSON 中对应 `api.request.completed`、`/api/health`、GET、200；腾讯云 API Monitor 在 `pre` 环境和当前 release 下显示同一接口、方法、状态，并在 `retcode` 精确匹配该 requestId。远端样本人工复核无禁止用户内容。
+- OBS-002/003 升为 Pass。该结论只覆盖前端 RUM 隐私和 response→RUM→本机日志→真实控制台关联；OBS-001 的服务端异常外部接收、OBS-004 的应用/DB/备份告警触发与恢复仍为 Partial。本轮未发送 OTP、邮件、微信告警，也未启动真实 pilot。
 
 ## Cost/Stop Boundary
 

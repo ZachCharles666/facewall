@@ -71,8 +71,8 @@
 | ID | Dimension | Acceptance Criterion | Evidence Form | Status |
 | --- | --- | --- | --- | --- |
 | OBS-001 | Functional | 前端未捕获异常和服务端异常进入监控平台 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；staging 受控前端异常已进入腾讯云 RUM，仍缺服务端异常真实外部接收 | Partial |
-| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；3006 的 whitelist/rateConfig 均为无 body、无 Cookie/Authorization 的 GET 200，受控错误与两条 API speed 已真实到达大陆 receiver；人工 payload 复核仅见匿名技术字段及归一化 path/status/duration，无用户业务正文。服务端外部异常与告警证据仍缺 | Partial |
-| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；3006 Session 401 的 response requestId 已与 PM2 结构化日志精确一致，且 Session/唯一 API speed 均到达 `/speed`。锁定 SDK 在 `apiDetail=false` 时未把 `resHeaders` 写入 duration record，当前本地修正仅从 Fetch Response/XHR 读取合法 requestId，经 retcode 通道加入 sanitizer；待下一候选完成真实 RUM payload 与控制台对账 | Partial |
+| OBS-002 | Privacy | 监控事件不含简历/JD/答案/报告/OTP/token/密钥全文 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；3007 的 whitelist/rateConfig 均为无 body、无 Cookie/Authorization 的 GET 200，真实 `/speed` POST 204 仅含匿名技术字段、归一化 path/method/status/duration、合法 requestId 和当前 release；本地解析与腾讯云 API Monitor 样本复核均无用户业务正文、凭据或 request/response body | Pass |
+| OBS-003 | Traceability | API response、结构化日志和监控可用 requestId 关联 | `evidence/IB-06-admin-observability.md` + `evidence/IB-09-tencent-rum-frontend.md`；3007 `/api/health` GET 200 的 response `x-request-id`、RUM `/speed` 的 `ret`/显式 `requestId`、PM2 `api.request.completed` JSON 和腾讯云 API Monitor `retcode` 精确一致；远端环境与 release 也匹配 | Pass |
 | OBS-004 | Alerting | 登录不可用、关键 API 高失败率和数据库错误能触发告警 | `evidence/IB-06-admin-observability.md` + `evidence/IB-07-staging-foundation-2026-07-27.md`；本机 readiness/backup 检查已实现，仍缺应用/DB/备份失败外部告警 | Partial |
 | OBS-005 | Metrics | 管理页展示注册、开始、完成、失败、fallback、反馈和用量 | `evidence/IB-06-admin-observability.md` | Pass |
 | OBS-006 | Performance | 关键 API 记录 P50/P95 或可计算原始耗时 | `evidence/IB-06-admin-observability.md` | Pass |
