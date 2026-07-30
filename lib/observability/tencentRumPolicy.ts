@@ -207,6 +207,14 @@ export function sanitizeTencentRumEnvelope(
   envelope: TencentRumEnvelope
 ): TencentRumEnvelope | false {
   if (!envelope || typeof envelope !== "object") return false;
+  // Aegis routes both the official whitelist and rate-config handshakes
+  // through beforeRequest as a whiteList envelope with no log payload.
+  // Permit only that empty control-plane shape; never pass user data through.
+  if (envelope.logType === "whiteList") {
+    return envelope.logs == null
+      ? { logType: "whiteList", logs: null }
+      : false;
+  }
   if (envelope.logType === "log") {
     return { logType: "log", logs: sanitizeErrorLog(envelope.logs) };
   }

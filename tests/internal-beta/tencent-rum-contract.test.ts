@@ -114,6 +114,30 @@ test("Tencent RUM metric policy drops empty metric batches", () => {
   );
 });
 
+test("Tencent RUM permits only empty official control-plane envelopes", () => {
+  assert.deepEqual(
+    sanitizeTencentRumEnvelope({
+      logType: "whiteList",
+      logs: null
+    }),
+    {
+      logType: "whiteList",
+      logs: null
+    }
+  );
+  assert.equal(
+    sanitizeTencentRumEnvelope({
+      logType: "whiteList",
+      logs: {
+        payload: {
+          resumeText: "private resume"
+        }
+      }
+    }),
+    false
+  );
+});
+
 test("Tencent RUM error policy drops error text and keeps sanitized stack frames", () => {
   const sanitized = sanitizeTencentRumClientError({
     name: "TypeError",

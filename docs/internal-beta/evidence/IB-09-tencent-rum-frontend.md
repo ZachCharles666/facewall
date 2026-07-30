@@ -52,8 +52,8 @@
 | ID | Status | Remaining evidence |
 | --- | --- | --- |
 | OBS-001 | Partial | 受控前端异常真实远端事件已取得；仍缺服务端异常真实外部接收 |
-| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；3004 证明不能以空 whitelist 实现无配置请求，待下一候选复核官方大陆 whitelist 请求只含允许的匿名技术字段，并复核 receiver payload |
-| OBS-003 | Partial | 3004 adapter/Aegis 实例与 endpoint 布尔核对均正确，但空 whitelist 阻塞 receiver；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
+| OBS-002 | Partial | 首条前端错误 captured payload 脱敏复核通过；3005 证明 endpoint 恢复后控制面仍被本地 `beforeRequest` 误拦截，待严格 `whiteList/null` 放行的下一候选复核请求字段与 receiver payload |
+| OBS-003 | Partial | 3005 无痕页 adapter/Aegis 实例与 endpoint 布尔核对均正确，但无任何 telemetry resource；仍需下一候选上同一 requestId 的 response/RUM/local log 对账 |
 | OBS-004 | Partial | 严重前端告警及恢复；登录/API/DB/备份外部通知与恢复 |
 
 ## Release Provenance
@@ -63,6 +63,7 @@
 - 最终归档在 staging 的 SHA-256 与本地记录一致；server-only 配置从既有 release 继承，RUM public build config 通过隐藏输入写入，未在命令输出或证据中显示值。
 - 批量 API speed 首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；对应 release `/home/ubuntu/releases/passbuddy-20260729-caa52ee` 运行于 3003。
 - 构造后 endpoint 锁定进入 commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 并推送；归档摘要 `a8e48b504f6398b80219f5654b7ca835be64010175b346194d0fe4ff12e33524` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-f57a26d` 运行于 3004。
+- 官方大陆 whitelist endpoint 修正进入 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 并推送；归档摘要 `6743b4635451cdc214905e73a1247ddc1d9dbe4fc3acc20e35a24bc9d6996105` 在 staging 对账通过，release `/home/ubuntu/releases/passbuddy-20260730-c4f20d8` 运行于 3005。
 
 ## Public Staging Deployment — 2026-07-29
 
@@ -94,8 +95,19 @@
 - 通过当前页面已加载模块的只读诊断确认：Aegis instance、`report`、`setConfig` 均存在，最终 log/rateConfig endpoint 指向大陆域且 whitelist 为空；但受控错误后仍无任何 telemetry resource。
 - 锁定 SDK 源码复核定位根因：whitelist 插件在 `whiteListUrl=""` 时不发配置请求，也不会把内部完成标志置位，错误日志永久停留在内存队列。官方类型/公开 API 没有“禁用 whitelist 并放行队列”选项。
 - 产品确认采用官方支持路径：恢复同一中国大陆域 `https://rumt-zh.com/collect/whitelist`，继续保持 anonymous uin、无持久 aid/device、无正文/header/cookie 采集，并在下一候选人工复核 whitelist 请求字段。3004 当前业务健康但 RUM receiver 不工作，OBS-002/003 继续 Partial。
-- 官方大陆 whitelist 修正已在本地通过 Tencent RUM contract 9/9、full internal-beta 71/71、typecheck、production build 33/33、source security 197 files、bundle security 60 files 和 `git diff --check`；仍未 commit、归档或部署。
+- 官方大陆 whitelist 修正当时已在本地通过 Tencent RUM contract 9/9、full internal-beta 71/71、typecheck、production build 33/33、source security 197 files、bundle security 60 files 和 `git diff --check`；随后进入上节所列 `c4f20d8` 归档与 3005。
 - CSP 诊断曾以字符串缺少 `rumt-zh.com` 误判为连接阻断；实际公开策略只有 `base-uri/frame-ancestors/object-src`，没有 `default-src` 或 `connect-src`，不限制 RUM 连接。对应 `sed` 未匹配任何文本，Nginx 配置未发生 CSP 变化。
+
+## 3005 Control-Plane Recheck — 2026-07-30
+
+- 官方大陆 whitelist endpoint 修正 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 的归档 SHA-256 在本地与 staging 一致；425 entries、禁入路径 0、必需文件缺失 0。
+- detached systemd build `Result=success`、`ExecMainStatus=0`；71/71 internal-beta、typecheck、source security（197 files）、production build 33/33、bundle security（58 files）Pass。
+- `facewall-rum-whitelist-candidate` 在 3005 online；隔离 health/root/anonymous session/OTP GET/production fixture 为 200/200/401/405/404，RUM ID、mainland host、whitelist path 和 config key 均嵌入 bundle。
+- Nginx/readiness 从 3004 切至 3005；公网同组 smoke、安全头与 readiness oneshot Pass。回滚副本为 `/etc/nginx/conf.d/facewall.conf.pre-ib09whitelist-20260730-191650` 和 `/etc/passbuddy/readiness.env.pre-ib09whitelist-20260730-191650`；3000～3005 均保留。
+- 普通 Chrome 的大量 Console 错误来自 Unstoppable Domains 扩展，不是 PassBuddy。重新以无痕页排除扩展后，adapter、Aegis instance、whitelist/rateConfig/log 最终 endpoint 均核对为 true，但 `rumt-zh.com` resource 仍为空。
+- 锁定 SDK 实现复核确认：whitelist 与 rateConfig 都以 `logType="whiteList"`、`logs=null` 进入应用 `beforeRequest`；现有 sanitizer 对空 envelope 返回 false，因而在网络层前取消两个官方控制面请求。这比“只恢复 endpoint”更深一层，也解释 3005 的全部运行时证据。
+- 当前未提交修正只允许严格的 `whiteList/null` 控制面形态；携带对象、payload 或用户数据的同类型 envelope 仍返回 false。定向契约 10/10、full internal-beta 72/72、typecheck、production build 33/33、source security 197 files、bundle security 60 files 和 `git diff --check` Pass。
+- 本次干净诊断没有再触发受控错误、Session、OTP 或外部告警。OBS-002/003 继续 Partial。
 
 ## Cost/Stop Boundary
 

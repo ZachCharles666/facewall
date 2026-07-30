@@ -2290,7 +2290,10 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 3004 浏览器复核确认全局 monitor、adapter/Aegis chunks、instance、`report`、`setConfig` 和最终大陆 endpoint 均正常，但 `whiteListUrl=""` 时 SDK 既不发配置请求也不释放内部日志队列，受控错误只进入本地 monitor，RUM receiver 始终为空。CSP 误判已纠正：公开策略无 `default-src/connect-src`，不阻断 RUM，且相关 `sed` 未命中、配置未变化。
 - [x] 产品确认恢复锁定 SDK 官方同一大陆域 whitelist endpoint；继续 anonymous uin、`aid=false`、`device=false` 和正文/header/cookie 禁采集。下一候选必须人工复核 whitelist 请求字段后，再做 rateConfig/receiver/API requestId 对账。
 - [x] 官方大陆 whitelist 修正已在本地通过 RUM contract 9/9、internal-beta 71/71、typecheck、production build 33/33、source security 197、bundle security 60 和 `git diff --check`。
-- [ ] 经新的明确授权后 stage/commit/push 官方大陆 whitelist 修正，从确定 commit 构建下一候选；确认 whitelist 只含允许的匿名技术字段、receiver 恢复且 API 监控可对账同一 requestId。完成前 OBS-002/003 保持 Partial。
+- [x] 官方大陆 whitelist 修正已进入 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 并推送；归档 SHA-256=`6743b4635451cdc214905e73a1247ddc1d9dbe4fc3acc20e35a24bc9d6996105` 在 staging 对账通过，detached build 完成 71/71、typecheck、source security 197、33/33 build、bundle security 58，3005 隔离与公网 smoke/security/readiness Pass。
+- [x] 3005 无痕页排除扩展噪声后确认 adapter、Aegis instance 和 whitelist/rateConfig/log 最终 endpoint 均正确，但 telemetry resource 仍为空。锁定 SDK 实现表明两个官方控制面请求都以 `whiteList/null` 经过 `beforeRequest`，现有 sanitizer 对空 envelope 返回 false，导致请求在网络层前取消。
+- [x] 本地最小修正仅允许严格的 `logType="whiteList"` + `logs=null` 控制面形态；任何携带对象、payload 或用户数据的同类型 envelope 继续拒绝。定向契约 10/10、internal-beta 72/72、typecheck、production build 33/33、source security 197、bundle security 60 和 `git diff --check` Pass。
+- [ ] 经新的明确授权 stage/commit/push 严格控制面放行修正，从确定 commit 构建下一候选；确认 whitelist 只含允许的匿名技术字段、receiver 恢复且 API 监控可对账同一 requestId。完成前 OBS-002/003 保持 Partial。
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
 - [ ] OBS-001～004 全部保持 Partial：前端真实错误和首条 captured payload 已取得；仍缺服务端外部接收、API requestId 远端对账、配置请求偏差处理及服务端/DB/备份外部故障与恢复通知。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
@@ -2308,4 +2311,5 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 首条真实 RUM 前端错误和 captured payload 脱敏复核已取得；受控正文/query/凭据/用户业务正文均未出现在远端样本。
 - [x] API speed 批量清洗首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；其归档部署为 `/home/ubuntu/releases/passbuddy-20260729-caa52ee`，`facewall-rum-fix-candidate` 在 3003 通过隔离与公网切换验证，Nginx/readiness 回滚配置和 3000/3001/3002 旧运行时保留。
 - [x] 构造后 runtime endpoint 修正 `f57a26d` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-f57a26d`，`facewall-rum-runtime-candidate` 在 3004 通过 build、隔离 smoke、公网切换和 readiness；Nginx/readiness 新回滚副本与 3000～3003 旧运行时保留。
-- [ ] 3004 证明空 whitelist 会阻塞锁定 SDK 的全部 receiver 发送；官方大陆 whitelist 修正仍待 commit/归档/下一候选部署与 payload/requestId 复验。服务端接收及告警触发/恢复也仍待证据，OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。
+- [x] 官方大陆 whitelist 修正 `c4f20d8` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-c4f20d8`，`facewall-rum-whitelist-candidate` 在 3005 通过 build、隔离 smoke、公网切换和 readiness；新回滚副本与 3000～3004 旧运行时保留。
+- [ ] 3005 证明 `beforeRequest` 仍误拦截 whitelist/rateConfig 的空控制面 envelope；严格 `whiteList/null` 放行修正已完成本地门禁，仍待 commit/归档/下一候选部署与 payload/requestId 复验。服务端接收及告警触发/恢复也仍待证据，OBS-001～004 保持 Partial，当前切换不代表真实灰度开始。
