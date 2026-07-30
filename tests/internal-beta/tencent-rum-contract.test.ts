@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 import {
+  extractTencentRumResponseRequestId,
   isTencentRumEnabled,
   sanitizeRumUrl,
   sanitizeTencentRumClientError,
@@ -104,6 +105,56 @@ test("Tencent RUM metric policy preserves batched API speed records without mixi
   assert.equal(serialized.includes("student@example.edu"), false);
 });
 
+test("Tencent RUM captures response requestId as a body-free retcode correlation", () => {
+  const requestId = "req-rum-response-123456";
+  assert.equal(
+    extractTencentRumResponseRequestId({
+      headers: {
+        get(name: string) {
+          return name === "x-request-id" ? requestId : null;
+        }
+      }
+    }),
+    requestId
+  );
+  assert.equal(
+    extractTencentRumResponseRequestId({
+      getResponseHeader(name: string) {
+        return name === "x-request-id" ? requestId : null;
+      }
+    }),
+    requestId
+  );
+  assert.equal(
+    extractTencentRumResponseRequestId({
+      headers: {
+        get() {
+          return "invalid request id";
+        }
+      }
+    }),
+    undefined
+  );
+
+  const sanitized = sanitizeTencentRumEnvelope({
+    logType: "speed",
+    logs: {
+      url: "https://facewall.example/api/azure-status?private=query",
+      method: "GET",
+      status: 200,
+      duration: 18,
+      ret: requestId
+    }
+  });
+  assert.notEqual(sanitized, false);
+  if (sanitized === false) return;
+  assert.equal(
+    (sanitized.logs as Record<string, unknown>).requestId,
+    requestId
+  );
+  assert.equal(JSON.stringify(sanitized).includes("private"), false);
+});
+
 test("Tencent RUM metric policy drops empty metric batches", () => {
   assert.equal(
     sanitizeTencentRumEnvelope({
@@ -171,7 +222,8 @@ test("Tencent RUM adapter locks privacy-sensitive SDK switches off", async () =>
     "blankScreen: false",
     "apiDetail: false",
     "reportRequest: false",
-    'resHeaders: ["x-request-id"]'
+    'resHeaders: ["x-request-id"]',
+    "extractTencentRumResponseRequestId(context)"
   ]) {
     assert.equal(source.includes(required), true, `missing privacy lock: ${required}`);
   }

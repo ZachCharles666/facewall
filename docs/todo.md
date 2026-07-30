@@ -2293,7 +2293,10 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 官方大陆 whitelist 修正已进入 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 并推送；归档 SHA-256=`6743b4635451cdc214905e73a1247ddc1d9dbe4fc3acc20e35a24bc9d6996105` 在 staging 对账通过，detached build 完成 71/71、typecheck、source security 197、33/33 build、bundle security 58，3005 隔离与公网 smoke/security/readiness Pass。
 - [x] 3005 无痕页排除扩展噪声后确认 adapter、Aegis instance 和 whitelist/rateConfig/log 最终 endpoint 均正确，但 telemetry resource 仍为空。锁定 SDK 实现表明两个官方控制面请求都以 `whiteList/null` 经过 `beforeRequest`，现有 sanitizer 对空 envelope 返回 false，导致请求在网络层前取消。
 - [x] 本地最小修正仅允许严格的 `logType="whiteList"` + `logs=null` 控制面形态；任何携带对象、payload 或用户数据的同类型 envelope 继续拒绝。定向契约 10/10、internal-beta 72/72、typecheck、production build 33/33、source security 197、bundle security 60 和 `git diff --check` Pass。
-- [ ] 经新的明确授权 stage/commit/push 严格控制面放行修正，从确定 commit 构建下一候选；确认 whitelist 只含允许的匿名技术字段、receiver 恢复且 API 监控可对账同一 requestId。完成前 OBS-002/003 保持 Partial。
+- [x] 控制面放行修正进入 commit `843386d079cf4ecc229522691b0d9eb20a3a911e` 并推送；归档 SHA-256=`2afc4e6709724149e1018ead6204828deb9f301d0247d3223475fe9194afab3f` 在 staging 对账通过。detached build 完成 72/72、typecheck、source security 197、33/33 build、bundle security 58，3006 隔离与公网 smoke/security/readiness Pass。
+- [x] 3006 无痕 Network 取得 whitelist/rateConfig GET 200，均无 body/Cookie/Authorization 且只有匿名技术字段；单次受控错误使本地 client-error POST 200 与大陆 collect preflight/actual 200/204；Session 401 和唯一只读 API 分别产生 `/speed` POST 204，payload 仅含归一化 path/method/status/duration 和匿名 SDK 元数据，无用户正文。
+- [x] Session response requestId 与 3006 PM2 warn JSON 精确对应；真实 `/speed` payload 证明锁定 SDK 在 `apiDetail=false` 时不把配置的 `resHeaders` 写入 duration record，因而尚不能完成 RUM requestId 对账。当前本地修正只从 Fetch Response/XHR context 提取合法 requestId，经 retcode 通道加入 speed sanitizer，仍保持正文/detail 关闭；定向契约 11/11、internal-beta 73/73、typecheck、source security 197、build 33/33、bundle security 61 Pass。
+- [ ] 经新的明确授权 stage/commit/push response requestId 最小修正；下一候选构建前把 RUM release version 更新为该 source commit（不得输出配置值），再复验 `/speed` payload 与腾讯云 API Monitor 同 requestId。完成前 OBS-002/003 保持 Partial。
 - [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
 - [ ] OBS-001～004 全部保持 Partial：前端真实错误和首条 captured payload 已取得；仍缺服务端外部接收、API requestId 远端对账、配置请求偏差处理及服务端/DB/备份外部故障与恢复通知。
 - [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。

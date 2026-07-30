@@ -3,6 +3,7 @@
 import type Aegis from "aegis-web-sdk";
 
 import {
+  extractTencentRumResponseRequestId,
   isTencentRumEnabled,
   sanitizeRumUrl,
   sanitizeTencentRumClientError,
@@ -92,8 +93,16 @@ export function initializeTencentRum() {
           reportRequest: false,
           reqHeaders: [],
           resHeaders: ["x-request-id"],
-          retCodeHandler() {
-            return { isErr: false, code: "unknown" };
+          retCodeHandler(
+            _responseBody: unknown,
+            _url: string,
+            context: unknown
+          ) {
+            return {
+              isErr: false,
+              code:
+                extractTencentRumResponseRequestId(context) ?? "unknown"
+            };
           }
         },
         beforeRequest(value: TencentRumEnvelope) {

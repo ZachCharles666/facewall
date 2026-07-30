@@ -109,6 +109,19 @@
 - 当前未提交修正只允许严格的 `whiteList/null` 控制面形态；携带对象、payload 或用户数据的同类型 envelope 仍返回 false。定向契约 10/10、full internal-beta 72/72、typecheck、production build 33/33、source security 197 files、bundle security 60 files 和 `git diff --check` Pass。
 - 本次干净诊断没有再触发受控错误、Session、OTP 或外部告警。OBS-002/003 继续 Partial。
 
+## 3006 Control-Plane And Receiver Recheck — 2026-07-30
+
+- 严格 `whiteList/null` 放行修正进入 commit `843386d079cf4ecc229522691b0d9eb20a3a911e` 并推送。确定 commit 归档 SHA-256 为 `2afc4e6709724149e1018ead6204828deb9f301d0247d3223475fe9194afab3f`；425 entries、禁入路径 0、必需文件缺失 0。
+- staging detached build 完成 72/72 internal-beta、typecheck、source security（197 files）、production build 33/33、bundle security（58 files）。`facewall-rum-controlplane-candidate` 在 3006 的隔离 health/root/anonymous session/OTP GET/production fixture 为 200/200/401/405/404，RUM bundle ID、mainland host、whitelist path 与 config key 均 present。
+- Nginx/readiness 已从 3005 切至 3006；公网同组 smoke、安全头与 readiness oneshot 为 Pass。首次 detached cutover 的 shell 变量在 transient unit 边界被错误展开，导致两个备份落到同一根目录隐藏文件；在线配置未因此损坏。随后从当前 3006 配置仅反向替换端口，重建并逐字节验证 3005 回滚副本：`/etc/nginx/conf.d/facewall.conf.pre-ib09controlplane-reconstructed-20260730-214834` 和 `/etc/passbuddy/readiness.env.pre-ib09controlplane-reconstructed-20260730-214834`。异常根目录文件保留，未删除。
+- 干净 Network 首次取得官方 `/collect/whitelist` 与 `/rateConfig`，均为 GET 200、无 request body、Cookie 或 Authorization；query 只含 SDK application/anonymous/version/environment/session/referrer/network 等技术键，未见简历、JD、答案、报告、邮箱或真实用户/设备身份。
+- 单次受控前端错误使第一方 `/api/monitor/client-error` POST 200，并使大陆 `/collect` 完成 CORS preflight/actual 200/204；payload 人工复核无用户正文。未发送 OTP、邮件、微信或其他真实告警。
+- 匿名 Session 401 返回合法 response requestId；同一 ID 在 3006 PM2 warn JSON 中精确对应 `api.request.completed`、`/api/auth/session`、GET、401、`AUTH_REQUIRED`。Session 与一个此前未请求的只读 API 又分别产生真实 `/speed` receiver；两条 POST 均为 204，记录只含归一化 path、HTTPS、method、status、duration、ret、anonymous 环境元数据，没有 request/response body 或用户内容。
+- 真实 payload 同时暴露剩余 OBS-003 缺口：Aegis 1.41.14 在 `apiDetail=false` 时虽然读取配置的 `resHeaders`，却只把它用于异常详情文本，不写入 duration record，因此两条 `/speed` payload 都没有 response requestId。该结果推翻了“仅配置 `resHeaders` 即可进入 speed payload”的本地假设。
+- 本地最小修正保持 `apiDetail=false`、`reportRequest=false` 和全部正文禁采：从 SDK 已传入 `retCodeHandler` 的 Fetch `Response`/XHR context 只读取通过 allowlist regex 的 `x-request-id`，经 SDK retcode 字段进入 speed record，再由 sanitizer 显式提升为 `requestId`。定向 RUM contract 11/11、full internal-beta 73/73、typecheck、source security 197、production build 33/33、bundle security 61 均 Pass。
+- Network 还显示当前 RUM release version 没有对应 3006 的确定 commit。下一候选构建前必须在不输出配置值的前提下把 `NEXT_PUBLIC_RELEASE_VERSION` 更新为该候选 source commit，再执行 build。
+- OBS-002/003 继续 Partial：前端控制面、错误 receiver、API speed、隐私 payload 和 response→server log 已取得真实证据；仍需部署上述 requestId 修正并在真实 `/speed` payload/腾讯云 API Monitor 中对账同一 requestId。服务端异常外部接收与告警触发/恢复仍不在本轮证据内。
+
 ## Cost/Stop Boundary
 
 - 控制台抽样只能降低上报量，不等于账号级自动硬停或费用封顶。

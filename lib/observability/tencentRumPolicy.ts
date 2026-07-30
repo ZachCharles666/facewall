@@ -43,6 +43,38 @@ export function isTencentRumEnabled(
   return enabled === "true" && RUM_ID_PATTERN.test(projectId ?? "");
 }
 
+export function extractTencentRumResponseRequestId(context: unknown) {
+  if (!context || typeof context !== "object") return undefined;
+  try {
+    const headers = (context as { headers?: unknown }).headers;
+    if (headers && typeof headers === "object") {
+      const get = (headers as { get?: unknown }).get;
+      if (typeof get === "function") {
+        const requestId = String(
+          (get as (name: string) => unknown).call(headers, "x-request-id") ?? ""
+        ).trim();
+        return REQUEST_ID_PATTERN.test(requestId) ? requestId : undefined;
+      }
+    }
+
+    const getResponseHeader = (
+      context as { getResponseHeader?: unknown }
+    ).getResponseHeader;
+    if (typeof getResponseHeader === "function") {
+      const requestId = String(
+        (getResponseHeader as (name: string) => unknown).call(
+          context,
+          "x-request-id"
+        ) ?? ""
+      ).trim();
+      return REQUEST_ID_PATTERN.test(requestId) ? requestId : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 function normalizePathSegments(pathname: string) {
   const normalized = pathname
     .split("/")
@@ -101,6 +133,14 @@ function extractRequestId(value: unknown, depth = 0): string | undefined {
   return undefined;
 }
 
+function extractMetricRequestId(value: unknown) {
+  const nestedRequestId = extractRequestId(value);
+  if (nestedRequestId) return nestedRequestId;
+  if (!value || typeof value !== "object") return undefined;
+  const ret = String((value as Record<string, unknown>).ret ?? "");
+  return REQUEST_ID_PATTERN.test(ret) ? ret : undefined;
+}
+
 function sanitizeMetricValue(value: unknown, key: string, depth: number): unknown {
   if (/^(x-request-id|requestId)$/i.test(key)) {
     const requestId = String(value ?? "");
@@ -150,7 +190,7 @@ function hasMetricData(value: unknown): boolean {
 
 function sanitizeMetricRecord(value: unknown) {
   if (!value || typeof value !== "object") return {};
-  const requestId = extractRequestId(value);
+  const requestId = extractMetricRequestId(value);
   const sanitized = sanitizeMetricValue(value, "root", 0);
   if (!sanitized || typeof sanitized !== "object" || Array.isArray(sanitized)) {
     return requestId ? { requestId } : {};
