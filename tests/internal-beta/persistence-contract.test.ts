@@ -1,20 +1,36 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 async function source(path: string) {
   return (await readFile(new URL(`../../${path}`, import.meta.url), "utf8")).replaceAll("\r\n", "\n");
 }
 
-test("Juju runtime image imports remain release-archive inputs", async () => {
-  const assets = [
-    "面壁者/avatar__342-897@2x.png",
-    "面壁者/B_01__326-805@2x.png",
-    "面壁者/B_01__326-806@2x.png",
-    "面壁者/message__295-1277@2x.png",
-    "面壁者/voice_S__379-1437@2x.png"
-  ];
+test("all ignored-source runtime image imports remain release-archive inputs", async () => {
+  const assets = new Set<string>();
   const ignoreRules = await source(".gitignore");
+
+  async function scan(directory: URL) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const target = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+      if (entry.isDirectory()) {
+        await scan(target);
+      } else if (/\.[cm]?[jt]sx?$/.test(entry.name)) {
+        const contents = await readFile(target, "utf8");
+        for (const match of contents.matchAll(/from\s+["']@\/(面壁者\/[^"']+)["']/g)) {
+          assets.add(match[1]);
+        }
+      }
+    }
+  }
+
+  await Promise.all([
+    scan(new URL("../../app/", import.meta.url)),
+    scan(new URL("../../components/", import.meta.url)),
+    scan(new URL("../../lib/", import.meta.url))
+  ]);
+  assert.equal(assets.size, 10);
 
   for (const asset of assets) {
     await access(new URL(`../../${asset}`, import.meta.url));
