@@ -1,5 +1,14 @@
 # 面试嘴替教练开发 TODO
 
+## 外测候选回并与 GitHub 归档 - 2026-08-02
+
+- [x] 将 `codex/external-beta-20260802` 无损合并回 `D:\hackthon\facewall` 的 `release/preview`；合并前以保护提交保存主目录全部既有非敏感修改，未 reset、checkout、stash、clean 或删除用户文件。
+- [x] 合并后移除 Git 自动保留的两段旧实现残留，业务代码树与已验证候选一致；`.env.local` 保留在主目录并继续由 `.gitignore` 排除。
+- [x] `release/preview` 已推送 GitHub；源码扫描、typecheck、internal-beta 96/96、production build、客户端 bundle 密钥扫描和 `git diff --check` 均通过。
+- [x] 生成仅含 Git 跟踪源码/素材的 SCP 发布归档，排除 `.env.local`、`outputs`、`.next`、`node_modules`、coverage 与日志。
+- [ ] 公网尚未切换：需恢复 Lighthouse SSH/SCP 身份访问，先部署到新候选端口并完成隔离 smoke，再保留 3007 作为回滚并切换 Nginx/readiness。
+- [ ] 外测前需落实稳定 LLM 主备链；`Hy3 Preview` 不再使用，当前 NVIDIA Hosted 的 529/长延迟风险不适合作为唯一真实报告 provider。
+
 ## Juju 额度耗尽提示优化 - 2026-08-02
 
 - [x] 第 4 次创建面试被服务端以 `SESSION_QUOTA_EXHAUSTED` 拒绝时，Juju 显示独立的“3/3 次额度已用完”弹窗。
