@@ -24,6 +24,16 @@ npm run dev
 
 如果没有 LLM 或 Azure key，也可以直接演示：点击 `填充并生成画像`，系统会使用内置演示兜底样例完成主流程。
 
+## Theme URLs
+
+- `http://localhost:3000/?theme=figma`：正式视觉主题，不展示 prompt 调试窗口。
+- `http://localhost:3000/?theme=classic`：低保真调试主题，展示产品 Prompt 调试窗口，可调整画像、题目、报告 prompt 并直接跑链路验证。
+
+Prompt 调试面板支持两种状态：
+
+- 草稿测试：在 classic 里编辑后直接跑当前流程，会用本页草稿 prompt 生成内容。
+- 保存为全局 Prompt：点击保存后写入服务端 `outputs/active-prompt-overrides.json`，之后 `theme=figma` 和所有未传草稿覆盖的 LLM 请求都会默认使用这份 prompt；Node 服务重启后仍会读取该文件。
+
 ## Local Checks
 
 ```bash
@@ -68,6 +78,7 @@ npm run security:check
 
 - `FACEWALL_DEMO_MODE=auto|fallback`
 - `FACEWALL_DEV_FAULTS=llm,tts`
+- `FACEWALL_PROMPT_STORE_PATH`：可选，指定全局 Prompt 持久化 JSON 文件路径；默认 `outputs/active-prompt-overrides.json`
 
 这些开发控制只在非生产运行时生效。生产构建不会展示前端 Demo Ops 面板。
 
@@ -100,7 +111,18 @@ npm run security:check
 
 ## Deployment Notes
 
-推荐部署到支持 Next.js App Router 的平台，例如 Vercel。
+推荐部署到支持 Next.js App Router 的平台，例如 Vercel 或腾讯云服务器自托管 Node.js。
+
+腾讯云服务器自托管时，建议用同一套 Next.js 构建对外提供两个主题 URL：
+
+- `https://your-domain/?theme=figma`
+- `https://your-domain/?theme=classic`
+
+反向代理或网关必须保留 query string，不能把 `?theme=classic` / `?theme=figma` 重写丢失。只要环境变量和构建版本一致，公网访问不同主题与本地 `http://localhost:3000/?theme=...` 的效果应一致。
+
+全局 Prompt 保存依赖服务器本地磁盘。腾讯云 CVM 单机部署时，确保项目目录或 `FACEWALL_PROMPT_STORE_PATH` 指向持久云硬盘路径，并随应用一起备份；多实例部署时需要共享存储或数据库，否则每台实例会各自保存一份 Prompt。
+
+当前 `theme=classic` 和 `/api/prompts/active` 是产品调试入口。外网开放时建议只给产品使用的域名、路径或访问控制暴露，避免无关用户修改全局 Prompt。
 
 部署前：
 

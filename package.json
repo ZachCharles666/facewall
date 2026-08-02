@@ -5,20 +5,47 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "smoke:contract": "node scripts/contract-smoke.mjs",
     "smoke:file-parse": "node scripts/file-parse-smoke.mjs",
-    "security:check": "node scripts/security-check.mjs"
+    "security:check": "node scripts/security-check.mjs",
+    "security:bundle": "node scripts/client-bundle-secret-check.mjs",
+    "staging:llm-probe": "tsx scripts/staging/passbuddy-llm-fixture-probe.ts",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "ses:probe": "tsx scripts/ses-probe.ts",
+    "ses:probe:send": "tsx scripts/ses-probe.ts --send",
+    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts",
+    "test:internal-beta": "tsx --test tests/internal-beta/*.test.ts",
+    "test:internal-beta:db": "tsx tests/internal-beta/database.integration.ts",
+    "test:internal-beta:privacy-db": "node --conditions=react-server --import tsx tests/internal-beta/privacy-database.integration.ts",
+    "test:internal-beta:feedback-db": "node --conditions=react-server --import tsx tests/internal-beta/feedback-events-database.integration.ts",
+    "test:internal-beta:admin-db": "node --conditions=react-server --import tsx tests/internal-beta/admin-observability-database.integration.ts",
+    "test:internal-beta:security-db": "tsx tests/internal-beta/security-database.integration.ts",
+    "test:internal-beta:auth-recovery": "node --conditions=react-server --import tsx tests/internal-beta/auth-recovery-route.integration.ts",
+    "test:internal-beta:auth-invite-negative": "node --conditions=react-server --import tsx tests/internal-beta/auth-invite-negative-route.integration.ts",
+    "smoke:persistence": "tsx scripts/persistence-smoke.ts",
+    "smoke:privacy": "tsx scripts/privacy-api-smoke.ts",
+    "smoke:admin-observability": "tsx scripts/admin-observability-smoke.ts",
+    "smoke:security": "tsx scripts/security-api-smoke.ts"
   },
   "dependencies": {
+    "aegis-web-sdk": "1.41.14",
+    "better-auth": "^1.6.25",
     "next": "^15.3.4",
+    "pg": "^8.22.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "tencentcloud-sdk-nodejs": "^4.1.275"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
     "@types/node": "^22.15.32",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
+    "tsx": "^4.23.1",
     "typescript": "^5.8.3"
   }
 }

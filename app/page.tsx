@@ -1,11 +1,29 @@
 import { InterviewCoachApp } from "@/components/InterviewCoachApp";
+import { AuthGate } from "@/components/auth/AuthGate";
+import {
+  isInternalBetaAuthEnabled,
+  readInterviewPersistenceMode
+} from "@/lib/config/internalBeta";
+import type { VisualTheme } from "@/lib/types";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function Home({ searchParams }: { searchParams?: PageSearchParams }) {
   const params = searchParams ? await searchParams : {};
   const rawTheme = Array.isArray(params.theme) ? params.theme[0] : params.theme;
-  const visualTheme = rawTheme === "classic" ? "classic" : "figma";
+  const visualTheme: VisualTheme =
+    rawTheme === "classic" ? "classic" : rawTheme === "figma" ? "figma" : "juju";
+  const jujuAuthEnabled =
+    visualTheme === "juju" && isInternalBetaAuthEnabled();
+  const persistenceMode =
+    visualTheme === "juju" ? readInterviewPersistenceMode() : "off";
 
-  return <InterviewCoachApp initialVisualTheme={visualTheme} />;
+  return (
+    <AuthGate enabled={jujuAuthEnabled} visualTheme={visualTheme}>
+      <InterviewCoachApp
+        initialPersistenceMode={persistenceMode}
+        initialVisualTheme={visualTheme}
+      />
+    </AuthGate>
+  );
 }

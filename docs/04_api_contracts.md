@@ -155,9 +155,12 @@
       "durationSec": 72,
       "sttStatus": "success|failed|unsupported|manual"
     }
-  ]
+  ],
+  "interviewerStyleId": "strictHr"
 }
 ```
+
+> `interviewerStyleId` 为**可选**字段。传入时，报告链路会按对应面试官的评分/诊断倾向调整评价侧重与口吻；不传或非法时优雅降级为中性报告 prompt。不进入 `validateReportRequest` 必填校验，因此老调用方不受影响。`generate-stream` 与 `regenerate-question` 复用同一 request，因此也支持该可选字段。
 
 ### Response data
 
@@ -295,7 +298,47 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 
 返回 `audio/mpeg` 或 `audio/wav` 二进制音频。
 
-## 7. Stable Enums
+### Provider Failover Rules
+
+- 公开接口保持不变；客户端不直接持有任何语音 provider 密钥。
+- 服务端顺序为 Azure 主 provider → 已配置的备用 TTS provider；每个 provider 在一次用户操作中最多调用一次，并使用有界短超时。
+- 只有 provider 超时、网络错误、429 或 5xx 才允许切换；空文本、非法参数等 4xx 输入错误直接返回，不消耗备用 provider。
+- 两个服务端 provider 均失败时，前端继续使用 Web Speech；浏览器能力也不可用时仍显示题目文本，不阻断面试流程。
+- 日志/监控只记录 provider 标识、结果、latency、attempts 和 requestId，不记录朗读正文、密钥或 provider 原始响应。
+- 备用 provider 的真实厂商、地域、计费和数据处理边界是 G1 前门禁；未选择时不得用本地 stub 宣称冗余完成。
+
+## 7. POST /api/stt
+
+Azure Speech-to-Text 短音频识别接口。前端录制单声道 16k PCM WAV 后提交给服务端；服务端使用 `AZURE_SPEECH_KEY` 和 `AZURE_SPEECH_REGION` 调 Azure STT，不向前端暴露密钥。
+
+### Request
+
+Body 为二进制音频，推荐请求头：
+
+```http
+Content-Type: audio/wav
+```
+
+### Response
+
+```json
+{
+  "text": "识别出的中文文本"
+}
+```
+
+### Rules
+
+- 该接口仅用于短音频 Demo 识别；长音频、实时流式字幕、音频上传存储不在本轮范围内。
+- 服务端顺序为 Azure 主 provider → 已配置的备用 STT provider；每个 provider 在一次用户操作中最多调用一次，并使用有界短超时。
+- 只有 provider 超时、网络错误、429 或 5xx 才允许切换；空音频、格式错误等 4xx 输入错误不得触发备用 provider。
+- 失败时前端必须保留已有答案文本，并允许重试或手动编辑。
+- 两个服务端 provider 均失败后，可使用浏览器 SpeechRecognition；浏览器能力也不可用时进入手动编辑。
+- 原始音频只在当前识别请求内存中短暂处理，不落数据库、文件、日志、监控或事件；技术记录只含 provider、时长、latency、attempts、结果和 requestId。
+- 备用 provider 未完成真实中文录音、隐私 payload 和故障切换验证前，不能把本地 adapter/mock 计为通过。
+- 非 HTTPS 公网页面通常无法稳定获取麦克风权限；线上演示应优先使用 HTTPS。
+
+## 8. Stable Enums
 
 | Enum | Values |
 | --- | --- |
@@ -305,7 +348,7 @@ data: {"code":"LLM_PROVIDER_FAILED","message":"报告生成失败，请重试","
 | `ttsStatus` | `idle`, `loading`, `speaking`, `ended`, `failed`, `unsupported` |
 | `sessionStep` | `setup`, `profile`, `questions`, `interview`, `report` |
 
-## 8. Prompt Output Rules
+## 9. Prompt Output Rules
 
 - LLM 返回必须能被 JSON 解析。
 - 不得编造用户未提供的硬事实，例如公司名、数据指标、获奖经历。

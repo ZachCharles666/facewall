@@ -1,0 +1,15 @@
+[Unit]
+Description=PassBuddy staging local readiness and backup check
+After=network-online.target postgresql.service passbuddy-db-backup.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/passbuddy/readiness.env
+ExecStart=/usr/local/sbin/passbuddy-local-readiness
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadOnlyPaths=/var/backups/passbuddy /home/ubuntu/.pm2

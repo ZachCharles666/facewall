@@ -13,7 +13,20 @@ const scanEntries = [
   "AGENTS.md",
   "package.json"
 ];
-const allowedExtensions = new Set([".ts", ".tsx", ".js", ".mjs", ".md", ".json", ".css", ".html", ".example"]);
+const allowedExtensions = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".md",
+  ".json",
+  ".css",
+  ".html",
+  ".example",
+  ".sh",
+  ".service",
+  ".timer"
+]);
 const ignoredNames = new Set(["node_modules", ".next", ".git", ".env.local", "package-lock.json"]);
 const secretPatterns = [
   { name: "OpenAI-style API key", pattern: /sk-[A-Za-z0-9_-]{20,}/ },

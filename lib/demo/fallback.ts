@@ -6,9 +6,9 @@ const SHORT_ANSWER_CHAR_LIMIT = 30;
 const OFF_TOPIC_PATTERN = /天气|篮球|电影|旅游|美食|游戏|唱歌|明星|综艺/;
 
 const styleLead: Record<InterviewerStyleId, string> = {
-  strictHr: "我会直接一点。",
+  strictHr: "我们先从基础问题开始。",
   techBro: "我们把细节拆开看。",
-  gentleSister: "你可以慢慢讲清楚。"
+  gentleSister: "我会更关注业务取舍。"
 };
 
 export function buildFallbackQuestions(interviewerStyleId: InterviewerStyleId) {
@@ -33,7 +33,9 @@ export function buildFallbackReport(questions: InterviewQuestion[], answers: Int
     questionReports,
     finalReport: {
       ...demoReport.finalReport,
-      overallScore: Math.max(40, Math.round(questionReports.reduce((sum, item) => sum + item.score, 0) / questionReports.length)),
+      overallScore: questionReports.length
+        ? Math.round(questionReports.reduce((sum, item) => sum + item.score, 0) / questionReports.length)
+        : 0,
       summary:
         missingCount > 0
           ? `当前有 ${missingCount} 道题缺少答案。系统保留问题和已填答案，不会编造缺失内容。`
@@ -49,14 +51,14 @@ function buildQuestionReport(base: QuestionReport, answerText: string): Question
   if (!normalizedAnswer) {
     return {
       ...base,
-      score: 35,
+      score: 0,
       dimensionScores: {
-        jobRelevance: 6,
-        structure: 5,
-        evidence: 4,
-        professionalExpression: 8,
-        truthBoundary: 8,
-        completeness: 4
+        jobRelevance: 0,
+        structure: 0,
+        evidence: 0,
+        professionalExpression: 0,
+        truthBoundary: 0,
+        completeness: 0
       },
       riskTags: ["缺失答案", "无法评估证据"],
       fatalIssue: "该题没有有效答案，报告不会替用户编造回答。",

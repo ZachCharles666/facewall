@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <filter id="shadowBlur" x="4" y="7" width="56" height="56" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+    <filter id="colorBlur" x="0" y="0" width="64" height="64" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <linearGradient id="blueGlow" x1="13.4" y1="13.4" x2="50.5" y2="50.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0055FF"/>
+      <stop offset="0.34" stop-color="#00AAFF"/>
+      <stop offset="0.68" stop-color="#EBF1FF"/>
+      <stop offset="1" stop-color="#4D6AFF"/>
+    </linearGradient>
+    <linearGradient id="pinkGlow" x1="20.2" y1="20.2" x2="43.9" y2="43.9" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF4DFF"/>
+      <stop offset="0.38" stop-color="#F8EBFF"/>
+      <stop offset="0.7" stop-color="#BB33FF"/>
+      <stop offset="1" stop-color="#FF00FF"/>
+    </linearGradient>
+    <clipPath id="orbClip">
+      <circle cx="32" cy="32" r="20.5"/>
+    </clipPath>
+  </defs>
+  <g filter="url(#shadowBlur)" opacity="0.8">
+    <circle cx="32" cy="35.2" r="20.5" fill="#FFFFFF"/>
+    <g clip-path="url(#orbClip)" filter="url(#colorBlur)">
+      <circle cx="32" cy="35.2" r="18.55" fill="url(#blueGlow)"/>
+      <circle cx="32.05" cy="35.25" r="11.85" fill="url(#pinkGlow)"/>
+      <ellipse cx="24.15" cy="28" rx="7.85" ry="6.2" fill="#0055FF"/>
+    </g>
+  </g>
+  <circle cx="32" cy="32" r="20.5" fill="#FFFFFF"/>
+  <g clip-path="url(#orbClip)" filter="url(#colorBlur)">
+    <circle cx="32" cy="32" r="18.55" fill="url(#blueGlow)"/>
+    <circle cx="32.05" cy="32.05" r="11.85" fill="url(#pinkGlow)"/>
+    <ellipse cx="24.15" cy="21.6" rx="7.85" ry="6.2" fill="#0055FF"/>
+  </g>
+</svg>

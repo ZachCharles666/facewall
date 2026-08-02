@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { regenerateQuestionReport, toReportGenerationError } from "@/lib/report/generation";
 import { errorResponse, okResponse, validateReportRequest } from "@/lib/schemas/contracts";
 import type { QuestionReport } from "@/lib/types";
+import { observeRoute } from "@/lib/observability/route";
 
 function hasQuestionId(value: unknown): value is { questionId: string } {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) && typeof (value as { questionId?: unknown }).questionId === "string";
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -32,4 +33,12 @@ export async function POST(request: Request) {
       status: reportError.status
     });
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(
+    request,
+    { route: "/api/report/regenerate-question", critical: true },
+    () => handlePost(request)
+  );
 }

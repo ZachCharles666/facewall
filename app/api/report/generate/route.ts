@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { generateInterviewReport, toReportGenerationError } from "@/lib/report/generation";
+import { generateInterviewReportWithMeasurement, toReportGenerationError } from "@/lib/report/generation";
 import { errorResponse, okResponse, validateReportRequest } from "@/lib/schemas/contracts";
+import { observeRoute } from "@/lib/observability/route";
 import type { InterviewReport } from "@/lib/types";
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -16,12 +17,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const report = await generateInterviewReport(payload, request);
-    return NextResponse.json(okResponse(report));
+    const result = await generateInterviewReportWithMeasurement(payload, request);
+    return NextResponse.json(
+      okResponse(result.data, { generation: result.measurement })
+    );
   } catch (error) {
     const reportError = toReportGenerationError(error);
     return NextResponse.json(errorResponse<InterviewReport>(reportError.code, reportError.message, reportError.retryable), {
       status: reportError.status
     });
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(
+    request,
+    { route: "/api/report/generate", critical: true },
+    () => handlePost(request)
+  );
 }

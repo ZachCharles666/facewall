@@ -1,0 +1,65 @@
+{
+  "date": "2026-07-26",
+  "method": "manual browser interaction plus fixture-only PostgreSQL reconciliation",
+  "otpSent": false,
+  "session003": {
+    "refreshRecovery": true,
+    "nodeRestartRecovery": true,
+    "otpReloginRecovery": false,
+    "status": "Partial",
+    "reason": "No new OTP was permitted; a signed fixture cookie was not counted as real OTP relogin evidence."
+  },
+  "session004": {
+    "uiDraftRetained": true,
+    "authoritativeDatabaseStatus": "draft",
+    "authoritativeDatabaseVersion": 1,
+    "profileMilestoneEvents": 0,
+    "completionEvents": 0,
+    "status": "Pass"
+  },
+  "feedback": {
+    "themes": {
+      "figma": {
+        "submit": true,
+        "failureNonBlocking": true,
+        "skipNonBlocking": true,
+        "copy": true
+      },
+      "juju": {
+        "submit": true,
+        "failureNonBlocking": true,
+        "skipNonBlocking": true,
+        "copy": true
+      },
+      "classic": {
+        "submit": true,
+        "failureNonBlocking": true,
+        "skipNonBlocking": true,
+        "copy": true
+      }
+    },
+    "databaseReconciled": true,
+    "sensitiveEventBodyMatches": 0,
+    "status": "Pass"
+  },
+  "admin": {
+    "metricsVisible": true,
+    "schoolCreate": true,
+    "inviteBatchCreate": true,
+    "inviteDisable": true,
+    "ordinaryUserApiStatus": 403,
+    "ordinaryUserPageStatus": 404,
+    "defaultMaxUses": 1,
+    "batchListRefreshWithoutManualReload": true,
+    "auditContainsPlaintextInvite": false,
+    "status": "Pass"
+  },
+  "consentPrivacy390x844": {
+    "figma": true,
+    "juju": true,
+    "classic": true,
+    "horizontalOverflow": false,
+    "legalTextFrozen": false,
+    "localVisualStatus": "Pass"
+  }
+}

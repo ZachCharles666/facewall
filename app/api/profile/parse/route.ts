@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErrorCode } from "@/lib/ai/provider";
+import { fallbackMeasurement, llmMeasurement } from "@/lib/ai/measurement";
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { demoScenario } from "@/lib/demo/scenario";
 import { buildProfilePrompt } from "@/lib/prompts/interview";
+import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
 import { errorResponse, okResponse, validateProfileOutput, validateSetupPayload } from "@/lib/schemas/contracts";
+import { structuredLog } from "@/lib/observability/logger";
+import { observeRoute } from "@/lib/observability/route";
 import type { CandidateProfile } from "@/lib/types";
 
 function getSafeLlmRuntimeInfo() {
@@ -18,11 +22,11 @@ function getSafeLlmRuntimeInfo() {
   return { host, model };
 }
 
-function logProfileMode(mode: string, extra?: Record<string, string | number | boolean>) {
-  console.info("[profile/parse]", JSON.stringify({ mode, ...extra }));
+function logProfileMode(mode: string, extra?: Record<string, string | number | boolean | null>) {
+  structuredLog("info", "profile.generate", { mode, ...extra });
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -46,24 +50,42 @@ export async function POST(request: Request) {
 
   if (shouldForceDemoFallback(request)) {
     logProfileMode("forced_demo_fallback");
-    return NextResponse.json(okResponse(demoScenario.candidateProfile));
+    return NextResponse.json(
+      okResponse(demoScenario.candidateProfile, {
+        generation: fallbackMeasurement()
+      })
+    );
   }
 
   if (!isLlmConfigured()) {
     logProfileMode("no_llm_configured_demo_fallback");
-    return NextResponse.json(okResponse(demoScenario.candidateProfile));
+    return NextResponse.json(
+      okResponse(demoScenario.candidateProfile, {
+        generation: fallbackMeasurement()
+      })
+    );
   }
 
   const timeout = createTimeoutSignal();
   try {
     logProfileMode("llm_request", getSafeLlmRuntimeInfo());
-    const result = await generateJsonWithRetry(buildProfilePrompt(payload), { signal: timeout.signal });
+    const promptOverrides = await resolvePromptOverrides(payload);
+    const result = await generateJsonWithRetry(buildProfilePrompt(payload, promptOverrides), {
+      signal: timeout.signal,
+      maxAttempts: process.env.PASSBUDDY_LLM_MAX_ATTEMPTS === "1" ? 1 : 2
+    });
     const profile = validateProfileOutput(result.json);
     logProfileMode("llm_success", {
       sourceMatches: profile.sourceMatches.length,
-      matchedPoints: profile.matchedPoints.length
+      matchedPoints: profile.matchedPoints.length,
+      latencyMs: result.latencyMs,
+      attempts: result.attempts,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens
     });
-    return NextResponse.json(okResponse(profile));
+    return NextResponse.json(
+      okResponse(profile, { generation: llmMeasurement(result) })
+    );
   } catch (error) {
     const code = getLlmErrorCode(error);
     logProfileMode("llm_failed", { code });
@@ -75,4 +97,12 @@ export async function POST(request: Request) {
   } finally {
     timeout.clear();
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(
+    request,
+    { route: "/api/profile/parse", critical: true },
+    () => handlePost(request)
+  );
 }

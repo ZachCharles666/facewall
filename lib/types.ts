@@ -1,5 +1,7 @@
 export type InterviewerStyleId = "strictHr" | "techBro" | "gentleSister";
 
+export type VisualTheme = "classic" | "figma" | "juju";
+
 export type InputMode = "voice" | "text" | "edited";
 
 export type SttStatus = "idle" | "recording" | "success" | "failed" | "unsupported" | "manual";
@@ -9,6 +11,33 @@ export type TtsStatus = "idle" | "loading" | "speaking" | "ended" | "failed" | "
 export type TtsEngine = "azure" | "web";
 
 export type SessionStep = "setup" | "profile" | "questions" | "interview" | "report";
+
+export type PersistedSessionStatus =
+  | "draft"
+  | "profile_ready"
+  | "questions_ready"
+  | "in_progress"
+  | "report_ready"
+  | "completed"
+  | "abandoned";
+
+export type GenerationSource = "llm" | "demo_fallback" | "mixed";
+
+export interface GenerationMeasurement {
+  source: GenerationSource;
+  provider: string | null;
+  model: string | null;
+  latencyMs: number | null;
+  attempts: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  requestId: string | null;
+}
+
+export interface GenerationResult<T> {
+  data: T;
+  measurement: GenerationMeasurement;
+}
 
 export type QuestionType = "behavior" | "project" | "pressure" | "technical" | "motivation";
 
@@ -28,6 +57,9 @@ export type CommonResponse<T> =
       data: T;
       error: null;
       requestId: string;
+      meta?: {
+        generation?: GenerationMeasurement;
+      };
     }
   | {
       ok: false;
@@ -110,6 +142,25 @@ export interface InterviewReport {
   finalReport: FinalReport;
 }
 
+export interface InterviewerPromptProfile {
+  persona: string;
+  questions: string;
+  report: string;
+}
+
+export interface PromptOverrides {
+  system: string;
+  profile: string;
+  questions: string;
+  report: string;
+  interviewers: Record<InterviewerStyleId, InterviewerPromptProfile>;
+}
+
+export interface PromptStoreSnapshot {
+  promptOverrides: PromptOverrides;
+  updatedAt: string | null;
+}
+
 export interface DemoScenario {
   scenarioId: string;
   label: string;
@@ -128,6 +179,29 @@ export interface SetupForm {
   interviewerStyleId: InterviewerStyleId;
 }
 
+export interface SessionQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+export interface InterviewSessionSnapshot {
+  sessionId: string;
+  status: PersistedSessionStatus;
+  version: number;
+  schemaVersion: number;
+  resumeText: string;
+  jdText: string;
+  interviewerStyleId: InterviewerStyleId;
+  candidateProfile: CandidateProfile | null;
+  questions: InterviewQuestion[];
+  answers: InterviewAnswer[];
+  report: InterviewReport | null;
+  generationSource: GenerationSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface VoiceOption {
   value: string;
   label: string;
@@ -138,4 +212,11 @@ export interface SpeechTuning {
   rate: number;
   pitch: number;
   volume: number;
+}
+
+export type PersonaSpeechTunings = Record<InterviewerStyleId, SpeechTuning>;
+
+export interface SpeechSettingsSnapshot {
+  speechTunings: PersonaSpeechTunings;
+  updatedAt: string | null;
 }

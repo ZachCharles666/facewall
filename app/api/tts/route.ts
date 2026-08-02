@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { isInterviewerStyleId } from "@/lib/schemas/contracts";
 import { personaVoices, toAzurePitch, toAzureRate, toAzureVolume } from "@/lib/speech/settings";
+import { observeRoute } from "@/lib/observability/route";
+import {
+  readTencentSpeechConfig,
+  synthesizeWithTencent
+} from "@/lib/speech/tencentCloud";
+
+export const runtime = "nodejs";
 
 function escapeXml(value: string) {
   return value
@@ -12,17 +19,17 @@ function escapeXml(value: string) {
     .replaceAll("'", "&apos;");
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   if (shouldInjectDevFault(request, "tts")) {
     return NextResponse.json({ error: "开发故障注入：Azure TTS 不可用。" }, { status: 503 });
   }
 
   const azureKey = process.env.AZURE_SPEECH_KEY;
   const azureRegion = process.env.AZURE_SPEECH_REGION || "eastasia";
-
-  if (!azureKey || azureKey === "replace_with_your_azure_speech_key") {
-    return NextResponse.json({ error: "Azure TTS is not configured." }, { status: 503 });
-  }
+  const azureConfigured = Boolean(
+    azureKey && azureKey !== "replace_with_your_azure_speech_key"
+  );
+  const tencentConfigured = Boolean(readTencentSpeechConfig());
 
   let payload: Record<string, unknown>;
   try {
@@ -45,6 +52,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Text is required." }, { status: 400 });
   }
 
+  if (tencentConfigured) {
+    try {
+      const audio = await synthesizeWithTencent({ text, rate: payload.rate as number | string | undefined });
+      return new Response(audio, {
+        status: 200,
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "no-store",
+          "X-Speech-Provider": "tencent"
+        }
+      });
+    } catch {
+      if (!azureConfigured) {
+        return NextResponse.json({ error: "Tencent TTS request failed." }, { status: 502 });
+      }
+    }
+  }
+
+  if (!azureConfigured) {
+    return NextResponse.json({ error: "TTS is not configured." }, { status: 503 });
+  }
+
   const ssml = `
 <speak version="1.0" xml:lang="zh-CN" xmlns="http://www.w3.org/2001/10/synthesis">
   <voice name="${escapeXml(voiceName)}">
@@ -60,7 +89,7 @@ export async function POST(request: Request) {
     const azureResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
-        "Ocp-Apim-Subscription-Key": azureKey,
+        "Ocp-Apim-Subscription-Key": azureKey as string,
         "Content-Type": "application/ssml+xml",
         "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
         "User-Agent": "facewall-next-app"
@@ -77,10 +106,17 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "audio/mpeg",
         "Cache-Control": "no-store",
-        "X-Azure-Voice": voiceName
+        "X-Azure-Voice": voiceName,
+        "X-Speech-Provider": "azure"
       }
     });
   } catch {
     return NextResponse.json({ error: "Failed to reach Azure TTS." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return observeRoute(request, { route: "/api/tts", critical: true }, () =>
+    handlePost(request)
+  );
 }

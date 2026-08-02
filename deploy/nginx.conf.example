@@ -1,0 +1,58 @@
+# 腾讯云自托管 Node 反向代理示例（复制到 /etc/nginx/conf.d/facewall.conf 后按需改域名/证书）
+#
+# 关键点：
+#  1) proxy_pass 后面不带路径，nginx 会原样透传完整 URI（含 ?theme=classic / ?theme=figma）。
+#     不要用 rewrite / try_files 改写请求，否则 query string 丢失，产品就看不到 classic 调试窗。
+#  2) /api/report/generate-stream 是 SSE 流式接口，必须关闭 proxy_buffering，否则报告增量不实时甚至卡住。
+
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # 生产建议上 HTTPS：用 certbot 签证书后，这段会被自动改为 443 + 证书，
+    # 并把 80 端口重定向到 443。麦克风（STT）在非 localhost 下必须 HTTPS 才可用。
+
+    client_max_body_size 10m;   # 允许上传简历/JD 文件解析
+
+    # 全局 Prompt 读写入口：加 HTTP Basic Auth，只给产品用。
+    # 不加保护的话，公网任何能访问的人都能 POST 覆盖全局 prompt（prompt 注入 / 恶意篡改）。
+    # 生成口令文件：sudo htpasswd -c /etc/nginx/facewall.htpasswd product
+    # 草稿测试走请求体 promptOverrides，不经过这个接口，所以产品仍可自由试草稿；
+    # 只有「保存为全局 Prompt」会命中这里，需要输入口令。
+    location /api/prompts/active {
+        auth_basic "Facewall Prompt Admin";
+        auth_basic_user_file /etc/nginx/facewall.htpasswd;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # SSE 流式报告：单独关闭缓冲，保持长连接
+    location /api/report/generate-stream {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+    }
+}

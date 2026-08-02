@@ -8,8 +8,11 @@
 | --- | --- | --- | --- |
 | 公共系统规则 | `lib/prompts/interview.ts` 的 `systemRules` | profile/questions/report 共用 | 已接入 |
 | 候选人画像 prompt | `buildProfilePrompt` | `POST /api/profile/parse` | 已接入 |
-| 题目生成 prompt | `buildQuestionsPrompt` | `POST /api/questions/generate` | 已接入 |
-| 报告生成 prompt | `buildReportPrompt` | `POST /api/report/generate` | 已接入 |
+| 题目生成 prompt（共享基线） | `buildQuestionsPrompt` | `POST /api/questions/generate` | 已接入 |
+| 报告生成 prompt（共享基线） | `buildReportPrompt` | `POST /api/report/generate` | 已接入 |
+| 分面试官 prompt（人设 / 出题 / 评分） | `lib/prompts/productPromptSuite.ts` 的 `defaultInterviewerPrompts`；落盘在 `PromptOverrides.interviewers` | questions/report 链路 | 已接入 |
+
+> 分面试官 prompt 会按 `interviewerStyleId`（`strictHr` / `techBro` / `gentleSister`）注入出题和报告链路，让三种面试官在关注重点、切入角度、追问力度和评价侧重上明显不同。classic 主题的「Prompt 调试」面板可分面试官单独编辑，保存后同样对 figma 主题生效（figma 读取同一份全局 store）。评分 schema（6 维、分数区间、权重）仍固定不变，人设只调侧重与口吻。
 
 ## 2. 发布前必须暴露给产品的内容
 

@@ -1,0 +1,142 @@
+[
+  {
+    "node_id": "115:766",
+    "name": "Frame 13",
+    "specs": [
+      {
+        "node_id": "115:766",
+        "name": "Frame 13",
+        "type": "FRAME",
+        "x": 5665.0,
+        "y": 938.0,
+        "width": 105.0,
+        "height": 240.0,
+        "corner_radius": 8.0,
+        "fill": "#4B4554",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=16.0 right=16.0 bottom=16.0 left=16.0",
+        "gap": 8.0,
+        "font_family": "PingFang SC",
+        "font_size": 14.0,
+        "font_weight": 500,
+        "line_height": 19.600000381469727,
+        "letter_spacing": 0.0,
+        "text_sample": "考察维度"
+      }
+    ]
+  },
+  {
+    "node_id": "116:777",
+    "name": "Frame 14",
+    "specs": [
+      {
+        "node_id": "116:777",
+        "name": "Frame 14",
+        "type": "FRAME",
+        "x": 5786.0,
+        "y": 938.0,
+        "width": 105.0,
+        "height": 240.0,
+        "corner_radius": 8.0,
+        "fill": "#4B4554",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=16.0 right=16.0 bottom=16.0 left=16.0",
+        "gap": 8.0,
+        "font_family": "PingFang SC",
+        "font_size": 14.0,
+        "font_weight": 500,
+        "line_height": 19.600000381469727,
+        "letter_spacing": 0.0,
+        "text_sample": "适用职级"
+      }
+    ]
+  },
+  {
+    "node_id": "116:780",
+    "name": "Frame 15",
+    "specs": [
+      {
+        "node_id": "116:780",
+        "name": "Frame 15",
+        "type": "FRAME",
+        "x": 5907.0,
+        "y": 938.0,
+        "width": 105.0,
+        "height": 240.0,
+        "corner_radius": 8.0,
+        "fill": "#4B4554",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=16.0 right=16.0 bottom=16.0 left=16.0",
+        "gap": 8.0,
+        "font_family": "PingFang SC",
+        "font_size": 14.0,
+        "font_weight": 500,
+        "line_height": 19.600000381469727,
+        "letter_spacing": 0.0,
+        "text_sample": "出题意图"
+      }
+    ]
+  },
+  {
+    "node_id": "119:797",
+    "name": "Frame 17",
+    "specs": [
+      {
+        "node_id": "119:797",
+        "name": "Frame 17",
+        "type": "FRAME",
+        "x": 5665.0,
+        "y": 1684.0,
+        "width": 343.0,
+        "height": 133.0,
+        "corner_radius": 16.0,
+        "fill": "#527A58",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=16.0 right=16.0 bottom=16.0 left=16.0",
+        "gap": 16.0,
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "优化方向"
+      }
+    ]
+  },
+  {
+    "node_id": "172:375",
+    "name": "Frame 18",
+    "specs": [
+      {
+        "node_id": "172:375",
+        "name": "Frame 18",
+        "type": "FRAME",
+        "x": 5665.0,
+        "y": 1849.0,
+        "width": 343.0,
+        "height": 133.0,
+        "corner_radius": 16.0,
+        "fill": "#527A58",
+        "stroke": "无",
+        "effects": "无",
+        "auto_layout": "VERTICAL, primary_align=?, counter_align=?",
+        "padding": "top=16.0 right=16.0 bottom=16.0 left=16.0",
+        "gap": 16.0,
+        "font_family": "PingFang SC",
+        "font_size": 18.0,
+        "font_weight": 500,
+        "line_height": 25.19999885559082,
+        "letter_spacing": 0.0,
+        "text_sample": "优化解答"
+      }
+    ]
+  }
+]

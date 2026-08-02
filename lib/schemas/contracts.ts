@@ -7,12 +7,14 @@ import type {
   InterviewQuestion,
   InterviewReport,
   InterviewerStyleId,
+  GenerationMeasurement,
   QuestionDifficulty,
   QuestionReport,
   QuestionType,
   SourceMatch,
   SttStatus
 } from "@/lib/types";
+import { getCurrentRequestId } from "@/lib/observability/context";
 
 export const interviewerStyleIds: InterviewerStyleId[] = ["strictHr", "techBro", "gentleSister"];
 const evidenceSources = ["resume", "jd", "inferred"];
@@ -30,15 +32,19 @@ const dimensionKeys: Array<keyof DimensionScores> = [
 ];
 
 export function createRequestId(prefix = "local") {
-  return `${prefix}-${crypto.randomUUID()}`;
+  return getCurrentRequestId() ?? `${prefix}-${crypto.randomUUID()}`;
 }
 
-export function okResponse<T>(data: T): CommonResponse<T> {
+export function okResponse<T>(
+  data: T,
+  meta?: { generation?: GenerationMeasurement }
+): CommonResponse<T> {
   return {
     ok: true,
     data,
     error: null,
-    requestId: createRequestId()
+    requestId: createRequestId(),
+    ...(meta ? { meta } : {})
   };
 }
 
@@ -218,7 +224,7 @@ export function validateReport(value: unknown): value is InterviewReport {
   );
 }
 
-function validateQuestionReport(value: unknown): value is QuestionReport {
+export function validateQuestionReport(value: unknown): value is QuestionReport {
   if (!isRecord(value)) return false;
   return (
     isNonEmptyString(value.questionId) &&
@@ -229,6 +235,19 @@ function validateQuestionReport(value: unknown): value is QuestionReport {
     isNonEmptyString(value.diagnosis) &&
     isNonEmptyString(value.optimizedAnswer) &&
     isNonEmptyString(value.oralVersion60s)
+  );
+}
+
+export function validateFinalReportSummary(value: unknown): value is {
+  summary: string;
+  topRisks: string[];
+  actionItems: string[];
+} {
+  if (!isRecord(value)) return false;
+  return (
+    isNonEmptyString(value.summary) &&
+    isStringArray(value.topRisks) &&
+    isStringArray(value.actionItems)
   );
 }
 

@@ -7,6 +7,7 @@ export interface DevControlState {
     tts: boolean;
     stt: boolean;
     clipboard: boolean;
+    database: boolean;
   };
 }
 
@@ -18,7 +19,8 @@ export const defaultDevControlState: DevControlState = {
     llm: false,
     tts: false,
     stt: false,
-    clipboard: false
+    clipboard: false,
+    database: false
   }
 };
 
@@ -41,7 +43,8 @@ export function readDevControls(): DevControlState {
         llm: Boolean(parsed.faults?.llm),
         tts: Boolean(parsed.faults?.tts),
         stt: Boolean(parsed.faults?.stt),
-        clipboard: Boolean(parsed.faults?.clipboard)
+        clipboard: Boolean(parsed.faults?.clipboard),
+        database: Boolean(parsed.faults?.database)
       }
     };
   } catch {
@@ -59,7 +62,7 @@ export function resetDevControls() {
   window.localStorage.removeItem(DEV_CONTROL_STORAGE_KEY);
 }
 
-export function getDevRequestHeaders(kind?: "llm" | "tts") {
+export function getDevRequestHeaders(kind?: "llm" | "tts" | "database") {
   const controls = readDevControls();
   const headers: Record<string, string> = {};
 

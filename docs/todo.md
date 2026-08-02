@@ -1,5 +1,30 @@
 # 面试嘴替教练开发 TODO
 
+## Juju 额度耗尽提示优化 - 2026-08-02
+
+- [x] 第 4 次创建面试被服务端以 `SESSION_QUOTA_EXHAUSTED` 拒绝时，Juju 显示独立的“3/3 次额度已用完”弹窗。
+- [x] 额度校验完成前保留 CV/JD 输入页面，不提前进入画像 loading；额度耗尽时不生成画像、不创建新 Session。
+- 验证：`npm run typecheck`、`npm run test:internal-beta`、`git diff --check`。
+- 风险：当前内测产品额度固定为 3 次；若未来允许不同用户拥有不同额度，弹窗数字需改为读取服务端结构化 quota。
+
+## Juju 答题响应与外网兜底优化 - 2026-08-02
+
+- [x] TTS 首次进入前增加无副作用路由预热；云端合成超过 6 秒时切换浏览器语音，避免长时间无响应。
+- [x] 每次换题或跳题都会取消在途 TTS 请求并使旧播放 token 失效，防止上一题延迟返回后与新题重叠播放。
+- [x] 跳题/完成流程增加单次状态锁；第三题确认后保持“正在进入下一步”且按钮禁用，避免重复提交和返回当前页的错觉。
+- [x] Juju 的真实报告生成失败时不再自动展示或伪装演示报告；保留题目和答案，只提供“重新生成真实报告”入口。Classic/Figma 的显式开发兜底保持不变。
+- [x] NVIDIA 对照实测：同一 Hosted API/模型的极小 JSON 请求约 2.3 秒；当前完整三题报告请求约 61.5 秒触发服务端超时；关闭 thinking 并限制输出后仍在约 45 秒无响应。根因指向单次大结构化报告负载与托管端稳定性组合，而非模型所有请求固定缓慢。
+- [x] 报告生成拆为受控并发 2 的三次单题复盘 + 一次精简总评；每道真实单题完成即通过 SSE 推送，最终 `InterviewReport` 与持久化字段保持不变。总评不重复要求模型输出优化答案，复制文本由已校验单题结果本地拼装。
+- [x] NVIDIA DeepSeek 请求关闭 thinking，并分别限制单题与总评输出 token；只对 429/5xx/网络错误做一次 700ms 有界退避，400 类输入/参数错误不重试。8 秒内没有首份单题结果时推送真实慢响应提示，不展示假报告。
+- [x] 拆分后首次真实单题诊断在约 1.37 秒收到 NVIDIA HTTP 529，确认当前失败包含 Hosted 端临时过载，而非大 prompt 或 schema 校验；免费 Hosted 端仍需主/备 provider 才能达到真实内测可用性。
+- [x] Juju JD 提交后先立即进入统一 Loading，再检查/占用额度并生成画像；额度耗尽也从 Loading 转入 3/3 提示弹窗，不再停留在 JD 页面等待网络结果。
+- [x] 第三题完成后先立即进入报告 Loading，再保存答案、启动渐进报告；答案保存或 NVIDIA 请求最终失败后才进入真实失败页，不再在答题页等待完成后直接闪到失败态。
+- [x] 新增临时外网预览 HTTP Basic Auth：生产环境变量显式开启，缺凭据 fail-closed；覆盖整站并保留 `/api/health` 匿名 readiness。共享凭据不写仓库且不授予 Juju/admin 权限，外网验收结束后移除。
+- [x] 发布前验证：Basic Auth 进程内生产行为取得匿名/错误凭据 401、合法凭据 200、health 200、缺配置 503；typecheck、internal-beta 96/96、production build、source security 208 files、bundle security 73 files、diff check 均 Pass。现网域名切换和管理员创建尚未执行。
+- 验证：`npm run typecheck`、`npm run test:internal-beta`、`git diff --check`。
+- 风险：浏览器语音音色取决于系统；当前完整报告仍可能触发 60 秒超时。内测前需拆分逐题报告并完成主/备 LLM 故障切换，不能依赖演示报告掩盖真实失败。
+- [x] TTS 正常播放结束时移除字幕滚动位移并将题目视口复位到顶部，重新展示题目开头。
+
 ## Phase 0 - 规划和契约
 
 - [x] 创建项目规划 `docs/00_project_plan.md`
@@ -330,6 +355,521 @@
 | Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；浏览器点击 `Use demo resume` 后进入 `Input JD` 页。 |
 | Next visual step | Pending | 继续按页面逐个核对 `input jd`、`profile`、`select interviewer`、`select interviewer_2`、`interview`、`report`，并替换真实 2x 导出素材。 |
 
+## Phase 9 Home 首屏素材替换准备 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Home first screen alignment | Pass | `theme=figma` 下隐藏开发视觉切换入口，手机容器调整为截图同等首屏比例；488x976 viewport 验证卡片 `428x928`、顶部 `24px`、球体 `207px`、输入卡底部 `924px`，无横向溢出。 |
+| Figma asset override | Ready | Home 底图改为独立 `<img>` 覆盖层，`home / Comp 1024 1` 改为独立图片层；真实素材加载成功前保持透明，缺失时继续使用 CSS fallback，不显示破图。 |
+| Asset naming | Updated | `public/figma/home/README.md` 已将圆球素材名更新为 `comp-1024-1@2x.png`，与 Figma layer `home / Comp 1024 1` 对齐；`home-bg@2x.png` 仍为首页底图槽位。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器点击 `Use demo resume` 后进入 `Input JD` 页，`scrollWidth=viewportWidth=488`。 |
+| Pending asset | Needs design export | 当前仓库仍没有真实 Figma 导出图片，`home-bg@2x.png` 和 `comp-1024-1@2x.png` 请求返回 404；需从 Figma 导出后放入 `public/figma/home/` 才能完成精确替换。 |
+
+## Figma MCP Home 资源接入记录 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma MCP access | Pass | 已安装并授权 Figma 插件；`_get_metadata` 成功读取文件 `KHsM48fpnCB2sDEQma4BRZ` 的 home 节点 `49:483`。 |
+| Home node mapping | Pass | Figma metadata 确认 `Comp 1024 1` 节点为 `49:486`，`ToolBar` 节点为 `72:535`，home frame 尺寸为 `375x812`。 |
+| Comp asset replacement | Pass | 使用 Figma MCP `_get_screenshot` 导出 `49:486`，保存为 `public/figma/home/comp-1024-1@2x.png`；首页球体容器改为按 Figma 节点比例显示，加载成功后不叠加 CSS fallback 球体。 |
+| Home background replacement | Pass | 使用 Figma MCP 导出 `home / Ellipse 2` 背景层 `49:484`，保存为 `public/figma/home/ellipse-2@2x.png`；`figma-home-card` 底色改为 Figma `#161316`，并移除原 CSS 紫色径向渐变和中心辅助线。 |
+| Remaining alignment | Pending | Home 首屏背景已对齐 Figma 图层来源；后续需继续按 Figma 坐标微调状态栏、文案、Toolbar 尺寸和交互控件位置。 |
+
+## Figma Home Toolbar 交互细调 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Toolbar sizing | Pass | Home resume 输入区改为 Figma `home_2 / ToolBar` 比例：343x119、16px padding、Frame4 311x33；去掉 `Your resume` 和内层黑色输入框，textarea 直接挂在 toolbar 上。 |
+| Upload collapsed state | Pass | 初始上传入口改为 32x32 圆形加号按钮，对齐 `home_2 / ToolBar / Frame 4 / Frame 3` 的左侧位置；不再显示 `Upload resume` 文字按钮。 |
+| Upload expanded state | Pass | 点击加号后原位置展开为关闭、微信上传、文件上传三段：关闭恢复加号；微信上传复用原 `Use demo resume` 行为；文件上传拉起原 TXT/PDF/DOCX 文件解析流程。 |
+| Continue control | Pass | Continue 改为右侧 32x32 圆形箭头按钮，对齐 `home_2 / ToolBar / Frame 4 / Group 1`；继续保留“简历为空时不可继续”的业务约束。 |
+| Verification | Pass | `npm run typecheck` 通过；未修改 API、schema、状态机和文件解析接口。当前浏览器工具被标记不可访问本地页面，未做浏览器截图复验。 |
+
+## Figma Home Toolbar 坐标修正 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 2x asset coordinate handling | Pass | 从 Figma 2x 导出的 `面壁者/home.png` 按 metadata 坐标裁出完整 `Frame4 / Frame1` 和 `Frame4 / Group1`：源图使用 2x 坐标裁 64x64，页面按 CSS 32x32 渲染。 |
+| Toolbar placement | Pass | `figma-home-toolbar` 改为按 Figma 375x812 画板绝对定位：`left: 16px; top: 643px; width: 343px; height: 119px`，不再受父级 padding/content flow 影响。 |
+| Button rendering | Pass | 收起态上传按钮和 Continue 按钮直接显示完整 Frame PNG：`frame4-frame1-upload@2x.png`、`frame4-group1-continue@2x.png`；移除额外手写字符图标和额外背景叠加。 |
+
+## Figma Home 1x 画板策略修正 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Canvas scale decision | Pass | Home 竖版按 Figma 逻辑画板 `375x812` CSS 像素渲染；`@2x` 只作为图片素材倍率，不把页面本身放大到 `750x1624`。 |
+| Comp restoration | Pass | `Comp 1024 1` 恢复为半透明 Figma 节点导出资源 `public/figma/home/comp-1024-1@2x.png`，页面按 `left:-22px; top:136px; width:420px; height:236px` 渲染。 |
+| Toolbar scale | Pass | Toolbar、Frame4、Frame1、Group1 和展开态按钮组均恢复 1x CSS 坐标；`npm run typecheck` 通过。 |
+
+## Figma Home 效果图对齐修正 - 2026-07-02
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Copy alignment | Pass | Home 首屏文案改为效果图口径：`Hey Dark !`、Lili 介绍文案和上传说明；去掉旧的 `AI INTERVIEW COACH / Hey Dick?`。 |
+| Comp rendering | Pass | `comp-1024-1@2x.png` 从 `面壁者/home_2.png` 按 2x 源图裁出，页面仍按 420x236 CSS 像素渲染；图片使用 `mix-blend-mode: screen` 避免黑底矩形遮住背景。 |
+| Background rendering | Pass | 移除不存在的 `home-bg@2x.png` 图片层，保留 Figma `Ellipse 2` 背景层和 `#161316` 底色，避免 404 和隐藏背景层干扰。 |
+| Verification | Pass | `npm run typecheck` 通过；未修改 API、schema、状态机和上传解析流程。 |
+
+## Figma Home 球体和输入控件对齐 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Orb placement | Pass | `comp-1024-1@2x.png` 从 `面壁者/home.png` 收紧裁切为 `560x480` 2x 素材，页面按 `left:48px; top:126px; width:280px; height:240px` 渲染，让球心对齐 375 画板水平中线。 |
+| Toolbar icon sizing | Pass | 上传加号和提交箭头均重新从 `home.png` 裁为 `64x64` 2x 素材，页面按 `32x32` CSS px 渲染；不再使用带额外空白导致视觉变小的旧裁图。 |
+| Text cursor focus | Pass | Home toolbar textarea 聚焦时取消 `focus/focus-visible` 描边和阴影，隐藏原生 1px caret，改为自定义 `3px` 宽、`22px` 高、`#5f4fff` 的蓝紫色光标。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 仍返回 200。 |
+
+## Figma Home 节点图和 Cursor 渐变修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Node asset restoration | Pass | `comp-1024-1@2x.png` 已替换为用户提供的节点透明图 `Image.png`，资源尺寸 `375x236`、左上角 alpha 为 `0`；移除 `mix-blend-mode`，不再使用整页截图裁图。 |
+| Orb placement | Pass | 节点图按 `left:18px; top:152px; width:340px; height:214px` 渲染，透明内容实际约 `214x210` CSS px，水平居中。 |
+| Cursor gradient | Pass | 自定义光标从 `3px` 改为 `2px` 宽，保留 `22px` 高，并改为 `#2fa7ff -> #5f4fff -> #de7cff` 纵向渐变。 |
+| Cache busting | Pass | Home 球体、上传按钮、提交按钮资源 query 更新为 `v=2026070302`，避免浏览器继续使用旧图。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 和 `/figma/home/comp-1024-1@2x.png?v=2026070302` 均返回 200。 |
+
+## Figma Home 按钮视觉放大和 Cursor 闪烁 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Toolbar icon visual size | Pass | 上传加号和提交箭头素材仍为 `64x64` 2x，但素材可见圆形约 `43x43`；页面渲染盒从 `32x32` 调整为 `48x48` CSS px，实际可见圆形约从 `21.5px` 放大到 `32px`。 |
+| Expanded upload controls | Pass | 展开态关闭按钮同步改为 `48x48`，两枚上传 pill 改为 `96x48`，保持 Frame4 总宽 `248px`。 |
+| Cursor blink | Pass | 自定义 cursor 保持 `2px x 22px` 和纵向渐变，新增 `figma-caret-blink`，按 `1s steps(1, end)` 闪烁，不再常驻显示。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Home Toolbar 按钮层级和边距修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Button dimming | Pass | 右侧提交按钮不再继承全局 `button:disabled { opacity: 0.48 }` 的灰态；Figma 图像按钮显式设置 `opacity: 1`、`filter: none`，禁用时只保留不可点击语义。 |
+| Button edge spacing | Pass | 两张按钮素材 alpha 可见区域均为 `0..42 / 64px`，透明边集中在右下角；左侧上传按钮保持贴左，右侧提交按钮图像向右补偿 `16px`，让可见圆形边缘与 toolbar 左右边缘保持接近一致的 `16px` 间隙。 |
+| Toolbar layout | Pass | `figma-toolbar-frame4` 改为 toolbar 内绝对定位 `left/right/bottom: 16px`，按钮层级提升到 `z-index: 3`，不再受输入文字层或 grid flow 影响。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma`、上传按钮资源和提交按钮资源均返回 200。 |
+
+## Figma Home Toolbar 展开态尺寸和垂直位置修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Collapsed button vertical position | Pass | 收起态上传和提交图片内部统一下移 `16px`；提交图标保留横向 `16px` 补偿，最终为 `translate(16px, 16px)`，使可见圆形贴近输入框底部。 |
+| Expanded controls sizing | Pass | 展开态关闭按钮改为 `32x32`，微信上传和文件上传改为 `104x32`，高度与当前 `+` 按钮的可见圆形高度保持一致。 |
+| Expanded controls baseline | Pass | 展开态菜单仍占 `248x48` 的 Frame4 槽位，但内部按钮 `align-items: end`，实测关闭/微信/文件按钮均为 `y=771, height=32, bottom=803`，与收起态可见按钮底线一致。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma` 返回 200；浏览器 440x928 viewport 点击 `+` 后截图确认展开态按钮尺寸降低并下对齐。 |
+
+## Figma Home Toolbar Hover、上传文案和系统时间修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Collapsed hover | Pass | 收起态 `+` 和提交箭头覆盖全局 `button:hover`，不再出现白色背景框、边框变化或上移；同时去掉这两个图像按钮的 `focus-visible` 外框。 |
+| Expanded hover | Pass | 展开态关闭、`UseDemoCV` 和文件上传统一使用 `rgba(255, 255, 255, 0.16)` hover 背景；文件上传 label 单独补充 hover 选择器，避免只有 button 有悬停反馈。 |
+| Upload labels | Pass | 原“微信上传”改为 `UseDemoCV` 且移除左侧图标；文件上传保留中文文案，并将不清晰的字符图标替换为 `16x16` CSS 文件图标。 |
+| Navigation time | Pass | Home 和 JD 顶部左侧时间从硬编码 `9:41` 改为客户端系统时间，首次挂载后立即刷新，并每 `30s` 更新一次。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma` 返回 200；浏览器截图确认顶部时间显示当前时间、展开态显示 `UseDemoCV` 和新文件图标。 |
+
+## Figma Home UseDemoCV 行为和 File 图标资源修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma file icon | Pass | 因 Figma MCP 达到调用额度上限，改用同源 2x 导出 `面壁者/home_2.png` 裁出 `home_2 / toolbar / frame4 / frame3 / frame2 / file` 图标，并生成透明资源 `public/figma/home/frame4-frame3-frame2-file@2x.png`；图标 alpha 可见区域为 `24x24`。 |
+| File icon rendering | Pass | 文件上传按钮从 CSS 临摹图标改为直接引用 `/figma/home/frame4-frame3-frame2-file@2x.png?v=2026070303`，按 `16x16` CSS px 显示。 |
+| UseDemoCV behavior | Pass | 点击 `UseDemoCV` 只将 mock 简历填入当前输入框，不再自动进入 JD；填充后展开菜单关闭，恢复为原 `+` 按钮样式，右侧提交按钮变为可用。 |
+| Hover consistency | Pass | `UseDemoCV` 和文件上传继续共用 `.figma-frame4-pill-button:hover` 的高亮背景，保持 hover 效果一致。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma` 和新 file 图标资源均返回 200；浏览器点击验证填入 `214` 字 mock 简历后仍停留 Home，`menuOpen=false`、`plusVisible=true`、`continueDisabled=false`。 |
+
+## Figma Home Textarea 换行和 Hover 抖动修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Resume textarea wrapping | Pass | Home resume textarea 从 `22px` 单行区域改为 `42px` 可换行区域，`white-space: pre-wrap`、`overflow-wrap: anywhere`，隐藏滚动条但允许内部纵向滚动。 |
+| Custom caret wrapping | Pass | 自定义 cursor 覆盖层同步改为 `42px` 高，并使用 `pre-wrap` / `overflow-wrap: anywhere`，避免与 textarea 包装规则不一致。 |
+| UseDemoCV hover specificity | Pass | 展开态 hover 规则增加 `.figma-home-toolbar` 作用域，specificity 高于全局 `button:hover:not(:disabled)`，覆盖全局 `transform: translateY(-1px)`，避免鼠标悬停抖动并保留高亮背景。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器点击 `UseDemoCV` 后实测 `scrollWidth=clientWidth=309`、`scrollHeight=242`、`whiteSpace=pre-wrap`、`overflowWrap=anywhere`，截图确认文本已自动换行。 |
+
+## Figma Home Textarea 动态 3 行扩容 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Dynamic row measurement | Pass | Home resume textarea 使用真实 `scrollHeight` 测量内容行数，默认最少 `2` 行，最多扩到 `3` 行，不按字符数猜测。 |
+| Toolbar expansion | Pass | 当内容需要 3 行时，toolbar 增加 `data-resume-rows=3`，输入区从 `42px` 扩到 `66px`；toolbar 从 `119px` 扩到 `151px` 并向上移动，底部位置保持不变。 |
+| Button stability | Pass | 3 行扩容后 `Frame4` 仍固定在 toolbar 底部，浏览器实测右侧按钮 `y=755, bottom=803` 与 2 行状态一致。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器点击 `UseDemoCV` 后实测 `rows=3`、`textarea.clientHeight=66`、`toolbar.height=151`、`toolbar.bottom=820`，截图确认显示 3 行文本。 |
+
+## Figma Home Cursor 默认位置修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Empty caret offset | Pass | 空输入聚焦时，自定义 cursor 不再使用透明的 `您好` 占位文本做偏移，改为空字符串；placeholder 仍由 textarea 自己显示。 |
+| Caret alignment | Pass | 浏览器实测空态聚焦后 `caretLeft=textareaLeft=65.5`，offset 为 `0`，cursor 位于输入区域左上方文字左侧。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma` 返回 200；浏览器截图确认 cursor 不再空出两个中文字宽度。 |
+
+## Figma Home 主体内容安全区上移 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Main content shift | Pass | Home 主体内容组整体上移 `32px`：`Comp 1024 1` top 从 `152px` 调到 `120px`，文案 top 从 `372px` 调到 `340px`，toolbar top 从 `643px/611px` 调到 `611px/579px`。 |
+| Bottom safe area | Pass | 2 行和 3 行状态下 toolbar 底部都同步上移，浏览器实测 3 行状态 toolbar bottom 为 `788px`，距卡片底部 `82px`，为 iOS 截图底部默认区域预留更多空间。 |
+| Top notch spacing | Pass | 状态栏位置不动；浏览器实测状态栏底部到球容器顶部还有约 `87px`，顶部仍保留刘海/状态栏安全距离。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://localhost:3000/?theme=figma` 返回 200；浏览器 440x928 viewport 截图确认红框主体上移且底部留白增加。 |
+
+## Figma Home 简历输入校验和 Cursor 间距修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Empty resume guard | Pass | Home 右侧提交按钮取消禁用态，空输入点击后不进入 JD，输入框下方显示红字 `请输入个人简历，至少需要100字`。 |
+| Short resume guard | Pass | 简历按去空白字符计数，少于 `100` 字时留在 Home，并显示 `个人简历至少需要100字，当前X字`；用户继续编辑后错误文案实时更新，达标后清空。 |
+| Cursor spacing | Pass | 自定义 cursor 仍为 `2px` 宽渐变闪烁；textarea 和 overlay 显式统一 `font-family/line-height/letter-spacing`，caret 左间距从 `2px` 调为 `4px`，避免视觉上压住前一个字。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Home Cursor 左贴边修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Cursor edge placement | Pass | 自定义 cursor 不再使用正向 `margin-left` 推到字符内部，改为 `margin-left: 0` 并 `translateX(-2px)`，让 2px cursor 的右边缘贴近当前文字外沿左侧。 |
+| Verification | Pass | `npm run typecheck` 通过。 |
+
+## Figma Input JD 首屏复用 Home 视觉 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JD frame reuse | Pass | `theme=figma` 下 JD 步骤改为复用 Home 的 `375x812` 卡片、`Ellipse 2` 背景和 `Comp 1024 1` 球体资源，不再使用旧的独立 `figma-orb-small` 页面结构。 |
+| JD copy alignment | Pass | JD 中间文案替换为 `已经知悉了您的过往 ...` 和 `请输入您的意向 JD，以便我给您匹配合适的面试官。`，并按截图位置单独覆盖 `figma-jd-card .figma-copy`。 |
+| JD input toolbar | Pass | JD 底部输入改为 Home 同风格深色圆角输入条，保留自定义 cursor，右侧箭头在 JD 有内容时继续调用现有 `onStart` 进入画像生成。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Input JD Toolbar 复用和返回按钮修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Toolbar reuse | Pass | JD 输入页移除上一版单行 pill 覆盖，改为直接复用 Home 的 `figma-home-toolbar`、`figma-toolbar-frame4`、`+` 展开态、文件上传和右侧箭头结构。 |
+| Demo JD fill | Pass | JD 展开菜单的演示按钮改为 `UseDemoJD`，点击只填入 `demoScenario.jdText` 并关闭展开菜单，不自动跳转。 |
+| Back button | Pass | 返回按钮从文字字符箭头改为 CSS chevron 圆形按钮，避免不同字体渲染导致样式不对。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Input JD 中间文案位置和字体修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Copy position | Pass | JD 中间文案容器从继承 Home 的 `left: 24px` 调整为 `left: 34px`，整体向右收紧，减少视觉偏左。 |
+| Typography parity | Pass | JD 标题改回和 Home 一致的 `font-family: var(--font-sans)`、`32px`、`font-weight: 500`、`line-height: 1.28`；正文使用同字体、`16px` 和 Home 的 `1.38` 行高。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Input JD 字数校验 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JD length guard | Pass | JD 页右侧箭头点击时按去空白字符检查 `jdText`，少于 `100` 字时留在当前页并显示红字 `请输入职位介绍，至少需要100字`。 |
+| Error priority | Pass | JD 校验错误复用 Home 输入框下方红字样式，并优先于 JD 文件上传状态展示；用户继续编辑后实时清除或保持提示。 |
+| Demo JD | Pass | `UseDemoJD` 填入 `demoScenario.jdText` 后同步刷新校验状态，不自动跳转。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 竖版框架接入 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Vertical frame reuse | Pass | `theme=figma` 下候选人画像页新增 `FigmaProfilePanel`，复用 Home 的 `375x812` 竖版卡片、`Ellipse 2` 背景、状态栏和 `Comp 1024 1` 球体资源；球体缩小并上移为页面氛围层。 |
+| Profile data reuse | Pass | 页面内容直接使用现有 `CandidateProfile` 数据：摘要、匹配点、风险点、关键词数量、`sourceMatches` 和补充建议；不改变画像 API、题目生成或后续状态机。 |
+| Frame15-style source review | Pass | `对比简历 / JD 匹配来源` 使用暗色圆角卡片、双列摘要和匹配证据堆叠，近似 Figma `Frame 15` 的深色信息块风格；若需像素级还原，后续需提供 Frame15 节点 id 或导出图。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Frame15 Tab 切换 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frame node reference | Noted | 用户提供 Figma frame 节点参数 `node-id=116-776&t=8Neiy6Ownbxg2WeG-0`，当前先按截图实现 tab 样式，未额外调用 Figma MCP。 |
+| Source tabs | Pass | `对比简历 / JD 匹配来源` 改为两段式 tab：`简历` 和 `JD`，点击切换对应原文和匹配证据；当前只保留两个 tab 页。 |
+| Tab styling | Pass | Tab bar 采用深色圆角容器、居中分隔线和 active 深色高亮，近似截图中的 `Q1/Q2/Q3` 顶部切换样式。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 顶部标题和底部确认按钮修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Header title | Pass | 候选人画像页左上角标题字号从 `14px` 放大到 `18px`、字重 `700`，更接近截图强调效果。 |
+| Bottom action | Pass | 右上 `Next` 文本按钮移除，改为页面右下角固定对勾按钮；按钮使用用户提供的 `node-id=81-662&t=8Neiy6Ownbxg2WeG-0` 作为样式参考，按钮内不写文字，只显示对勾。 |
+| Frame palette | Pass | 候选人画像页信息卡片、风险、建议和匹配来源卡片统一为 `node-id=116-776&t=8Neiy6Ownbxg2WeG-0` 截图风格的暗紫黑配色，移除原绿色建议卡。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source Tab 节点样式校准 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Node references | Noted | 用户提供 Q1/Q2/Q3 tab 节点 `115-760`、`115-761`、`115-762`；尝试读取 Figma metadata 时触发当前 View seat MCP 调用额度上限，因此本轮按截图近似校准。 |
+| Tab dimensions | Pass | `figma-source-tabs` 高度从 `42px` 调为 `34px`，背景改为 `#2b2734`，active 背景改为 `#17131d`，更接近节点截图里的紧凑暗色顶部 tab。 |
+| Tab shape | Pass | active tab 使用底部反向圆角，右侧 tab 保留 `16px` 右上圆角和中间分隔线，适配当前只有 `简历/JD` 两个 tab 的业务结构。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 刘海安全区和底部 CTA 修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Duplicate hero title | Pass | 候选人画像页内容区移除重复的 `Profile` 和大号 `候选人画像`，保留顶部导航标题与画像摘要，避免首屏文字重复。 |
+| Notch spacing | Pass | 画像页状态栏、导航、球体和滚动内容整体下移，为刘海屏顶部预留更稳妥的安全距离。 |
+| Bottom CTA | Pass | 底部按钮按 `node-id=81-662&t=8Neiy6Ownbxg2WeG-0` 截图参考调整为居中紫色胶囊按钮，文案为 `开始面试`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 数据来源和底部按钮流式位置修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile data source | Confirmed | 画像摘要、匹配点、风险点、关键词数量、补充建议和匹配来源均来自 `CandidateProfile`；LLM 可用时由 `/api/profile/parse` 生成，LLM 未配置、强制 demo 或接口失败时使用 `demoScenario.candidateProfile` 兜底。 |
+| Static labels | Noted | `匹配概览`、`核心匹配`、`面试风险`、`建议补充` 等为 UI 区块标题，当前写死在组件中；具体内容列表不写死。 |
+| Bottom check button | Pass | 候选人画像页 CTA 从绝对定位悬浮层移入滚动内容底部，按钮仅在滚到页面最下方时出现；按钮内容恢复为单独对勾。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source Tab 吸附修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frame label cleanup | Pass | `对比简历 / JD 匹配来源` 上方的设计标注 `Frame 15` 已从页面 UI 移除。 |
+| Sticky source tabs | Pass | `简历 / JD` tab 改为滚动容器内 sticky；当该 tab 滚动到球体下方的内容区顶部时锁定吸附，继续用于切换来源内容。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 顶部导航居中和返回 JD - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Center title | Pass | 候选人画像页顶部标题改为水平居中展示，不再贴左。 |
+| Back to JD | Pass | 画像页左侧新增返回按钮，复用 input JD 页 `.figma-jd-back-button` 的圆形 chevron 样式；点击后回到 Figma setup 的 JD 输入页并保留已输入 JD。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source Tab 节点色值校准 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Node references | Pass | 使用用户补充的 `Rectangle 1 node-id=114:762` 和 `Rectangle 2 node-id=114:764` 参数校准 source tab：主底色 `#322E38`，非激活块 `#28252D`，高度 `54px`。 |
+| Text style | Pass | `简历 / JD` tab 文本按 Report Page_2 的 `Q1/Q2/Q3` 节点参考调整为 `18px`、`PingFang SC` 对应的 `var(--font-sans)`、`font-weight: 500`、白色。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source Tab 斜切形状修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Active tab shape | Pass | `简历 / JD` active tab 不再使用硬矩形等分，改为横向外扩并通过 `clip-path` 形成 Figma Q1/Q2/Q3 截图里的斜切过渡。 |
+| Rounded corners | Pass | tab 容器和左右端点改为 `14px` 顶部圆角，保留 `#322E38 / #28252D` 节点色值。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 横向卡片圆角和统计色彩修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Horizontal card radius | Pass | 核心匹配、面试风险、来源卡片和建议补充等横向信息框统一改为 `16px` 圆角；统计三卡保留更紧凑的 `8px` 圆角。 |
+| Metric emphasis | Pass | `匹配点 / 风险点 / 关键词` 文案和数字改为低饱和分色：绿色、粉红、紫蓝，增强识别度并保持暗紫整体风格。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Tab 状态和字体体系修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab state contrast | Pass | `简历 / JD` tab 选中态改为更亮的 `#4B4554`，未选中保持 `#28252D` 并降低文字透明度，选中和未选中区分更明显。 |
+| Diagonal direction | Pass | JD 选中时的斜切边改为与简历选中时同向，不再反向变化。 |
+| Source text height | Pass | `候选人简历 / 目标 JD` 原文卡去掉固定 `max-height` 和内部滚动，改为根据文字内容自然撑高。 |
+| Typography scale | Pass | 候选人画像页统一字体体系：正文和卡片说明整体上调约 2px，section 标题、统计 label 和数字同步增强。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source Tab 全宽和层级校准 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma reference | Pass | 复查 `面壁者/figma_Report_Page_2_2026-07-03T08-08-14-401Z.json`：`Rectangle 1 node-id=114:762` 为全宽 `375px`、底色 `#322E38`；`Rectangle 2 node-id=114:764` 为 `x=112 width=263 height=54`、底色 `#28252D`；`Q1/Q2/Q3` 文本为 `18px PingFang SC Medium`。 |
+| Tab width | Pass | `figma-source-tabs` 从内容区 `327px` 改为 `calc(100% + 48px)` 并 `margin: 0 -24px`，滚动内容仍保留左右 24px padding，但 tab 本体铺满 375px 手机卡片宽度。 |
+| Shape layering | Pass | tab 形状改为父容器 `#322E38` base/active 层，`::before` 绘制 `#28252D` inactive 斜切层；按钮背景透明，仅承载文字和交互，避免 active 按钮外扩导致文字中心偏移。 |
+| Typography consistency | Pass | source 原文和匹配证据正文从 `14px` 提升到 `15px`、`line-height: 1.5`，和候选人画像页正文体系保持一致。 |
+| Verification | Pass | `npm run typecheck` 通过；重启 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200。浏览器扩展截图验证时受到扩展自身 Statsig 网络重试干扰，未作为最终证据。 |
+
+## Figma Candidate Profile Source Tab 斜线居中微调 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Diagonal position | Pass | 根据截图反馈，将 source tab inactive 斜切层起点从 `30%` 调整为 `42%`，斜线视觉中心更接近 `简历 / JD` 两段 tab 的中线。 |
+| Scope | Pass | 仅调整 `.figma-source-tabs:has(...)::before` 的左右偏移，不改业务状态、tab 文案、数据来源或 API 契约。 |
+| Verification | Pass | `npm run typecheck` 通过。 |
+
+## Figma Candidate Profile Source 内容卡 Frame12 样式校准 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frame12 typography | Pass | 按用户提供 JSON 的 `Frame 12` 规格调整 source 原文卡：标题使用 `18px`、`font-weight: 500`、`line-height: 25px`；正文使用 `14px`、`font-weight: 500`、`line-height: 20px`；标题与正文间距为 `16px`；文字内容保持不变。 |
+| Source width | Pass | source tab panel 从 `327px` 内容区外扩为 `343px` 参考宽度，匹配 JSON 中 `Frame 12 width=343` 的视觉宽度。 |
+| Backplate color | Pass | 候选人画像页相关横向底板色统一调整为 `#322E38`，覆盖 source 原文卡、匹配证据卡、核心匹配/风险/建议补充卡片；统计三卡仍保留原有分色增强。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile Source 原文落底板修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source text surface | Pass | `候选人简历 / 目标 JD` 原文块移除独立圆角卡片样式，改为 `background: transparent`、`border-radius: 0`、`padding: 0`，直接显示在 source 区域底板上。 |
+| Width alignment | Pass | source 原文块继续使用 `343px` panel 宽度，和下方匹配证据框外宽保持一致。 |
+| Backplate color | Pass | 底板色已调整为 `#322E38`：source tabs、下方匹配证据卡、核心匹配/风险/建议补充等横向底板均使用该色；source 原文本身不再额外染色，避免“框中框”。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Candidate Profile 底板色微调 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Backplate color | Pass | 根据截图反馈，将候选人画像页相关底板色从 `#322E38` 调整为 `#1E1B22`，覆盖 source tab 底板、下方匹配证据卡、核心匹配/风险/建议补充卡片。 |
+| Scope | Pass | 保留 Home/JD 输入 toolbar 的 `#322E38` 不变；本轮只调整候选人画像页视觉层，不改数据、状态机或 API 契约。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 画像返回间距和面试官头像裁切修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile navigation spacing | Pass | 候选人画像页返回按钮从 `top=45px` 调整为 `top=50px`，标题栏同步下移到 `top=57px`，使 statusbar 时间与返回按钮的上下间距和 InputJD / Select Interviewer 的导航区域一致。 |
+| Select avatar clipping | Pass | `select interviewer` 网格页 144px 头像容器补回 `border-radius:50%` 与 `overflow:hidden`，与 Figma 的 `Ellipse 5` 圆形裁切一致。 |
+| Confirm avatar sizing | Pass | `select interviewer_2` 详情页保留 360px 圆形裁切容器，内部人像按 Figma image 节点尺寸 `292.5px × 517.5px` 放置，并使用 `center -40px` 对齐圆形裁切。 |
+| Statusbar clock | Pass | 候选人画像 / select interviewer / select interviewer_2 已使用 `StatusBarClock` 系统时间组件，本轮复查无需改动。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；三张 `public/figma/interviewers/*@2x.png` 静态资源均返回 200。 |
+
+## Figma Select Interviewer_2 详情头像恢复 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar sizing | Pass | 撤回详情页专用 `background-size: 292.5px 517.5px` 和 `center -40px` 覆盖，避免真实 PNG 在 360px 圆形容器内被拉伸压缩。 |
+| Clipping | Pass | 继续保留 `.figma-interviewer-portrait-detail` 的 `360px` 圆形裁切、`border-radius:50%` 和 `overflow:hidden`，仅恢复头像图片自身的 `cover` 构图。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；确认 CSS 中已无 `background-size: 292.5px 517.5px` 或 `center -40px` 详情页压缩覆盖。 |
+
+## Figma Select Interviewer_2 详情头像等比放大 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar scale | Pass | `select interviewer_2` 详情页头像从原始 PNG 宽 `234px` 改为 CSS 渲染宽 `292px`，另一边使用 `auto` 等比放大，避免再次拉伸变形。 |
+| Computed size | Pass | 严厉HR/技术老哥 PNG `234×320` 渲染约 `292×399.3`；温柔大姐姐 PNG `234×312` 渲染约 `292×389.3`。外层仍为 `360×360` 圆形裁切。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `.figma-interviewer-portrait-detail { background-size: 292px auto; }`。 |
+
+## Figma Select Interviewer_2 详情头像上移 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar position | Pass | `select interviewer_2` 详情头像整体向上抬升 20px：`.figma-interviewer-portrait-detail top` 从 `92px` 调整为 `72px`。 |
+| Scope | Pass | 保留头像 `292px auto` 等比缩放、`360×360` 圆形裁切、文字和 CTA 位置不变；只调整详情页头像位置。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `top: 72px` 和 `background-size: 292px auto` 同时生效。 |
+
+## Figma 面试官头像位置和风格文案更新 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Detail avatar position | Pass | `select interviewer_2` 详情头像在上一版基础上再上移 20px，`.figma-interviewer-portrait-detail top` 从 `72px` 调整为 `52px`。 |
+| Select avatar position | Pass | `select interviewer` 三个头像组整体上移 20px：上排 `top 203px→183px`，下方居中项 `top 383px→363px`，名字/职位随头像组一起上移。 |
+| Classic labels/descriptions | Pass | `INTERVIEWER_STYLES` 更新为 `温柔HR小姐姐 / 技术老哥 / 资深业务大佬`，描述分别改为基础建议型、专业/项目深挖型、业务理解与岗位匹配型；classic 选择卡、后续 prompt 的 style label 同步读取新文案。 |
+| Figma labels/descriptions | Pass | Figma 选择页和确认页名称同步为 `温柔HR小姐姐 / 技术老哥 / 资深业务大佬`；确认页描述来自同一份 `INTERVIEWER_STYLES`，因此 theme=figma 与 theme=classic 一致。 |
+| Fallback tone | Pass | 本地兜底题目前缀同步调整：`strictHr` 改为基础引导语气，`gentleSister` 改为业务取舍语气，保留枚举 id 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 坐标和面试官新文案均已用 `rg` 复查。 |
+
+## 面试官头像文件重命名与报告超时放宽 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar filenames | Pass | 头像文件按新角色命名：`strict-hr@2x.png` 重命名为 `gentle-hr-sister@2x.png`，`gentle-sister@2x.png` 重命名为 `senior-business-leader@2x.png`，`tech-bro@2x.png` 保持不变。 |
+| Avatar references | Pass | Figma CSS 引用同步更新为 `/figma/interviewers/gentle-hr-sister@2x.png`、`/figma/interviewers/tech-bro@2x.png`、`/figma/interviewers/senior-business-leader@2x.png`；旧文件名仅保留在历史 todo 记录中。 |
+| Report timeout | Pass | 报告生成链路新增 `REPORT_LLM_TIMEOUT_MS = 60000`，`generateInterviewReport` 调用 `createTimeoutSignal(60000)`；profile/questions 继续使用 provider 默认 25s。流式报告和非流式报告共用该链路。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /?theme=figma` 与三张新头像资源均返回 200；`npm run smoke:contract -- http://localhost:3000` 通过，覆盖 report schema 与 report stream events。 |
+
+## Figma 面试官头像和详情文字继续上移 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select avatar position | Pass | `select interviewer` 三个头像组继续整体上移 20px：上排 `top 183px→163px`，下方居中项 `top 363px→343px`，名字/职位随头像组一起上移。 |
+| Detail copy position | Pass | `select interviewer_2` 详情页文字组从 `top 452px` 上移到 `428px`，与头像圆形框下沿（`52px + 360px = 412px`）保留约 16px 间距，更贴近头像。 |
+| Scope | Pass | 保持详情头像 `top 52px`、`360×360` 圆形裁切和 `292px auto` 等比尺寸不变；仅调整选择页头像组和详情页文字组位置。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；CSS 已确认 `top: 163px/343px/428px` 生效。 |
+
+## Figma Select Interviewer 两页接入 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma references | Pass | 使用 `面壁者/figma_Select_Interviewer_2026-07-03T12-46-23-851Z.json` 和 `面壁者/figma_Select_Interviewer_2_2026-07-03T12-46-33-131Z.json` 提取 375×812 根画布、标题、人物组、详情头像、描述和 CTA 尺寸。 |
+| Select page | Pass | 候选人画像页底部确认后进入 Figma 面试官选择页，复用 Home/InputJD 的 375×812 竖版框架、暗色背景、状态栏、返回按钮和右上 accessory；5 人设计适配为 3 选 1：左右两个备选 + 中间主位，点击任一面试官进入详情页。 |
+| Detail page | Pass | 选中面试官后进入 `Select Interviewer_2` 风格详情页：大圆形人像、姓名、职位、风格描述和 `开始面试` 胶囊按钮；保留返回重新选择能力。 |
+| Scope | Pass | 保留固定三种业务风格 `大厂严厉 HR / 技术老哥 / 温柔大姐姐` 和现有状态机/API 契约；只调整 `theme=figma` 的视觉层与页面结构。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Select Interviewer Navigation Bar 修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Navigation reference | Pass | 复查 Select Interviewer 两个 JSON：`Navigation Bar` 为 `y=0 h=88`，`StatusBar` 为 `y=0 h=47`，`Frame 5 / Group 1` 为 `x=23.5 y=50 w=32 h=32`。 |
+| Accessory removal | Pass | 面试官选择页和面试官详情页移除右侧 `NavigationBar-Accessory`，只保留 `Frame 5` 下的 `Group 1` 返回按钮。 |
+| Relative spacing | Pass | `.figma-interviewer-card .figma-statusbar` 保持 `top=14px`，`.figma-interviewer-back-button` 调整为 `top=50px left=23.5px`，维持 Figma 当前分辨率下 StatusBar 与 Frame5 的上下相对间距。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 手机端全屏容器修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile frame | Pass | 在 `@media (max-width: 820px)` 下为 `theme=figma` 增加手机端覆盖：`.app-shell` 去掉 padding，`.figma-phone-stage` 改为 `100dvh` stretch，`.figma-phone-card/.figma-home-card` 改为 `100vw x 100dvh`。 |
+| Rounded shell | Pass | 手机端 Figma 页面去掉外层卡片的 `border`、`border-radius` 和 `box-shadow`，避免真实手机上看到圆角预览框；桌面端仍保留居中预览效果。 |
+| Scope | Pass | 仅影响 `theme=figma` 小屏断点，不影响 classic 主题和业务状态机/API 契约。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 手机端 375 坐标系居中修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 手机端上一版将 `.figma-phone-card/.figma-home-card` 直接设为 `100vw`，但内部 Figma 节点仍按 375px 设计稿绝对坐标定位；在 390/430 等宽屏手机上会造成 Home、InputJD、面试官页内容整体偏左，候选人画像球体也偏左。 |
+| Mobile alignment | Pass | 小屏下改为 `.figma-phone-stage { place-items: start center }`，卡片宽度改为 `min(375px, 100vw)`，保持 375px Figma 坐标系水平居中；外侧区域使用 `#161316` 背景补齐。 |
+| Rounded shell | Pass | 继续保留手机端无 `border`、无 `border-radius`、无 `box-shadow`，避免真实手机出现圆角预览框。 |
+| Scope | Pass | 仅影响 `theme=figma` 小屏断点；桌面端仍保留居中预览卡，classic 主题和业务状态机/API 契约不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## 状态栏时间改用系统时间 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 系统时间 | Pass | 候选人画像 / select interviewer / select interviewer_2 三页 statusbar 的时间从写死 `9:41` 改为系统时间。新增 `StatusBarClock` 组件（`components/InterviewCoachApp.tsx`），格式 `H:MM`（如 `23:01`），`setInterval` 每 15s 刷新。 |
+| SSR 水合 | Pass | 组件为 `"use client"` 但仍会 SSR：初始渲染占位 `9:41`（服务端与首帧客户端一致），`useEffect` 挂载后再取 `new Date()` 并加 `suppressHydrationWarning` 兜底，避免水合不匹配。 |
+| 范围 | Note | 仅这三页（用户指定）。Home / InputJD 的 statusbar 在 `components/setup/SetupPanel.tsx`，仍为 `9:41`，未改。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器实测 statusbar 显示 `23:01` 与 `new Date()` 一致（截图确认）。 |
+
+## 确认页头像圆弧裁切（Ellipse 5）- 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 圆弧切割 | Pass | 用户指出 Figma `Group 2` 内含 `Ellipse 5`（360×360 圆，#D9D9D9 + blur），人像 `image`(292.5×517.5) 被该圆裁切，底部应是"圆弧切割"感而非直线平切。之前把 `border-radius:50%` 连同灰底一起去掉了——其实要去掉的是灰色填充，圆形**形状**要保留做裁剪。现给 `.figma-interviewer-portrait-detail` 加回 `border-radius:50%; overflow:hidden`（保持透明、无灰底/阴影），人像底部随圆弧切出弧形。 |
+| 保持透明 | Pass | 不加 `#D9D9D9` 填充与 `box-shadow`，圆内人像抠像浮于透明卡片背景，圆弧边缘处自然收束。 |
+| 截图验证 | Pass | strictHr / gentleSister 详情页均确认底部为圆弧切割、透明无白框；gentleSister 发髻在圆内不被裁（`-10%` 头顶补偿）。圆形裁切为统一 CSS，techBro 同理。 |
+| 待确认 | Open | Figma 网格页每个头像同样用 144 圆的 Ellipse 5 裁切；本次按用户"先关注 select interviewer_2"仅改详情页，网格页是否也加圆弧待用户确认。 |
+
+## 面试官选择/确认页对齐 Figma 坐标 - 2026-07-03
+
+依据用户提供的两份 Figma 节点导出（`Select Interviewer` / `Select Interviewer_2`）校准位置。
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 网格头像位置（修"靠下"） | Pass | 按 Figma 坐标：上排 `top` 230→203、中间 `top` 448→383（水平居中），左右边距 24/24→16/15。头像整体上移，修复"所有头像都偏靠下"。 |
+| 构图取舍 | Pass | Figma 用 117×207 人像矩形（偏移 14,−19），但那是按"头+肩"素材设计；我们的 PNG 是"头到躯干"，直接套 117×207 会导致人脸下移压到名字（已截图验证会重叠）。故保留上一版 144×144 `cover` + 逐图 `background-position` 的"头+上肩"构图，仅采用 Figma 的位置坐标。 |
+| 名字/职位 | Pass | 字号采用 Figma 值：名字 18px、职位 12px；位置因我们头像更大（头+肩 vs 整身），name/role 保持 150/176px（比 Figma 的 138/163 略低）以在肩线下方留干净间距，避免压到下巴。 |
+| 浏览器截图验证 | Pass | 用预览实例逐页截图核对：网格页三头对齐、名字在肩下方无重叠；确认页 strictHr/techBro/gentleSister 三人透明无白框、头+上肩、`20%`/`-10%` 补偿在 360px 详情图同样成立。 |
+
+## 面试官头像透明化 + 顶部间距 + 字号位置微调 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile 顶部间距 | Pass | 候选人画像页 statusbar `top` 从 24px 改回 14px（与 Home/JD/面试官页基线一致），back button 55→45、navbar 62→52 整块上移 10px，修复顶部间距比其它页偏低的问题。 |
+| 头像透明框 | Pass | PNG 本身是抠像（上方四角 alpha=0），此前用户看到的"白框"来自容器的 `background-color:#d9d9d9`+`border-radius:50%`+`box-shadow`；已移除，改 `background-color:transparent`，人物浮在透明背景上（选择页与确认页共用）。 |
+| 头像构图（头+上肩） | Pass | 对照效果图，构图应为"头+上肩"紧凑裁切而非整身；`background-size` 用 `cover`（填满、裁掉下方躯干）。三张 PNG 头顶透明留白不一（严厉HR 7%/技术老哥 10%/温柔姐姐 2%），按每图设 `background-position` 纵向补偿（strictHr `center 8%`、techBro `center 20%`、gentleSister `center -10%`），使三头统一约 6% 头顶间距、裁到上胸；百分比与框尺寸无关，144px 网格与 360px 详情图同一组值都成立。 |
+| 选择页字号/位置 | Pass | 名字 `font-size` 26→18px（26px 时 6 个中文字≈156px 会超出 144px 宽），name/role 下移到 150/176px 让位给完整人像；三个人像整体下移：option-1/2 top 214→230、option-3 432→448。 |
+| 确认页字号/位置 | Pass | 详情名字 `font-size` 48→30px、line-height 67→42；文案组 `top` 414→452px 下移到人像下方，修复"文字过于靠上"。 |
+| Verification | Pass | `npm run typecheck` 通过；dev server 已热更新，serve 出的 `layout.css` 已确认上述各值生效（Chrome 扩展本次未连上，未做像素级截图）。 |
+
+## 面试官头像替换为真实 PNG - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Assets | Pass | 用户已放入 `public/figma/interviewers/strict-hr@2x.png`、`tech-bro@2x.png`、`gentle-sister@2x.png`（头肩证件照式、人脸居中偏上）。 |
+| Wiring | Pass | `.figma-interviewer-portrait` 由 CSS 渐变/伪元素画脸改为引用 PNG：base 设 `background-size:cover; background-position:center top`，`::before/::after` 置 `content:none`，按 `hero-strictHr/hero-techBro/hero-gentleSister` 分别 `background-image`。选择页 144px 圆形与确认页 360px 详情图共用同一映射。 |
+| Cleanup | Pass | 移除旧的 clip-path/多层 radial-gradient 画脸规则及 techBro/gentleSister/detail 的伪元素覆写，避免死代码。 |
+| Verification | Pass | `npm run typecheck` 通过；dev server 已热更新，`GET /figma/interviewers/*@2x.png` 均返回 `200 image/png`，`GET /?theme=figma` 返回 200；serve 出的 `layout.css` 含三条 hero `background-image` 且旧 clip-path 已为 0。 |
+
+## Figma 小屏背景、返回按钮和面试官文案修正 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Viewport background | Pass | 在小屏 `theme=figma` 下增加固定全视口背景层，保留 375px Figma 坐标系居中，同时让不同分辨率外侧背景铺满，不再露出浅色页面底。 |
+| Profile back | Pass | 候选人画像页标题栏改为不接收 pointer events，并提高返回按钮层级，避免标题栏覆盖导致点击返回 JD 输入页无效。 |
+| Statusbar typography | Pass | `select interviewer` 和 `select interviewer_2` 的 statusbar 字号/字重改回共用 `figma-statusbar` 体系，和 Home、InputJD、候选人画像页保持一致。 |
+| Interviewer labels | Pass | 面试官选择页三项显示改为 `大厂严厉HR / 技术老哥 / 温柔大姐姐`；当前头像仍为 CSS 临时绘制，若需精确还原设计稿头像，建议导出 2x PNG 到 `public/figma/interviewers/` 后替换。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
 ## Profile LLM 匹配证据契约扩展 - 2026-07-01
 
 | Check | Result | Evidence |
@@ -350,12 +890,539 @@
 | Limitation | Noted | 旧版 `.doc` 和扫描件 PDF OCR 暂不支持；用户需另存为 `.docx`、`.pdf`、`.txt` 或先 OCR。 |
 | Verification | Pass | `npm run typecheck` 通过；文件解析接口不调用 LLM，不输出上传文件全文日志。 |
 
+## 产品 Prompt 套件 classic 调试面板 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Prompt source review | Pass | 已解析 `Prompt套件.docx`，将产品提供的画像、题目、报告 prompt 重点映射进 `lib/prompts/productPromptSuite.ts`；保留现有 API 字段契约，不直接改成产品文档中的临时字段名。 |
+| Classic-only editor | Pass | `theme=classic` 下新增 `Prompt 调试` 面板，支持编辑公共系统指令、画像 prompt、题目 prompt、报告 prompt，并展示当前线上实际数据格式；编辑内容保存在本浏览器 localStorage。 |
+| Figma isolation | Pass | `theme=figma` 不渲染 Prompt 调试面板，且前端不向 API 传 `promptOverrides`，保持正式视觉路径干净。 |
+| API integration | Pass | profile/questions/report/stream/regenerate-question 均支持可选 `promptOverrides`；后端仍追加硬规则和 outputShape，并继续用 schema 校验返回结果。 |
+| Deployment note | Pass | `README.md` 已补 `/?theme=figma` 与 `/?theme=classic` 访问说明，以及腾讯云自托管时保留 query string 的要求。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://localhost:3000` 通过，覆盖 profile/questions/report stream/单题重生/故障兜底/TTS fault。 |
+
+## 产品 Prompt 全局保存和 Figma 默认生效 - 2026-07-03
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Server persistence | Pass | 新增 `GET/POST /api/prompts/active` 和 `lib/prompts/promptStore.ts`，全局 Prompt 默认保存到 `outputs/active-prompt-overrides.json`；可用 `FACEWALL_PROMPT_STORE_PATH` 指向腾讯云持久盘路径。 |
+| Classic save flow | Pass | `theme=classic` 的 Prompt 调试面板新增“保存为全局 Prompt”“重新加载全局 Prompt”“恢复产品默认 Prompt”；未保存内容仍可作为当前 classic 草稿直接测试。 |
+| Figma default behavior | Pass | figma 主题不传草稿覆盖，profile/questions/report/stream/regenerate 默认读取服务端 active Prompt；服务重启后继续从持久文件读取。 |
+| Runtime artifact handling | Pass | `outputs/active-prompt-overrides.json` 加入 `.gitignore`，避免把产品在线调试结果误提交到仓库。 |
+| Deployment docs | Pass | `README.md` 和 `docs/15_release_selfhost.md` 已补腾讯云单机/多实例 Prompt 持久化说明，且修正 key 示例占位符避免安全检查误报。 |
+| Verification | Pass | `npm run typecheck`、`npm run build`、`npm run security:check` 通过；`npm run smoke:contract -- http://localhost:3001` 通过；`GET /?theme=classic` 显示 Prompt 面板，`GET /?theme=figma` 隐藏 Prompt 面板。 |
+
+## Classic 一键填充和 Figma 移动端/面试官位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Classic demo fill | Pass | `theme=classic` 下“一键填充”和“填充并生成画像”只替换简历/JD，保留当前已选 `form.interviewerStyleId`，不再强制改回 demo 默认的 `strictHr` / 温柔HR小姐姐。 |
+| Select interviewer position | Pass | `select interviewer` 三个人物组整体下移：上排从 `top: 163px` 调到 `195px`，下方居中项从 `343px` 调到 `395px`，避免当前视觉过于贴近页面上方。 |
+| Mobile fill | Pass | `theme=figma` 小屏卡片恢复 375×812 Figma 原始画布，并通过 `transform: scale(calc(100vw / 375px))` 按屏宽等比放大；iPhone 12 Pro / XR / 14 Pro Max 等 390-430px 宽度不再保留 375px 窄画布两侧空隙。 |
+| Avatar sizing note | Note | 选择页当前 Ellipse/头像显示框为 `.figma-interviewer-portrait` 的 `144px × 144px` 圆形裁切，PNG 使用 `background-size: cover` 填满圆；确认页为 `360px × 360px` 圆形裁切，PNG 使用 `background-size: 292px auto`。 |
+| Verification | Pass | `npm run typecheck` 通过；未改 API 契约、状态枚举、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像尺寸和位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select avatar width | Pass | `select interviewer` 三个头像圆形裁切从 `144px × 144px` 调整为 `118px × 118px`，人物按钮容器同步从 `144px × 180px` 调整为 `118px × 154px`。 |
+| Select avatar position | Pass | 人物组在上一版基础上整体上移 20px：上排 `top: 195px -> 175px`，下方居中项 `top: 395px -> 375px`；左右项为保持原中心点，改为 `left: 29px` / `right: 28px`。 |
+| Portrait crop | Pass | 选择页 PNG 在圆形裁切内整体下移：`strictHr 18%`、`techBro 30%`、`gentleSister 0%`，减少头像下方视觉空感；`select interviewer_2` 详情页保留原 `8% / 20% / -10%` 构图。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像模块二次位置修正 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Module position | Pass | `select interviewer` 三个人物模块整体向下移动 60px：上排 `top: 175px -> 235px`，下方居中项 `top: 375px -> 435px`。 |
+| Image crop | Pass | 头像模块内部 PNG 向上移动 20px：选择页 `background-position-y` 改为 `calc(18% - 20px)`、`calc(30% - 20px)`、`calc(0% - 20px)`；详情页 `.figma-interviewer-portrait-detail` 继续用单独覆盖值，未受影响。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像 PNG 微调 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Image crop | Pass | `select interviewer` 模块内头像 PNG 在上一版基础上向下微调 10px：选择页 `background-position-y` 从 `calc(... - 20px)` 调整为 `calc(... - 10px)`；外层头像模块 `top: 235px / 435px` 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Select Interviewer 头像 PNG 5px 微调 - 2026-07-04
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Image crop | Pass | `select interviewer` 模块内头像 PNG 在上一版基础上向下微调 5px：选择页 `background-position-y` 从 `calc(... - 10px)` 调整为 `calc(... - 5px)`；外层头像模块 `top: 235px / 435px` 不变。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 初版接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma interview branch | Pass | `InterviewPanel` 新增 `visualTheme` 参数；`theme=figma` 下从 `select interviewer_2` 点击“开始面试”进入新的 375×812 面试页分支，classic 仍保留原有低保真 `VoiceControls` 面板。 |
+| State/API scope | Pass | 复用现有 `questions/currentIndex/answers`、TTS 播放、STT 录音/失败、手动编辑、跳过、上一题/下一题、生成报告逻辑；未改状态机、接口契约或报告链路。 |
+| Visual structure | Pass | 新增 `.figma-interview-*` 样式：状态栏、题目进度、面试官头像、题目卡片、播放提问/语音作答按钮、TTS/STT 状态、回答文本框、题目圆点和底部操作区；头像复用现有三张 PNG。 |
+| Figma source | Note | 本地未找到 `Interview Responses` 对应完整节点 JSON；当前按已有 Figma 375×812 框架做视觉承接。若提供 `Interview Responses` 节点 URL/JSON，可继续做像素级位置、字号、资源校准。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 流程和 Report 过渡接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interview Responses JSON | Pass | 已读取 `面壁者/figma_Interview_Responses_2026-07-04T16-12-10-564Z.json`：根画布 `375×812`，背景 `#161316`，球体 `Comp 1024 1` 位于 `x=-22 y=144 w=419.6 h=236`，面试官信息组 `x=26 y=88 w=149 h=56`，主文案位于 `x=24 y=380/430`，底部控制组 `x=48 y=650 w=280 h=64`。 |
+| Question flow | Pass | `theme=figma` 面试页改为逐题回答：每题先显示 `Interview Responses` 等待态；点击中间麦克风进入回答中态（`Interview Responses_2` 兜底结构）；回答中显示计时；结束回答后自动进入下一题；第三题结束后自动触发报告生成。 |
+| Answer state | Pass | 每题结束时写入 `durationSec`，保留已有 STT/手动编辑路径；STT 不可用或失败时仍保留文本并允许手动编辑。未改 `InterviewAnswer` schema。 |
+| Report transition | Pass | `ReportPanel` 新增 `visualTheme` 参数；`theme=figma` 下报告生成中显示 Figma 风格 loading 页（对应 Report Page 过渡），报告完成后显示 Figma 风格完整报告页（Report Page_2 结构化兜底）。classic 报告页保持不变。 |
+| Figma gaps | Note | 当前仅有 `Interview Responses` JSON；本地有 `Interview Responses_2.png`、`Report Page.png`、`Report Page_2.png` 和 `figma_Report_Page_2...json`，但缺少 `Interview Responses_2` 与 `Report Page` 的节点 JSON。后续可用节点 JSON 继续做像素级校准。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；`npm run smoke:contract -- http://localhost:3000` 通过；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma 球体资源替换 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interview ball size | Confirmed | `Interview Responses` 当前球体容器为 `.figma-interview-comp`：`left: -22px; top: 144px; width: 420px; height: 236px`；图片 `object-fit: contain`，新源图为 `750×472`，在该容器内按比例显示约 `375×236`。 |
+| Input JD ball size | Confirmed | `Input JD` 继续使用 `.figma-home-comp` 基础尺寸 `340×214`，并通过 `.figma-jd-card .figma-home-comp { top: 152px; }` 定位；新源图为 `750×472`，比例与容器一致。 |
+| Assets | Pass | 从 `面壁者/Comp 1024 1.png` 复制为 `public/figma/home/comp-1024-1-interview@2x.png`；从 `面壁者/Comp 1024 1-jd.png` 复制为 `public/figma/home/comp-1024-1-jd@2x.png`。 |
+| Wiring | Pass | `InterviewPanel` 的 `figma-interview-comp` 改用 `/figma/home/comp-1024-1-interview@2x.png?v=2026070501`；`SetupPanel` 的 Input JD 页改用 `/figma/home/comp-1024-1-jd@2x.png?v=2026070501`；Home 页仍保留原 `/figma/home/comp-1024-1@2x.png`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/home/comp-1024-1-interview@2x.png` 与 `GET /figma/home/comp-1024-1-jd@2x.png` 均返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 题目进度和底部按钮修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frame 10 JSON | Pass | 已读取 `面壁者/figma_Frame_10_2026-07-04T16-59-35-410Z.json`：按钮组 `280×64`；左按钮 `36×36 x=0 y=14`，中间麦克风 `64×64 x=108 y=0`，右按钮 `36×36 x=244 y=14`。当前容器 `.figma-interview-orb-controls` 继续按 `left:48px; top:650px; width:280px; height:64px` 对齐。 |
+| Progress position | Pass | 题目数量/计时从底部按钮附近上移到问题文案下方：`.figma-interview-progress top: 572px`，进度点 `.figma-interview-dots top: 592px`。 |
+| Footer text cleanup | Pass | 移除 `theme=figma` 面试页底部 “已完成 0 题，缺少 3 题 · TTS 待播放” 汇总文案；classic 页仍保留原有缺失答案提示。 |
+| Button icons | Pass | 底部三按钮不再使用文本符号/emoji，改为 CSS 伪元素绘制 X、麦克风、箭头；按钮尺寸和位置继续按 `Frame 10` JSON。若后续要求图标 100% 还原，可导出单个 icon 或整组透明 PNG/SVG。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 球体缩放和按钮 PNG 替换 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ball size | Pass | 面试回答页球体容器从 `420×236` 缩小到 `336×189`，约为上一版 0.8 倍；位置从 `left:-22px; top:144px` 调整为 `left:20px; top:168px`，保持原视觉中心点基本不变。 |
+| Button assets | Pass | 从 `面壁者/Frame 7.png`、`Frame 8.png`、`Frame 9.png` 复制为 `public/figma/interview-controls/frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png`；原始尺寸分别为 `72×72`、`128×128`、`72×72`。 |
+| Button wiring | Pass | 底部控制组继续按 `Frame 10` 尺寸显示：左/右按钮 `36×36`，中间麦克风 `64×64`；CSS 改为 PNG 背景图并移除旧伪元素绘制图标。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/interview-controls/frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png` 均返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 录音态视觉修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Recording ball | Pass | 点击中间麦克风进入录音态后，球体资源从 `/figma/home/comp-1024-1-interview@2x.png` 切换为 `/figma/home/comp-1024-1-response@2x.png`；新资源来自 `面壁者/Comp 1024 1-response.png`，原始尺寸 `750×472`。 |
+| Recording input | Pass | `theme=figma` 录音态移除画面中间的文字输入框，不再渲染 `.figma-interview-answer textarea`；classic 面试页的原有文本编辑路径不变。 |
+| Button hover | Pass | 底部左 X、中间麦克风、右箭头按钮增加 Figma 专用 hover 覆盖，鼠标移入时不再触发全局按钮的背景/位移变化。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET /figma/home/comp-1024-1-response@2x.png` 返回 200；未改 API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses 底部按钮 hover 清理 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Prompt state buttons | Pass | `Interview Responses` 底部左 X、中间麦克风、右箭头按钮在 `.figma-interview-orb-controls` 范围内禁用 hover transition、背景变化、位移、阴影、滤镜和透明度变化。 |
+| Recording state buttons | Pass | `Interview Responses_2` 复用同一底部控制组，录音态 `.figma-interview-orb-controls.recording` 下三个按钮同样不再有鼠标悬停视觉效果。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 视觉 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses_2 监听同心圆 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source note | Note | 用户提供的 `figma_Indicator_Base_on_iOS_16_UI_Kit_by_Joey_Banks__2026-07-04T17-33-47-474Z.json` 仅包含 `Home Indicator` 矩形节点，未包含 `Ellipse 6/7/8/9`；本地其他 Figma JSON 也未命中这些节点名。 |
+| Recording rings | Pass | 参考 `面壁者/Interview Responses_2.png`，在 `theme=figma` 录音态新增 4 个同心圆，圆心对齐底部麦克风按钮中心 `x=187.5 y=682`，尺寸为 `320/224/160/96px`，放在按钮后方并由 375×812 画布底部裁切。 |
+| Scope | Pass | 同心圆仅在 `isRecording` 时渲染；`Interview Responses` 等待态、classic 面试页、状态机和 API 契约不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 长页视觉接入 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Pass | 已读取 `面壁者/figma_Report_Page_2_2026-07-04T17-36-18-818Z.json`：根画布 `375×1565`，背景 `#161316`；顶部评分组 `Group 8 x=16 y=61 w=343 h=296`；内容底板 `Rectangle 1 y=372 h=1282.5 #322E38`；Q tab 在 `y=389`；Home Indicator 位于 `y=1552`。 |
+| Report structure | Pass | `theme=figma` 报告完成页改为长页结构：顶部面试评分/总分/总结卡，下面 Q1/Q2/Q3 tab，当前题详情包含面试题目、考察维度、适用职级、出题意图、面试官避坑指南、您的回答和优化方向。 |
+| Data binding | Pass | 评分和总结来自 `finalReport`；tab 和题目来自 `questions/questionReports/answers`；Q tab 只切换展示题目详情，不改报告数据、状态机或 API 契约。 |
+| Mobile behavior | Pass | 新增 `.figma-report-page-card` 专用 `1565px` 高度和 `.figma-report-stage` 滚动覆盖，避免移动端全局 Figma 812px 卡片规则截断长报告页。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；未改 `tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 截图差异修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile corner radius | Pass | 修复移动端 `.theme-figma .figma-home-card { border-radius: 0 }` 对报告长页的覆盖；`.figma-report-page-card` 在移动端继续保持 Figma JSON 的 `24px` 圆角。 |
+| Status bar | Pass | `Report Page_2` 顶部状态栏不再显示 `Facewall` 文案，改为 iOS 风格信号、Wi-Fi、电池图标，并保留系统时间。 |
+| Hero visual | Pass | 调整顶部紫蓝渐变和人物图尺寸，降低当前截图中头像过大、背景层次偏暗的问题，更贴近 `Report Page_2.png` 的评分头图。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 报告页视觉，不改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 NavigationBar-Accessory 移除 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Accessory removal | Pass | 移除 `theme=figma` 报告完成页右上 `NavigationBar-Accessory` DOM 和对应 `.figma-report-nav-accessory` CSS，不再显示胶囊菜单/圆点。 |
+| Vertical alignment | Pass | Accessory 移除后，评分组从 `top:61px` 上移到 `47px`；提示条从 `341px` 上移到 `327px`；内容底板从 `y=372` 上移到 `y=358`，Q tab 和正文随底板同步上移。 |
+| Background | Pass | 顶部背景改为更贴近 `Report Page_2` 的紫蓝亮面与深蓝弧形渐变层；未直接使用整张 `Report Page_2.png` 作为背景，避免把设计稿里的固定分数、人物和文案烙进真实报告数据。若需 100% 背景贴图，需要从 Figma 单独导出 JSON 中的 `Comp 1024 2` 图片节点。 |
+| Verification | Pass | `npm run typecheck` 通过；仅调整 `theme=figma` 报告页视觉，不改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 手机端圆角修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Mobile report corners | Pass | 手机端 `theme=figma` 下 `.figma-report-page-card` 覆盖为 `border-radius: 0`，避免结果页背景在全屏手机浏览时显示圆角。 |
+| Desktop preview | Pass | 非移动端基础样式仍保留 `24px` 圆角，用于桌面居中预览 Figma 画布。 |
+| Verification | Pass | `npm run typecheck` 通过；未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Interview Responses_2 和 Report Page_2 动效优化 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Recording motion | Pass | `Interview Responses_2` 录音态球体新增呼吸、轻微漂浮和辉光动效；底部麦克风新增录音态呼吸；4 个同心圆保留原中心点 `x=187.5 y=682` 和 `320/224/160/96px` 尺寸，并增加分层脉冲。 |
+| Prompt transition | Pass | 面试页从等待态进入录音态时，题目文案和底部控制组增加短入场/位移动效；底部三按钮的 hover 覆盖仍保留，不恢复 hover 位移或滤镜。 |
+| Report loading motion | Pass | `theme=figma` 报告生成页新增球体呼吸/浮动、文案入场和流式片段 staggered 入场；不改流式/非流式报告契约和兜底逻辑。 |
+| Report ready motion | Pass | `Report Page_2` 完成页新增评分数字 pop、人物/总结卡/内容底板入场、指标卡 staggered 入场；Q1/Q2/Q3 tab 切换通过 React `key` 重新触发详情面板入场，仅影响视觉层。 |
+| Reduced motion | Pass | 新增 `@media (prefers-reduced-motion: reduce)`，关闭本次新增的 Figma 面试页和报告页动画/transition。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 390×844 走通 Home -> Input JD -> 候选人画像 -> Select Interviewer -> Interview Responses -> 录音态 -> Report Page_2，录音态检测到 `figma-interview-orb-breathe` / `figma-interview-mic-breathe` / `figma-interview-ring-pulse`，报告页检测到 `figma-report-score-pop` / `figma-report-detail-in`，`scrollWidth=390`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 StatusBar 和 Frame 11 内容修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| StatusBar cleanup | Pass | `Report Page_2` 顶部 statusbar 移除右侧 signal/Wi-Fi/battery DOM，只保留左侧时间模块；`.figma-report-page-card .figma-statusbar` 改为左对齐。 |
+| Score size | Confirmed | 当前评分数字 `.figma-report-score-hero h2` 为 `font-size: 96px; line-height: 134px; font-weight: 500;`，与 Figma JSON 中 `Group 8 / 92` 的 96px 字号一致。 |
+| Frame 11 sizing | Pass | `Group 8 / Frame 11` 保持设计稿起始尺寸规则：`width:343px`、`min-height:92px`、`border-radius:16px`、`padding:16px`；框体高度随真实内容自然撑开。 |
+| Frame 11 content | Pass | Frame 11 内容从单段 summary 改为包含 classic 报告页同源的 `最终报告`、`Top 风险`、`行动项`，数据来自 `report.finalReport.summary/topRisks/actionItems`，不改报告 schema 或 API 契约。 |
+| Layout spacing | Pass | 扩高后的 Frame 11 下方正文区从 `top:358px` 下移到 `top:568px`，toast 同步下移，避免新增内容覆盖 Q tab 和单题详情。 |
+| Verification | Pass | `npm run typecheck` 通过；启动 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 检查报告页 statusbar 子元素数为 1，Frame 11 computed width `343px`、min-height `92px`、实际内容高约 `287px`，评分 computed font-size `96px`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 头像镜像和 Frame 11 下移修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Avatar mirror | Pass | `Report Page_2` 头像 `.figma-report-person` 增加水平镜像，入场动画 `figma-report-person-in` 同步保持 `scaleX(-1)`，避免动画结束后恢复原方向。 |
+| Frame position | Pass | `Group 8 / Frame 11` 从 `top:204px` 下移到 `top:292px`，位于头像底部下方；源码仍保持 `width:343px`、`min-height:92px`、`border-radius:16px`、`padding:16px`。 |
+| Content hierarchy | Pass | Frame 11 内部改为 `display:grid`，section 使用独立 grid/gap，列表补充 line-height 和 overflow-wrap，避免“最终报告 / Top 风险 / 行动项”上下拥挤或遮盖。 |
+| Layout spacing | Pass | 报告正文区同步下移到 `top:672px`，toast 下移到 `top:638px`，给扩高后的 Frame 11 留出垂直空间。 |
+| Verification | Pass | `npm run typecheck` 通过；启动 `npm run dev` 后 `GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 重新走到报告页检测到头像 transform 为 `matrix(-1, 0, 0, 1, 0, 0)`、Frame 11 `display:grid`、`gap:14px`、头像底部与 Frame 11 重叠值 `0px`。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 最终报告和风险行动双卡修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Final report card | Pass | `Group 8 / Frame 11` 拆为上方 `.figma-report-final-card` 和下方 `.figma-report-risk-action-card`；最终报告卡包含 `最终报告`、`总分`、`finalReport.summary` 和已作答/缺失答案状态，缺失答案不再单独占用浮层提示。 |
+| Avatar overlap | Pass | 最终报告卡栈保持 `top:250px`，浏览器测得头像底部与最终报告卡顶部重叠 `20px`，符合“超过头像下方边缘并上移 20px”的要求。 |
+| Risk/action card | Pass | `Top 风险` 和 `行动项` 统一放入下方同一个视觉卡片；修复行动项误落到无样式 section 的层级问题，浏览器测得风险行动卡 `childCount=4` 且文本包含“行动项”。 |
+| Text flow | Pass | 修复 `.figma-report-score-hero p` 误影响报告卡段落的问题，卡片内部 `p` 恢复 `position:static`，框体高度随内容自然撑开，避免“最终报告 / 总分 / 已作答”上下遮盖。 |
+| Layout spacing | Pass | 两个卡片之间保持 `16px`；Q1/Q2/Q3 内容区调整为 `top:800px`、`min-height:751px`，浏览器测得风险行动卡底部到 Q tabs 顶部约 `68px`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200；in-app browser 走到报告页复测最终报告卡高度 `157px`、风险行动卡高度 `262px`、缺失答案文本已集成到最终报告卡、独立 missing-answer toast 不再出现。未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 字号、描边和 Q Tab 样式修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Summary typography | Pass | `最终报告 / Top 风险 / 行动项` 标题从 `12px` 增加到 `16px`；最终报告正文和风险/行动项列表从 `14px/20px` 调整为 `16px/22px`，缺失答案状态从 `13px/18px` 调整为 `15px/21px`。 |
+| Title colors | Pass | 最终报告标题单独提亮为纯白 `#ffffff` 并增加轻微紫色辉光；`Top 风险` 使用与候选人画像“关键词”一致的淡紫色 `#ddd6fe`，`行动项` 使用薄荷绿 `#98ead3`，和当前深紫灰报告背景保持一致。 |
+| Card edge style | Pass | 上下两个报告信息卡统一为 `1px rgba(219,213,233,.22)` 描边、顶部内高光和轻阴影，替代旧的单一 inset 描边，使边缘质感与当前样例卡一致。 |
+| Q tabs visual | Pass | Q1/Q2/Q3 从旧的三个透明文字按钮改为图片 2 风格的连体顶部 tab：外层深色圆角底座、当前 tab 深紫选中块和右侧斜切过渡；tab 字号调整为 `24px`。 |
+| Spacing | Pass | 字号放大后将 Q tabs 内容区从 `top:836px` 收紧到 `top:812px`，使 `Top 风险/行动项` 卡下方到 Q1/Q2/Q3 区域的间距接近双卡之间的 `16px` 节奏。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Q Tab 效果图对齐 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab shape | Pass | Q1/Q2/Q3 区域按用户效果图重新校准：tab 底座高度从 `112px` 增至 `150px`，顶部底座 `365×82px`，选中态右侧斜切从 `64px` 扩为 `92px`，让 Q1 到 Q2 的过渡更接近效果图。 |
+| Tab layout | Pass | Q1/Q2/Q3 的水平位置调整为 `left:10/142/268px`，选中态 Q1 更宽，Q2/Q3 分布更贴近效果图的宽间距布局。 |
+| Detail typography | Pass | Q 区正文从旧小字号放大：详情标题从 `18px/25px` 调整为 `28px/34px`，正文从 `14px/20px` 调整为 `20px/29px` 且加粗到 `600`，对齐效果图的大字重排版。 |
+| Detail spacing | Pass | 详情内容左边距从 `16px` 调整为 `34px`、顶部从 `124px` 调整为 `156px`，问题块最小高度从 `121px` 增至 `190px`，避免放大后内容贴边。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页 CSS，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 报告标题和缺失答案颜色修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Final title color | Pass | “最终报告”标题从纯白调整为金色 `#f3c766`，并使用同色轻微辉光提高识别度。 |
+| Answer status color | Pass | `已作答 x / 3` 拆成独立 span；当 `missingAnswers.length === 0` 时沿用普通说明色，当少一题或更多时切换为与候选人画像“风险点”一致的红色 `#ffb4c8`。 |
+| Missing answer color | Pass | `缺失答案：q1 / q2 / q3` 单独渲染为画像“风险点”红色 `#ffb4c8`，不再与整行状态共用黄色 warning 样式。 |
+| Risk title color | Pass | `Top 风险` 标题恢复为候选人画像“关键词”淡紫色 `#ddd6fe`；`行动项` 保留薄荷绿以区分信息层级。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉和状态文案 span 结构，未改业务状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 信息卡渐变描边修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Gradient border | Pass | `最终报告` 卡和 `Top 风险 / 行动项` 卡的描边改为共享伪元素渐变描边：顶部高亮，左右两侧由下到上逐渐变亮，底部渐隐为透明。 |
+| Card body | Pass | 卡片背景、圆角、内高光和阴影保留；原实线 `border` 改为透明占位，避免布局尺寸变化。 |
+| Scope | Pass | 仅调整 `.figma-report-summary-card` 视觉层 CSS，未改报告 schema、状态机、API 契约、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 单题 Tab 内容结构重排 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Module order | Pass | `theme=figma` 单题 tab 从旧的指标卡/避坑/回答/优化方向结构，重排为：面试题目、单个题目分数、面试题目详情、六维能力图、三枚风险标签、致命问题、诊断、60 秒口述版。 |
+| Ability chart | Pass | 新增 `FigmaAbilityRadar`，直接读取 `questionReport.dimensionScores` 绘制六维雷达/六边形能力图；6 个维度为岗位相关、结构表达、证据力度、职业表达、事实边界、完整度，分数仍来自既有 report schema。 |
+| Risk tags | Pass | 风险标签限制展示前三个，用独立底图卡片框出，颜色复用候选人画像“风险点”语义色。 |
+| Oral copy | Pass | 60 秒口述版改为独立内容卡，卡内加入通用复制图标按钮，复用既有 `copyQuestion(questionReport, "oral")` 逻辑。 |
+| Page height | Pass | `Report Page_2` 长页高度从 `1565px` 扩展到 `2380px`，移动端覆盖同步更新，避免新增单题模块被底部 Home Indicator 截断。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 单题内容底部裁切修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 单题 tab 新增详情、六维图、风险标签、致命问题、诊断和 60 秒口述版后，实际内容高度超过上一版固定 `2380px` 画布；`.figma-report-page-card` 又设置 `overflow:hidden`，因此底部诊断/口述版会在 Home Indicator 附近被裁掉。 |
+| Page height | Pass | `Report Page_2` 长页高度从 `2380px` 扩展到 `3200px`，移动端同名覆盖同步更新。 |
+| Body height | Pass | `.figma-report-body` 底板从 `min-height:1554px` 扩展到 `2374px`，为动态题目详情、诊断和 60 秒口述版留出底部空间。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页高度，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 动态高度和缺失评分修正 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Dynamic page height | Pass | `Report Page_2` 不再依赖固定 `3200px` 高度；`ReportPanel` 使用 `ResizeObserver` 测量当前 Q tab 内容高度，并通过 `--figma-report-page-height` 驱动报告页和内容底板高度，整体高度随当前内容增长。 |
+| Question score layout | Pass | 单题 tab 顶部从“面试题目 + 单个题目分数独立框”调整为“本题分数 + 分数/暂无评分”同行展示；移除独立分数框，题目正文降为 `16px/24px`，避免当前问题文字过大。 |
+| Missing score logic | Pass | 演示兜底报告中缺失答案题从 `score:35` 改为 `score:0`，六维评分全部为 `0`；总分取消 `Math.max(40, 平均分)` 下限，改为按题目分真实平均，避免 3 道缺失题显示 40 分。 |
+| Missing ability display | Pass | `theme=figma` 单题详情在缺失答案时不渲染六维雷达图，改为“缺失答案，暂不评估六维能力”，避免让用户误以为无回答也能得出六维评分。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://localhost:3000` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改接口字段、状态名、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Tab 方案和面试官头像绑定 - 2026-07-05
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab alternative | Pass | 放弃继续复刻不稳定的斜切 Figma tab，改为与当前深紫灰风格更搭的三段式玻璃胶囊 tab；每个 tab 展示 `Q1/Q2/Q3` 和该题状态（分数或“缺失”），当前项使用内高光、金色状态和轻阴影。 |
+| Content position | Pass | 新 tab 高度收敛后，单题详情从 `top:156px` 上移到 `top:124px`，避免 tab 区域占用过多纵向空间，并继续由动态高度逻辑兜住内容长度。 |
+| Interviewer avatar | Pass | `ReportPanel` 新增 `interviewerStyleId` 视觉 prop，由 `InterviewCoachApp` 传入当前选择；报告页顶部人物从固定 HR 图改为复用 `strictHr / techBro / gentleSister` 对应的三张面试官图片。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页视觉和 prop 透传，不改 interviewer 枚举 id、业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 六维图和 Tab 间距修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ability chart persistence | Pass | 缺失答案时不再把六维能力区替换成纯文字卡；`FigmaAbilityRadar` 始终渲染完整六边形雷达、网格、轴线、节点和 6 个维度分数。 |
+| Missing score note | Pass | 缺失答案时雷达分数使用 0 分，并在同一卡片底部补充“缺失答案，六维分数为 0，暂不评估能力表现。”，避免误导为已评估。 |
+| Tab spacing | Pass | 单题详情区从 `top:124px` 上移到 `top:106px`，大幅缩短 tab 下方到“本题分数”的距离，同时保留 tab 视觉安全间距。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉展示，不改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 全宽 Tab 样式修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Full-width tabs | Pass | Q1/Q2/Q3 tab 从内缩胶囊改为全宽连体页签，`.figma-report-tabs` 由 `left:0; width:375px` 撑满报告内容区，三个 tab 等宽无间隙。 |
+| Rounded top corners | Pass | Tab 容器使用 `border-radius:24px 24px 0 0`，首个 tab 保留左上圆角，最后一个 tab 保留右上圆角，底部与内容区连在一起。 |
+| Spacing | Pass | 新 tab 高度为 `84px`，单题详情区调整为 `top:96px`，保持 tab 到“本题分数”的距离紧凑且不贴边。 |
+| Type compatibility | Pass | 兼容当前工作区 `PromptOverrides.interviewers` 对象字段：`PromptDebugPanel` 仅把 `system/profile/questions/report` 四个字符串字段渲染为 textarea，避免新增对象字段破坏 typecheck。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Tab 文案和圆角边缘修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tab labels | Pass | 移除 Q1/Q2/Q3 tab 下方的“缺失/分数”二级状态文案，tab 内仅保留单行 `Q1/Q2/Q3`，避免底部重复提示。 |
+| Tab height | Pass | 全宽 tab 高度从 `84px` 收紧到 `76px`，单题详情区同步调整为 `top:88px`，保留紧凑的 tab 到“本题分数”距离。 |
+| Rounded edge | Pass | Tab 外层移除额外外沿高光阴影，圆角裁切外侧直接显示报告内容背景；首尾 tab 仍保留左上/右上圆角。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。仅调整 `theme=figma` 报告页视觉展示，不改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+
+## Figma Report Page_2 Tab 常态圆角和斜线分隔 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default rounded tabs | Pass | 未选中 tab 也增加常态深色底色，首个 tab 左上角和最后一个 tab 右上角不再依赖 active 背景才出现圆角。 |
+| Diagonal dividers | Pass | Tab 间分割线由竖线改为 `rotate(18deg)` 的斜线，并使用渐隐线性渐变降低边界突兀感。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，不改 tab 交互逻辑、业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 圆角外侧背景修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 圆角外侧小块发亮来自 `.figma-report-tabs` 容器自身渐变底色和 active tab 顶部径向高光，不是报告底板背景。 |
+| Corner background | Pass | `.figma-report-tabs` 容器背景改为透明，首尾 tab 圆角外侧直接露出 `.figma-report-body` 背景色。 |
+| Highlight cleanup | Pass | 移除 active tab 顶部径向高光和 inset 顶部高光，仅保留选中态底部金色线，避免圆角边缘像叠了一层亮膜。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 斜切分割对齐 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Split alignment | Pass | 选中态背景改为独立 `::before` 层，并按首/中/尾 tab 做斜切 `clip-path`，避免 active tab 仍出现竖直矩形边界。 |
+| Divider line | Pass | Tab 间斜线改为与分割边界同位的 14px 宽斜切渐变片，覆盖原竖直边界，不再出现“竖线 + 偏移斜线”双重分割。 |
+| Corner safety | Pass | 不再 clip 整个 button，只 clip 选中态背景层，首尾 tab 的常态圆角仍由 button 本身保留。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 参考图靠拢 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Two-layer tabs | Pass | Tab 区从三等分独立分段改为参考图式两层结构：顶部 `82px` 深色页签底座，下方从 `top:80px` 开始露出内容底板。 |
+| Active wedge | Pass | 选中态背景加宽到 `174px`，右侧用大斜切 `clip-path` 压入相邻 tab，接近参考图里 Q1 到 Q2 的斜坡过渡。 |
+| Content offset | Pass | 两层 tab 高度变为 `126px`，单题详情区同步调整到 `top:126px`，避免内容压住 tab 底板过渡。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Bootstrap 风格 Tab 调整 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference handling | Note | `https://www.bootstrapmb.com/item/12680/preview` 在当前环境无法抓取源码，按 Bootstrap 常见 raised tab 结构实现：底座 + 上浮 active tab + 斜切连接。 |
+| Three tabs only | Pass | 继续复用现有 `Q1 / Q2 / Q3` 三个 button，不增加 tab 数量，不改 tab 切换逻辑。 |
+| Color scope | Pass | 保留当前深紫灰色系和金色 active 底线：`#161316 / #28252d / #322e38 / #f3c766`。 |
+| Active shape | Pass | 选中项改为单层 `clip-path` 梯形背景，Q1 右斜切、Q2 双斜切、Q3 左斜切，避免旧 skew 扩展层被背景遮挡。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 BootstrapMB 12680 Tab 对齐修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference check | Note | 浏览器访问 `https://www.bootstrapmb.com/item/12680/preview` 超时并回落到条目页，页面标题可识别为“非常顺滑的jQuery Tabs选项卡”；未能稳定读取源码。 |
+| Style direction | Pass | 放弃上一版大斜切页签，改为更接近顺滑 jQuery Tabs 的三等分顶部 tab：暗色非选中底座 + 滑动 active 背景块 + 下方内容区连通。 |
+| Active motion | Pass | `.figma-report-tabs` 新增 `active-0/1/2` 视觉类，使用容器 `::after` 作为 active 背景，通过 `transform` 在三项之间平移，保留顺滑切换动效。 |
+| Color scope | Pass | 选中和非选中颜色继续沿用当前深紫灰体系，active 保留金色底线；仅改形状和动效，不引入新业务状态。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab JSX class 和 CSS，未改 API 契约、报告 schema、答题流程、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 BootstrapMB Tab 像素级形状修正 - 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Extra layer removal | Pass | 移除上一版容器 `::after` 滑动背景层，去掉 tab 顶部横向高亮条；容器只保留下方内容底色承接区。 |
+| Tab geometry | Pass | Q1/Q2/Q3 改为 3 个互相覆盖的 tab：`151px` 宽、`64px` 高、`112px` 步进，使用圆角顶部和右侧斜切 `clip-path` 模拟 BootstrapMB 示例。 |
+| Color scope | Pass | 选中/非选中仍使用当前深紫灰配色和金色 active 底线，仅复刻形状、层叠关系和过渡动效。 |
+| Content offset | Pass | 单题内容区从 `top:112px` 收紧到 `top:96px`，匹配新 tab 高度，避免 tab 下方留下多余空带。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 CSS，未改 API 契约、报告 schema、答题流程、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tympanus Tzoid Tab 尝试 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference | Note | 用户提供 `https://tympanus.net/Development/TabStylesInspiration/` 和截图，目标样式为选中 tab 与内容面板同色、非选中 tab 为圆角灰块的 Tympanus/Codrops 透视梯形 tab。 |
+| Geometry | Pass | `.figma-report-tabs button::before` 改用 `perspective(18px) rotateX(2.6deg)` 生成圆角梯形，不再使用上一版 `clip-path` 直线斜切。 |
+| Color scope | Pass | active 背景继续使用当前报告内容底色 `#322e38`，inactive 使用当前深紫灰 `#28252d` 系列；仅复刻形状，不替换为截图白/灰色。 |
+| Content join | Pass | tab 下方保留 `#322e38` 内容承接区，active tab 通过同色背景和金色底线与内容区连在一起。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tympanus 原版布局骨架修正 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source clue | Note | 用户补充原站 computed styles：tab 列表为 `display:flex; flex-flow:row wrap; justify-content:center`，单项 `flex:1; margin:0 3em`，链接 `margin:0 -3em 0 0; line-height:2.5; overflow:visible`。 |
+| Layout model | Pass | `.figma-report-tabs` 从 absolute left 坐标排布改为 flex 居中排布；三个 button 改为 `flex:1`、`max-width:150px`、`margin-right:-42px` 的重叠结构，更贴近原版 tabs-style-tzoid。 |
+| Shape model | Pass | 保留 `button::before` 透视圆角梯形，微调为 `perspective(18px) rotateX(2.2deg)`，继续使用当前选中/非选中颜色。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS，未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tabs 圆角反圆角 PLUS 实现 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference | Note | 用户提供掘金《实现tabs圆角及反圆角效果（PLUS）》完整思路和 SCSS：选中 tab 用 `skewX` 两侧伪元素，未选中 tab 用反圆角伪元素，选中项用 `box-shadow` 接入内容底色。 |
+| Selected tab | Pass | `.figma-report-tabs button.active` 使用 `#322e38` 作为 active/content 色，保留顶部圆角和金色底线，并用 `24px 40px` 左右 box-shadow 衔接下方内容区。 |
+| Skew edges | Pass | active `::before/::after` 分别使用 `left:-6px/right:-6px`、`width:12px`、`skewX(-15deg/15deg)` 和顶部圆角，复刻中间过渡斜线。 |
+| Inverse corners | Pass | inactive `button::before/::after` 使用默认 tab 色 `#24212b`、底部反圆角和相反方向 `skewX`，用于未选中 tab 的反圆角效果。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 叠层简化 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 当前 tab 同时叠加默认伪元素、active 伪元素、active 圆角主体和大 `box-shadow`，导致 Q1/Q2/Q3 选中态出现多层圆角块。 |
+| Layer cleanup | Pass | 默认 `button::before/::after` 改为 `content:none`，只在 `.active` 上启用两侧 `skewX` 过渡片，避免未选中 tab 参与叠层。 |
+| Shadow cleanup | Pass | 移除 active 的 `24px 40px` 左右大 box-shadow，改为 `.figma-report-tabs::before` 底部 `18px` 同色承接带连接内容区。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 边角底色修正 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Confirmed | 首尾边角颜色不协调来自 `.figma-report-tabs` 整体默认背景在圆角裁切处露出，和页面黑底、active 内容底色形成三种颜色交界。 |
+| Background ownership | Pass | `.figma-report-tabs` 背景改为透明，仅保留底部内容色承接带；默认底色移到每个 button 自身。 |
+| Outer corners | Pass | 首个 tab 单独保留 `border-top-left-radius:24px`，最后一个 tab 单独保留 `border-top-right-radius:24px`，避免容器背景在外角露出。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 极简 Tab 回退 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Decision | Done | 放弃继续叠加异形 tab 效果，回退为最简单、干净的三段式 tab。 |
+| Layer cleanup | Pass | 移除 `.figma-report-tabs` 和 button 的所有 tab 伪元素、skew、反圆角、承接带和额外阴影，仅保留容器、button、active 三层。 |
+| Visual model | Pass | 容器为 `#24212b` 深色底，3 个 tab 等宽；active 使用 `#322e38` 背景、白色文本和金色底线；hover 仅轻微提亮。 |
+| Content offset | Pass | 单题详情区从 `top:94px` 收紧到 `top:88px`，匹配极简 tab 高度。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 按 PLUS 原 SCSS 重做 Tab - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source | Done | 按用户提供的完整 SCSS 方案重做：`tab-height:52px`、active 两侧 `skewX` 伪元素、not-selected 两侧反圆角伪元素、active 使用 `24px 40px` 阴影承接。 |
+| Color mapping | Pass | `$default-color` 映射为当前未选中深色 `#24212b`；`$active-color` 映射为当前内容/选中色 `#322e38`；active 底线保留金色 `#f3c766`。 |
+| Geometry | Pass | 伪元素尺寸使用原方案比例：`width:12px`、左右偏移 `6px/-6px`、圆角 `12px`、`skewX(15deg/-15deg)`。 |
+| Content offset | Pass | 单题详情区从 `top:88px` 收紧到 `top:64px`，匹配 52px tab 高度并保留 12px 间距。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 稳定三段式 Tab 替换 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Decision | Done | 放弃继续调试异形、反圆角和 skew 方案，改为更适合当前深色报告页的稳定三段式 tab。 |
+| Layer cleanup | Pass | 移除 tab 的 `::before/::after`、skew、反圆角、大阴影承接等复杂叠层，仅保留容器、button、active 三层。 |
+| Visual model | Pass | Tab 容器使用深紫灰圆角底座，三个 tab 等宽撑满；active 使用同色系高亮块、白色文字和金色底线，未选中态仅保留淡文字和轻分隔线。 |
+| Stability | Pass | 新样式不依赖裁切伪元素和相邻 tab 叠压，避免首尾角落发亮、斜线错位、active 多层块等问题。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告页 tab CSS；未改 tab 数据、状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma Report Page_2 Tab 顶部吸附 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Sticky behavior | Done | 报告页滚动时，当 Q1/Q2/Q3 tab 接近屏幕上方边缘，会切换为 fixed 吸附态；向上滚回原位置时还原。 |
+| Implementation | Pass | 使用 `figma-report-stage` 滚动监听计算 tab 的 fixed `left/top`，避免 `position: sticky` 被报告卡片 `overflow: hidden` 祖先裁切。 |
+| Visual scope | Pass | 吸附态沿用稳定三段式 tab 配色，仅增加轻量阴影和背景模糊；不改 tab 数据、切换逻辑、报告 schema 或 API 契约。 |
+| Reduced motion | Pass | `prefers-reduced-motion: reduce` 下禁用吸附入场动画。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。 |
+
+## Figma 外网移动端滚动和报告 Tab 重叠修复 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Report overlap root cause | Fixed | 报告顶部评分/最终报告/风险行动卡片是可变高度，但 `.figma-report-body` 原先固定 `top:812px`；当风险或行动项内容变长时会压到 Q1/Q2/Q3 tab。现用 `ResizeObserver` 测量顶部卡片真实渲染底部，将 `--figma-report-body-top` 自适应下移并保留 20px 间隙。 |
+| Mobile scroll root cause | Fixed | 移动端原先使用固定 `100dvh` stage、`overflow:hidden` 和 `transform: scale(...)` 缩放手机框；缩放不改变布局高度，导致输入区/长报告被裁切且无法滚动。现移动端让页面自然纵向滚动，去掉手机框 transform 缩放和 stage 裁切。 |
+| Desktop sticky regression | Fixed | 报告页实际由页面滚动驱动，吸顶逻辑补充监听 `window` scroll；同时将 `.figma-report-body` 入场动画从 transform 改为 opacity，避免 transformed ancestor 影响 fixed tab 坐标。 |
+| Desktop verification | Pass | 浏览器 1280x720 验证：报告顶部卡片与 tab 间隙为 20px；滚动到 900px 后 tab 为 `position: fixed`，视口位置 `top:8px`、`left` 与报告卡片对齐。 |
+| Mobile verification | Pass | 浏览器 390x720 验证：首页 `documentElement.scrollHeight=812 > 720`，输入区可通过页面滚动进入视口；报告页 `scrollHeight=2646 > 720`，顶部卡片与 tab 间隙为 20px，移动端 tab 不吸顶、不重叠。 |
+| Scope | Pass | 仅调整 `theme=figma` 报告布局、移动端手机框滚动 CSS 和 tab 吸顶监听；未改业务状态机、API 契约、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。待外网部署后用 WeChat 内置浏览器、Chrome、Safari 真机各复验一次。 |
+
+## Figma Home/JD 移动端上传菜单首帧裁切修复 - 2026-07-07
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Fixed | 微信/iOS 首次点击 `+` 展开时，原菜单作为 grid 子项动态替换 48px 上传按钮，移动 WebKit 可能沿用旧按钮合成层裁切区域，导致 `UseDemoCV / UseDemoJD` 只渲染半截；截图/切后台触发重绘后才恢复。 |
+| Menu layout | Pass | `.figma-frame4-frame3-menu` 改为左下角绝对定位的 248px flex 菜单，关闭按钮、Demo 按钮、文件上传按钮使用固定 `flex-basis`，避免 grid 首帧尺寸抖动。 |
+| Submit button alignment | Fixed | 展开菜单绝对定位后不再参与 grid 布局，提交箭头曾被自动排到左侧列；现显式设置 `.figma-frame4-group1-button { grid-column: 2; justify-self: end; }`，保证展开/收起态均停在右侧。 |
+| Repaint stability | Pass | 菜单与 pill 按钮增加独立合成层和 `overflow` 约束，父工具条显式 `overflow: visible`，降低 WeChat/iOS 首次展开裁切概率。 |
+| STT finding | Fixed | 外网 STT 原先只走浏览器 `SpeechRecognition/webkitSpeechRecognition`。现新增 `/api/stt`，前端录制 16k PCM WAV 后优先提交 Azure Speech-to-Text，Web Speech 仅作 Azure 未配置时的兜底；若页面不是 HTTPS，会直接提示使用 HTTPS 域名，避免误判为 Azure API 无效。 |
+| Scope | Pass | 调整 `theme=figma` 首页/JD 输入栏展开菜单 CSS；新增 Azure STT 短音频接口和前端录音转写路径；未改上传逻辑、文件解析 API、报告 schema、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3000/?theme=figma` 返回 200。待发云后需用 WeChat 内置浏览器真机复验 `+` 展开首帧。 |
+
+## 分面试官 Prompt 配置（出题 + 报告评分）- 2026-07-06
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Fixed | 此前面试官人设从未真正传给 LLM：三种面试官拿到相同 prompt，只多一个 label 字符串，所以「差异不大」。现按产品人设规范接入。 |
+| Data model | Done | `PromptOverrides` 新增 `interviewers: Record<InterviewerStyleId, { persona; questions; report }>`；`lib/prompts/productPromptSuite.ts` 增加 `defaultInterviewerPrompts`（温柔HR / 技术老哥 / 资深业务大佬）。 |
+| Backward compat | Done | `promptStore` 版本升 v2；`normalizePromptOverrides` 逐层回退默认，旧 v1 落盘文件（无 `interviewers`）读取时自动补默认，下次保存写 v2，无需迁移脚本。 |
+| Prompt wiring | Done | `buildQuestionsPrompt` 注入 `interviewerPersona/interviewerQuestionGuide`；`buildReportPrompt` 接收可选 `interviewerStyleId` 注入评分/诊断倾向。评分 6 维、区间、权重固定不变。 |
+| Report contract | Done | 报告 payload 新增可选 `interviewerStyleId`，三个报告 route 原样透传（`validateReportRequest` 不校验多余字段），client 与 `InterviewCoachApp` 均带上当前面试官。 |
+| Config UI | Done | `theme=classic` 的「Prompt 调试」面板新增「分面试官 Prompt」区块：切换三位面试官分别编辑人设 / 出题 / 评分；保存后 figma 主题读取同一份全局 store。 |
+| Scope | Pass | 仅接出题与报告，画像未接人设；未改评分 schema、状态机、`questionId` 对齐、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过。分面试官真实差异需配置真实 `OPENAI_*` key 跑三风格端到端；无 key 时走演示兜底，题目仅前置一句差异。 |
+
 ## 风险和待确认
 
 | Risk | Severity | Owner | Handling |
 | --- | --- | --- | --- |
 | LLM 供应商/模型未冻结 | High | Dev | 先封装 provider，保持 schema 稳定 |
-| Prompt 尚未经过产品确认 | High | Product + Dev | 已建立 `docs/13_prompt_handoff.md`；Phase 6 已补 AI PM、过短/跑题、300 字和事实边界规则，Phase 10 前完成产品 review、调整和冻结 |
+| Prompt 尚未经过产品确认 | High | Product + Dev | 已建立 `docs/13_prompt_handoff.md`，并在 `theme=classic` 增加产品 Prompt 调试与全局保存；Phase 10 前需用产品保存版本跑真实 LLM 三风格验收并冻结 |
+| Prompt 保存入口外网开放 | High | Dev/Ops | 当前 `/api/prompts/active` 可修改全局 Prompt；外网部署时需限制 classic 调试入口或加访问控制，避免无关用户修改 |
 | Figma 异常态覆盖不完整 | Medium | Design + Dev | Phase 9 已按可访问画布完成 happy path 视觉替换；未明确覆盖的 loading/error/empty/unsupported/copy success/copy failed 按现有契约保留最小状态，Phase 10 需作为 Known Risk 或由设计补齐。 |
 | PRD 与当前契约存在差异 | Medium | Product + Dev | 流式报告已按 `docs/04_api_contracts.md` 实现并保留非流式兜底；题目 `weight` Phase 7 决定暂不入 schema，若产品坚持展示权重需走契约变更 |
 | 移动端 STT 兼容不稳定 | Medium | Dev | 支持重试和手动编辑 |
@@ -370,3 +1437,1172 @@
 2. Phase 10 复验真实 Azure TTS / Web Speech fallback，并覆盖 LLM、TTS、STT、clipboard 故障注入。
 3. 若产品要求题目权重展示，再单独做 `weight` 契约变更，不在当前 schema 中隐式增加字段。
 4. 保留 `tts-demo` 作为 Azure/Web Speech 对照验证样板，不迁移或删除。
+
+## 《AI面试嘴替》技术方案 PDF 对齐评估 - 2026-07-09
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 核心闭环 | High alignment | PDF 的简历/JD 解析、3 道题、语音/文本作答、六维复盘、优化答案、60 秒版、复制和 Mock 兜底均已进入当前 Next.js 主流程或契约。 |
+| 技术边界 | Partial alignment | 当前实现为 Next.js App Router + Route Handlers，不是纯 SPA；Azure TTS/STT 优先、Web Speech/文本兜底，比 PDF 的纯前端 Web Speech 方案更符合现有安全与降级约束。 |
+| 流式能力 | Contract only | `/api/report/generate-stream` 使用 SSE 并立即发送进度事件，但当前仍等待完整 LLM JSON 后再发送各题报告，不应对外承诺真实模型 token 流或 TTFT `< 1.5s`。 |
+| 面试官口径 | Conflict | PDF 使用“温婉 HR / 技术老哥 / 业务大佬”，当前代码展示“温柔HR小姐姐 / 技术老哥 / 资深业务大佬”，均与 `AGENTS.md` 固定的“大厂严厉 HR / 技术老哥 / 温柔大姐姐”不完全一致；需产品一次性冻结展示文案，稳定 `styleId` 不变。 |
+| 出题权重 | Not implemented by design | PDF 的“岗位命中度 + 简历证据强度 + 面试高频度”目前是 prompt 方向而非可审计数值字段；Phase 7 已决定 `weight` 暂不进入 schema。 |
+| 部署承诺 | Needs correction | 当前推荐腾讯云 Node 自托管；若使用 Vercel，需先处理全局 Prompt 文件持久化和调试入口访问控制，不能直接表述为纯 SPA 一键部署。 |
+| Verification | Pass | 逐页渲染并审查 10 页 PDF；核对 `AGENTS.md`、API 契约、Phase 7-10、报告/语音/Prompt/部署实现；`npm run typecheck` 通过。 |
+
+### 调整建议
+
+1. 对外方案保留核心闭环，删除“100% 稳定”“100% Mock”“TTFT < 1.5 秒”等未经实测或绝对化承诺，改为“可控演示兜底、失败不阻断主流程”。
+2. 保留现有 Next.js + 服务端 Azure 代理 + OpenAI-compatible provider，不按 PDF 回退为纯 SPA 或纯 Web Speech。
+3. 将“严格按三项权重出题”改为“覆盖三项出题依据”；若产品必须展示权重，再走 API 契约变更。
+4. 将“流式极速响应”改为“SSE 进度反馈 + 完整报告兜底”；真实增量报告和性能指标另立任务并增加埋点验收。
+5. Phase 10 前先冻结三种面试官展示名称，再完成真实 LLM 三风格、Azure/Web Speech 降级和公网部署验收。
+
+## PDF 技术方案逐页修改文档 - 2026-07-09
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Revision document | Done | 新增 `docs/16_pdf_technical_proposal_revision.md`，按 PDF 第 1-10 页给出原描述、建议替换文案、修改原因和是否需要代码调整。 |
+| Cross-page terminology | Done | 统一 Agent、Mock、流式、语音、权重、部署和事实边界等对外术语。 |
+| Code impact | Identified | 面试官名称为 P0 代码与文档同步项；真实模型流式、性能埋点为独立后续任务，其余主要是 PDF 文案修正。 |
+| Risk | Open | PDF 修改完成后，当前代码中的“温柔HR小姐姐 / 资深业务大佬”仍需按产品硬边界统一，否则页面与方案稿继续不一致。 |
+| Next step | Recommended | 产品先确认逐页替换文案和三种面试官最终口径，再由开发同步代码并执行 Phase 10 三风格真实 LLM 验收。 |
+
+## Juju 主题入口复制 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Theme route | Done | `?theme=juju` 新增为正式视觉主题值；`?theme=figma` 保持原入口不变，未知 theme 仍回落到 `figma`。 |
+| Figma parity | Pass | `juju` 复用当前 figma 页面分支、`.figma-*` DOM 和样式，同时保留 `theme-juju` / `body[data-visual-theme="juju"]` 作为后续新风格覆盖入口。 |
+| Classic influence | Pass | `juju` 与 `figma` 一样隐藏 classic 调试面板，LLM 请求不传页面草稿 Prompt，继续读取 classic 保存后的全局 Prompt。 |
+| Scope | Pass | 仅调整主题识别、视觉分支类型和导航入口；未改业务状态机、API 契约、报告 schema、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；因 3000 被其他本地服务占用，改用 `GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju Home 节点背景接入 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source JSON | Reviewed | `C:/Users/Administrator/Downloads/figma_home_2026-07-10T09-24-16-457Z.json` 是整理后的节点清单，不含 `imageRef` 或 `IMAGE` fill；无法直接获得背景图文件。 |
+| Background model | Done | 根节点 `home` 背景为 `#EBEDFF`；背景组包含底部三个模糊色块：`#FFF0CC`、`#D799FF`、`#99FFAD`，已用 `theme=juju` 专属 CSS radial-gradient 复刻。 |
+| Page coverage | Pass | `theme=juju` 下 `.figma-phone-card`、home/profile/interviewer/interview/report 等 figma 分支页面统一使用新浅色背景；旧 `theme=figma` 不受影响。 |
+| Text baseline | Pass | 为 Juju 浅色背景补充首屏/状态栏/面试官选择/面试题/报告 loading 和评分头部的深色文字覆盖，避免白字落在浅背景上不可读。 |
+| Scope | Pass | 仅调整 `theme=juju` CSS 背景与少量文字颜色；未改业务状态机、API 契约、报告 schema、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju ToolBar 输入框背景接入 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source JSON | Reviewed | `C:/Users/Administrator/Downloads/figma_ToolBar_2026-07-10T09-32-56-494Z.json` 根节点 `ToolBar` 为 `fill=#FFFFFF`、`corner_radius=16`、`BACKGROUND_BLUR(radius=8)`。 |
+| Home / JD input | Done | `theme=juju` 下 `.figma-home-toolbar` 覆盖为白色背景并启用 8px 背景模糊；home 和 input JD 共用该 toolbar，因此两页同步生效。 |
+| Text contrast | Pass | Juju toolbar 内 textarea 文字改为 `#1A1A1A`，placeholder 改为半透明深色，适配白色输入框背景。 |
+| Scope | Pass | 仅调整 `theme=juju` 输入工具条 CSS；未改上传逻辑、文件解析 API、业务状态机、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju ToolBar 透明度与按钮图片 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Input opacity | Done | `theme=juju` 下 `.figma-home-toolbar` 从纯白改为 `rgba(255,255,255,0.5)`，保留 `backdrop-filter: blur(8px)`。 |
+| Right button image | Done | 新增真实图片资产 `public/juju/home/toolbar-go.png`，home 与 input JD 右侧继续/生成按钮在 Juju 主题下使用该图片。 |
+| Left button image | Done | 新增真实图片资产 `public/juju/home/toolbar-cancel.svg`，Juju 主题下输入框最左侧按钮和展开菜单关闭按钮使用该图片，不用 CSS 伪元素绘制。 |
+| Scope | Pass | 仅调整 Juju 主题的 toolbar 透明度、按钮图片资源和 `SetupPanel` 图片路径；旧 `theme=figma` 仍使用原 PNG 资产。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju`、`/juju/home/toolbar-go.png`、`/juju/home/toolbar-cancel.svg` 均返回 200。 |
+
+## Juju ToolBar 展开菜单图片补齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default left button | Done | 新增真实图片资产 `public/juju/home/toolbar-plus.svg`，Juju 输入框左侧默认按钮从 X 图改为 `+` 图。 |
+| Expanded close button | Pass | 展开菜单中的关闭按钮继续使用 `public/juju/home/toolbar-cancel.svg`，与关闭语义保持一致。 |
+| File icon image | Done | 新增真实图片资产 `public/juju/home/toolbar-file.svg`，Juju 展开菜单中文件上传按钮左侧图标使用该图片。 |
+| Scope | Pass | 仅调整 Juju 主题图片资源与 `SetupPanel` 图片路径；旧 `theme=figma` 继续使用原 Figma PNG 资产。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju`、`/juju/home/toolbar-plus.svg`、`/juju/home/toolbar-file.svg` 均返回 200。 |
+
+## Juju ToolBar 右侧按钮截图对齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Reference image | Done | 基于用户提供的正确上箭头截图 `C:/Temp/codex-clipboard-ac7f1f20-86e2-4463-9f15-3588f71dd8b9.png` 重新裁出真实按钮图片。 |
+| Right button asset | Done | `public/juju/home/toolbar-go.png` 已更新为粉色圆形 + 白色上箭头；旧 `toolbar-go.svg` 已删除，避免误用。 |
+| Wiring | Pass | `SetupPanel` 中 Juju 右侧按钮路径更新为 `/juju/home/toolbar-go.png?v=2026071005`，旧 `theme=figma` 仍使用原 PNG。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/home/toolbar-go.png?v=2026071005` 均返回 200。 |
+
+## Juju 返回按钮与首页文案 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Back button image | Done | 新增真实图片资产 `public/juju/home/back.svg`，Juju 主题下所有 `.figma-jd-back-button` 统一使用该返回按钮图片。 |
+| Figma isolation | Pass | 返回按钮覆盖仅在 `.theme-juju` 生效；旧 `theme=figma` 仍使用原 CSS 返回按钮。 |
+| Home copy | Done | Juju 首页标题改为 `Hey 朋友!`，介绍文案改为 `我是面壁者，请告诉我您的过往经历，以便我能够更好地了解您。`；旧 Figma 文案保持不变。 |
+| Scope | Pass | 仅调整 Juju 返回按钮图片和 Home 文案；未改路由、状态机、上传/解析逻辑、API 契约、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/home/back.svg?v=2026071006` 均返回 200。 |
+
+## Juju 候选人画像页面重构 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Juju-only profile branch | Done | `theme=juju` 的候选人画像页拆为 `JujuProfilePanel`；旧 `theme=figma` 继续走 `FigmaProfilePanel`，不受本次结构删减影响。 |
+| Removed modules | Done | Juju 画像页不再渲染旧“匹配概览”三指标模块、顶部大圆球、“候选人画像”标题和“对比简历 / JD 匹配来源”tabs。 |
+| Summary behavior | Done | 顶部候选人评价默认两行截断，超出由 CSS line-clamp 省略；提供蓝色“展开 / 收起”按钮。标题按简历中显式姓名替换，未识别到姓名时显示“朋友 我们对您的履历做了总结”。 |
+| Profile cards | Done | 核心匹配、面试风险和优化建议改为 Juju 白色卡片样式；优化建议从旧 tabs 后方独立提升到风险模块下方。 |
+| Orb asset | Done | 新增真实图片资产 `public/juju/profile/component-1.svg`，按 `figma_Component_1_2026-07-10T11-03-43-416Z.json` 的 64×64 小圆球样式接入。 |
+| Scope | Pass | 仅调整 Juju 画像视觉结构和候选人称呼提取；未改 `CandidateProfile` schema、画像生成 API、题目生成、语音链路、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 和 `/juju/profile/component-1.svg?v=2026071001` 均返回 200。 |
+
+## Juju 候选人画像折叠与 CTA 优化 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Match / risk collapse | Done | Juju 画像页匹配点、风险点默认只展示 1 条，点击 16px 展开图片按钮后展示全部；底部统计按当前可见数显示为 `1/n` 或 `n/n`。 |
+| Image assets | Done | 新增 `public/juju/profile/expand-toggle.svg`、`dot-match.svg`、`dot-risk.svg`、`dot-suggestion.svg`，展开按钮和三类圆点均改为图片资源，不用 CSS 拼接。 |
+| Suggestion height | Done | 优化建议卡片去掉固定最小高度，改为按内容自然撑高。 |
+| Floating CTA | Done | Juju 画像页底部按钮改为固定悬浮在手机画布底部，尺寸 `184×44`、圆角 `22px`、底色 `#FF0080`，文案为“准备面试”。 |
+| Orb position | Done | 顶部小圆球从右上角绝对定位改为画像内容区内左对齐显示，继续使用 `component-1.svg` 图片资产。 |
+| Scope | Pass | 仅调整 Juju 画像页视觉与折叠交互；未改 `CandidateProfile` schema、画像生成 API、题目生成、语音链路、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；新增 4 个 Juju profile 图片资源均返回 200。 |
+
+## Juju 候选人画像层级和底部区域修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Card hierarchy | Done | Juju 画像卡片增强为外层半透明磨砂底、白色内层 body、独立 footer、白色描边和轻阴影，避免截图中卡片轮廓和层次不明显。 |
+| Collapsed card height | Done | 匹配点、风险点 body 去掉旧固定最小高度，默认一条内容时自然回到节点约 120px 的高度；展开后再由内容撑高。 |
+| Bottom display logic | Done | `.juju-profile-scroll` 底部截到悬浮 CTA 上方，不再让优化建议等滚动内容压到“准备面试”按钮下面。 |
+| CTA placement | Pass | “准备面试”保持手机画布底部悬浮，位置调整为 `bottom: 39px`，与底部 Home Indicator 留出独立区域。 |
+| Scope | Pass | 仅调整 Juju 画像 CSS 层级和滚动区域；未改业务状态机、API 契约、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 和 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 画像图标资源继续返回 200。 |
+
+## Juju 候选人画像字重、图标和 Tabs CTA 修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Typography | Done | 顶部“朋友 我们对您的履历做了总结”标题和“匹配点 / 风险点 / 优化建议”模块名均加粗到 `font-weight: 700`。 |
+| Ring icons | Done | `dot-match.svg`、`dot-risk.svg`、`dot-suggestion.svg` 从实心圆改为浅色外环 + 实心内点图片，路径缓存版本更新到 `v=2026071003`。 |
+| Expand icon border | Done | `expand-toggle.svg` 改为带圆形描边的 16×16 图片，展开 / 收起均使用图片资源，缓存版本更新到 `v=2026071003`。 |
+| Tabs CTA | Done | “准备面试”按钮外层新增 `375×56` Tabs 区域，按钮在 Tabs 内居中，尺寸仍为 `184×44`、圆角 `22px`、底色 `#FF0080`。 |
+| Scope | Pass | 仅调整 Juju 画像页字重、图片资源和 CTA 容器；未改业务状态机、API 契约、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 和 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；`dot-match.svg?v=2026071003` 与 `expand-toggle.svg?v=2026071003` 返回 200。 |
+
+## Juju 候选人画像 CTA Tabs 毛玻璃 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tabs glass layer | Done | `375×56` 的 `.juju-profile-tabs` 增加半透明白色背景、`20px` backdrop blur 和顶部高光，作为“准备面试”按钮所属的毛玻璃承载区域。 |
+| Button behavior | Pass | 按钮继续保持 `184×44`、`#FF0080`、居中；Tabs 容器不截获事件，点击仍只落到按钮。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 候选人画像 CTA Tabs 纯毛玻璃 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Glass without tint | Done | `.juju-profile-tabs` 去掉半透明白色背景和顶部高光，只保留 `backdrop-filter: blur(20px)` / `-webkit-backdrop-filter`。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 候选人画像底部玻璃层对齐 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Bottom glass extent | Done | `.juju-profile-tabs` 从 56px 悬浮条调整为覆盖底部的 100px 玻璃层，贴到手机画布底部。 |
+| Soft top edge | Done | 玻璃效果移到 `::before` 背景层，并用 mask 做顶部渐隐，避免硬切矩形边。 |
+| Button / indicator layering | Done | “准备面试”按钮和 Home Indicator 独立置于玻璃层上方，避免被渐隐 mask 裁切。 |
+| Scroll boundary | Done | 画像滚动区域底部调整到 98px，为底部玻璃层和按钮留出空间。 |
+| Verification | Pass | `npm run typecheck` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 报告页结构重排 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Juju-only report branch | Done | `theme=juju` 报告完成页拆为 `JujuReportPanel`，不再复用 Figma 长报告页；旧 `theme=figma` 继续保留原报告结构。 |
+| Final report removal | Done | Juju 报告页移除旧“最终报告 / 总分”模块，只保留顶部评价卡展示总结与作答状态。 |
+| Summary clamp | Done | 顶部评价卡按 `Frame 11` 风格实现，默认最多 3 行，超出后通过“展开 / 收起”切换。 |
+| Risk / action cards | Done | Top 风险和行动项改为 `Frame 58` 双统计卡；点击后弹出 375×470 白色底部详情层，带顶部阴影。 |
+| Mouthpiece | Done | 旧单题 “60 秒口述版” 不再放在 tabs 下方，改为独立“嘴替”模块，聚合 `questionReports` 中 LLM 返回的三题口述版内容并支持复制。 |
+| Question tabs | Done | Tabs 详情中去掉本题分数、您的回答、六维象限和分数；保留“面试题目”两行折叠、“诊断”两行折叠、“面试题目分析”和“风险分析”。 |
+| Risk analysis | Done | “风险标签”改为“风险分析”，使用当前题 riskTags 的前两个维度，并结合 fatalIssue / diagnosis 做阐述。 |
+| Scope | Pass | 仅调整 Juju 报告展示层；未改 `InterviewReport` / `QuestionReport` schema、报告生成 API、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；`GET http://127.0.0.1:3100/?theme=juju` 返回 200。 |
+
+## Juju 面试官图片、统一球体和答题页状态 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Interviewer assets | Done | `theme=juju` 下选择面试官、确认面试官、答题头像和报告页人物图均覆盖为 `/juju/interviewers/*.png`，不再使用旧 `/figma/interviewers` 资源。 |
+| Unified orb component | Done | 新增 `components/JujuOrb.tsx`，用固定图片 `/juju/profile/component-1.svg` 加默认动效框复用到 home、input JD、loading、选择面试官、答题页和候选人画像左上小球。 |
+| Interview question state | Done | Juju 答题页非录音状态按 `figma_Interview_Responses_2026-07-10T14-39-07-644Z.json` 重排：Group 9 球体、`1/3` 进度、题目文本和底部三按钮；不渲染 mini program 导航胶囊。 |
+| Interview recording state | Done | Juju 答题页录音状态按 `figma_Interview_Responses_2_2026-07-10T14-40-39-750Z.json` 重排：保留 Group 9 球体，展示“正在聆听”文案和 4 层聆听圆环；不渲染 mini program 导航胶囊。 |
+| Scope | Pass | 仅调整 Juju 视觉层和组件复用；未改 `sessionStep`、API payload、schema、错误码、报告生成、语音状态机、`theme=figma`、`tts-demo` 或 `.env.local`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 页面、三张 `/juju/interviewers` 图片和 `/juju/profile/component-1.svg` 均返回 200。浏览器走到 profile/select/interview/recording，确认无 mini program 文案、无旧 `.figma-interview-comp`，答题页 `orbProgress=1/3`，录音态有 4 层圆环且 console error 为 0。 |
+| Risk | Open | 面试官展示文案仍沿用当前代码里的“温婉HR小姐姐 / 技术老哥 / 资深业务大佬”；本次只按要求替换 Juju 主题图片资源，若需改成 `AGENTS.md` 固定口径需单独同步产品文案。 |
+
+## Juju 统一球体分层修正 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Layer mapping | Done | `JujuOrb` 按 Group 9 明确拆分为 `Ellipse 10` 外框、`Ellipse 11` 球体描边和 `B_01` 固定图片三层。 |
+| Fixed sphere asset | Done | `B_01` 继续直接使用单张 `/juju/profile/component-1.svg` 图片，不再由 CSS 拼接球体，并固定为球体尺寸避免被进度区撑高。 |
+| Motion | Done | 移除外框旋转、扫描和 loading 容器缩放；仅 `Ellipse 10` 外框保留 3.2 秒、最大 1.2% 的轻微呼吸效果。 |
+| Scope | Pass | 仅调整 Juju 球体视觉组件和样式；未改业务状态机、API 契约或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；浏览器检查首页球体为 `Ellipse 10=200×200`、`Ellipse 11=128×128`、`B_01=200×200`，且只有 `Ellipse 10` 带呼吸动画。 |
+
+## Juju 答题页提问文字与图片按钮 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Four-line question window | Done | 面试官播放题目时，中部文字窗口固定为 4 行（`88px / 22px`），超出内容在窗口内向上滚动。 |
+| Speech-linked motion | Done | Azure 音频以实际时长驱动文字滚动；Web Speech 以文本长度和语速估算时长驱动。播放结束维持淡出，停止或失败恢复可读文本。 |
+| Direct control images | Done | 新增 Juju 主题的 `frame-7@2x.png`、`frame-8@2x.png`、`frame-9@2x.png`，答题页左右中三按钮均通过 `<img>` 直接使用完整图片。 |
+| Scope | Pass | 仅调整 Juju 答题页视觉与播放联动；未改 TTS/STT API、语音状态机、答题数据或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；三张 Juju 图片资源均返回 200。浏览器走至答题页确认题目窗口为 `88px` 高、`22px` 行高、`overflow: hidden`，三枚按钮为 `52px / 80px / 52px` 的独立图片，Juju DOM 无旧 CSS 控制按钮。 |
+
+## Juju 统一球体 B_01 图片替换 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Source asset | Done | 将用户提供的 `B_01.png` 放入 `public/juju/profile/B_01.png`，作为 Juju 主题统一球体的唯一固定球图。 |
+| All Juju orb placements | Done | Home、JD 输入、loading、面试官选择、候选人画像和答题页均通过 `JujuOrb` 引用新 PNG，不再引用旧 `component-1.svg`。 |
+| Node alignment | Done | 图片按 `B_01` 节点画布比例置于外框内，固定画布为外框的 74%，使可见球体继续与 `Ellipse 11` 的 64% 描边对齐。 |
+| Layer order | Done | `Ellipse 10 -> B_01 -> Ellipse 11` 明确分层，保证球形描边显示在新图片边缘之上。 |
+| Scope | Pass | 仅替换 Juju 球体图片和定位比例；未改业务状态机、API 契约或其他主题。 |
+| Verification | Pass | `npm run typecheck` 通过；`/juju/profile/B_01.png` 返回 200；组件扫描确认 Juju 唯一球图引用为新 PNG。浏览器实时预览因 webview 连接超时未能复验。 |
+
+## Juju 答题页更新 Figma 状态 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Ellipse 10 color | Done | 统一球体外框改为白色描边与白色轻光，并继续保留轻微呼吸动效。 |
+| Interviewer playback state | Done | 按 `figma_Interview_Responses_2026-07-10T15-25-12-508Z.json` 对齐：球体内容从 Group 9 的 `y=149` 开始，题目外框 `343×118`、正文窗口 `323×88`，保留底部 Home Indicator。播放态不渲染 `Ellipse 11`。 |
+| Voice answer state | Done | 按 `figma_Interview_Responses_2_2026-07-10T15-25-23-631Z.json` 对齐：保留 `Ellipse 11`、聆听文案、四层 Group 10 圆环、Frame 10 控制区和底部 Home Indicator。 |
+| Mini program exclusion | Pass | 两个 Juju 状态均未渲染 Figma 的 `NavBar 导航栏 - mini program小程序` 胶囊或标题。 |
+| Scope | Pass | 仅调整 Juju 答题页组件、球体视觉和 CSS；未改 TTS/STT API、业务状态机、答题数据或其他主题。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 入口返回 200。 |
+
+## Juju 面试官选择与单题嘴替回归 - 2026-07-10
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Select interviewer layout | Done | `theme=juju` 选择页按 `figma_Select_Interviewer_2_2026-07-10T15-27-32-204Z.json` 重排为顶部大球、渐变内容层、两张上排 180px 人物卡和一张下排居中人物卡，并保留底部 Home Indicator。 |
+| Interviewer behavior | Pass | 继续使用固定的 3 个 `InterviewerStyleId` 和 Juju 图片资源；点击卡片仍进入既有确认页。 |
+| Per-question mouthpiece | Done | 移除报告顶层三题合并“嘴替”模块；当前 Q1/Q2/Q3 Tab 在“诊断”后展示对应 `QuestionReport.oralVersion60s`，并只复制当前题内容。 |
+| Scope | Pass | 仅调整 Juju 选择页与报告展示层；未改报告 schema、报告 API、复制底层兜底或其他主题。 |
+| Verification | Pass | `npm run typecheck` 与 `npm run smoke:contract -- http://127.0.0.1:3100` 通过；Juju 入口浏览器 DOM 正常加载。 |
+## Juju 面试确认页、字幕渐隐与答题按钮修正 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Ellipse 10 呼吸动效 | 已完成 | 最大缩放调整为 `1.05`，同步增强白色光晕。 |
+| 面试官头像外框 | 已完成 | Juju 确认页的人像外新增 284px 白色圆形描边与轻微发光。 |
+| 题目字幕边缘渐隐 | 已完成 | 字幕滚动窗口使用上下遮罩，文字先半透明渐隐再消失。 |
+| 答题页三个操作按钮 | 已完成 | 使用独立图片资源 `frame-7.svg`、`frame-8.svg`、`frame-9.svg`；右侧按钮仅提示“下个版本开放”。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题视觉和交互，不改答题状态机与接口契约。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；三个 SVG 资源均返回 HTTP 200。 |
+
+## Juju Report 嘴替宽度、分析图标与两行展开 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 嘴替框宽度 | 已完成 | Tabs 内单题“嘴替”模块外扩到 343px，与“面试题目分析 / 风险分析”卡片宽度保持一致。 |
+| 面试题目分析图标 | 已完成 | 新增完整图片资源 `public/juju/report/analyze.svg`，标题左侧直接使用图片，不再由 DOM/CSS 拼接。 |
+| 风险分析图标 | 已完成 | 新增完整图片资源 `public/juju/report/guide.svg`，标题左侧直接使用图片，不再由 CSS bookmark 拼接。 |
+| 两行展开 | 已完成 | Tabs 下“面试题目”和“诊断”内容超过两行即截断，“展开”保持在第二行末尾。 |
+| 本次范围 | 已完成 | 仅调整 Juju report 展示层、图片资源与折叠交互；未改报告 schema、API 契约或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`analyze.svg` 与 `guide.svg` 均返回 HTTP 200；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 选择页头像透明框、答题球体外环与弹层蒙层 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择面试官头像圆框 | 已完成 | 头像圆形框保留，底色改为半透明白色并增加轻微毛玻璃，不再使用实心灰底。 |
+| 答题页球体外环 | 已完成 | `JujuOrb` 增加可选外侧圆环，答题页启用；新圆半径按 Ellipse 10 与球体半径差等距扩展，并带一截加粗弧线缓慢旋转。 |
+| 识别失败提示 | 已完成 | Juju 答题页失败提示条文字居中。 |
+| TOP 风险 / 行动项蒙层 | 已完成 | 报告页底部详情弹层遮罩改为白色 70%。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题视觉层和 `JujuOrb` 可选渲染；未改面试状态机、报告 schema、API 契约或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 候选人画像底部 Home Indicator 移除 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 画像页底部黑色 Indicator | 已完成 | 移除 Juju 候选人画像页面底部 Tabs 内的 home indicator，仅保留“准备面试”按钮和底部玻璃层。 |
+| 本次范围 | 已完成 | 仅调整 Juju 候选人画像页 JSX 与对应废弃 CSS；未改其他页面的 home indicator、业务状态机或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 选择面试官底部 Indicator 与球体层级修正 - 2026-07-10
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择页底部黑色 Indicator | 已完成 | 移除 Juju 选择面试官页面底部 home indicator。 |
+| 顶部球体圆框层级 | 已完成 | 将顶部球体层级提到“选择面试官”浅色内容层之上，标题文案和面试官卡片继续保持在球体之上。 |
+| 本次范围 | 已完成 | 仅调整 Juju 选择面试官页 JSX 和 CSS 层级；未改业务状态机、面试官枚举或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示；代码扫描确认无 `juju-interviewer-select-home-indicator` 残留。 |
+
+## Juju 面试官确认页头像 Ellipse 5 对齐 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 头像裁切框 | 已完成 | Juju 面试官确认页头像容器改为 320×320 圆形裁切，与 Figma `Ellipse 5` 尺寸一致。 |
+| 圆形描边 | 已完成 | 外部白色圆形描边同步改为 320×320，与 Ellipse 5 同位，避免头像和框尺寸不一致。 |
+| 面试官图片尺寸 | 已完成 | 针对三种面试官分别调整 `background-size` 与位置，让头像落在 320px 圆框内。 |
+| 本次范围 | 已完成 | 仅调整 Juju 确认面试官页视觉；未改选择面试官流程、面试官枚举、业务状态机或接口契约。 |
+| 验证 | 已通过 | `npm run typecheck` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 移动端视口铺满与头像框去描边 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 移动端背景铺满 | 已完成 | Juju 主题背景抽为统一变量，body、app-shell、stage 和 phone card 使用同一背景，避免模拟手机时露出非 Juju 背景。 |
+| 移动端横向操作区 | 已完成 | Juju 小屏 phone card 改为 `100vw`，首页 / JD 输入操作框改为 `calc(100% - 32px)`，横向撑满到左右 16px 边距；纵向保持页面可滚动。 |
+| 选择页头像框描边 | 已完成 | 选择面试官页三个头像圆框去掉描边和内阴影。 |
+| 确认页头像框描边与位置 | 已完成 | 确认面试官页 320px 圆形框去掉描边和光晕，人物图在圆形裁切内整体上移 40px。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题 CSS 视觉与移动端布局；未改业务状态机、路由、API 或其他主题逻辑。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## Juju 宽屏手机模拟居中与 Indicator 清理 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择面试官浅色层 | 已完成 | 选择面试官页中间浅色渐变层改为 `width: 100%`，避免 430px 模拟宽度下只铺 375px。 |
+| 确认页信息卡 | 已完成 | 面试官确认页信息卡从左侧固定定位改为 `left: 50%` 居中。 |
+| 答题页整体居中 | 已完成 | Juju 答题页在宽屏手机模拟下使用 `--juju-design-offset`，球体、题目/聆听文字、按钮和 toast 按 375px 设计整体居中。 |
+| 答题页 Home Indicator | 已完成 | 移除 Juju 答题页底部 home indicator 节点。 |
+| 本次范围 | 已完成 | 仅调整 Juju 主题移动端布局和答题页 JSX；未改答题状态机、语音逻辑、报告 schema 或 API。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示；代码扫描确认无 `juju-interview-home-indicator` 残留。 |
+
+## Juju 移动端文案与底部 CTA 居中修正 - 2026-07-11
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 选择页顶部背景球 | 已完成 | 小屏宽度超过 375px 时，顶部 Juju 球体按设计画布整体居中，不再贴左侧固定坐标。 |
+| 选择页标题说明文字 | 已完成 | “请选择面试官”和说明文案随 375px 设计画布居中到当前视口。 |
+| 面试官头像区域 | 已完成 | 三个面试官选项跟随同一居中偏移，头像与姓名整体保持居中排布。 |
+| 首页 / JD 文案组 | 已完成 | 首页和 JD 输入页的标题、说明与提示文字保持原相对位置，整组随 375px 设计画布居中。 |
+| Loading 文案 | 已完成 | Juju 思考 loading 页文案跟随 375px 设计画布居中，避免宽屏手机模拟下偏左。 |
+| 画像页底部 CTA | 已完成 | 候选人画像页底部按钮区域改为 100% 宽度，按钮居中，底部半透明背景左右贯通。 |
+| 本次范围 | 已完成 | 仅调整 Juju 移动端 CSS；未改面试官数据、输入流程、状态机或其他主题。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+## 成本测算记录 - 2026-07-17
+
+- 测算口径：每人 1 次完整面试，正常 JD/Resume、3 道题；保守按每题最多 3 分钟（共 9 分钟 STT），另保留全场共 3 分钟的低档口径。
+- LLM：按腾讯 TokenHub `hy3-preview` 重新结合当前代码的三次真实 Prompt 核算。正常简历 1500 字、JD 800 字、每题 3 分钟回答时，三次请求正文合计约 1.42 万字符；参考输出约 4565 字符。当前未传 `reasoning_effort`，默认 `no_think`。成功链路估算约 6000-10000 Token，容量预算按 1 万 Token/人，含失败重试、单题报告重生成和协议波动按约 1.15 万 Token/人。
+- 语音：当前演示三道题实际朗读正文共 162 字；财务预算按生成波动和重播约 240 字/人。STT 按 9 分钟并增加 10% 重试预算。Azure East Asia S1 公开零售价口径为 STT 1 美元/音频小时、Neural TTS 15 美元/百万字符。
+- 服务器：1000 人分散一周、峰值约 20-40 并发；腾讯云轻量 2 核 4G / 6Mbps / 800GB 流量包刊例价 80 元/月作为基线，4 核 8G 230 元/月作为扩容档。
+- 结果（修订）：1 亿 LLM Token 理论按 1 万 Token/人可支持约 1 万次面试；计入约 15% 重试、协议波动和少量报告重生成后，建议按约 8500 人规划。1000 人满额语音内测中，LLM 付费等价值约 25 元、TTS 约 26 元、STT 约 1188 元、2 核 4G 服务器 80 元，总付费等价值约 1319 元；若 1 亿 Token 只覆盖 LLM，现金预算约 1294 元，仍建议准备 1500 元。
+- 后续建议：上线 usage 埋点，分别记录三次 LLM 调用的 prompt/completion/reasoning/cached tokens、TTS 字符数、STT 音频秒数和重试次数；完成首批 30-50 人后用真实 P50/P90 替换本估算。
+
+## Juju 题目回显计时与 classic 全局声线锁定 - 2026-07-18
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Juju 题目文字版 | 已完成 | 面试官语音播放结束后、用户开始回答前，题目文字不再透明移出，改为 30% 白色半透明文字卡片展示，卡片高度随文字实际内容自适应。 |
+| Juju 回答计时 | 已完成 | 用户开始语音回答后展示正向计时 `mm:ss`，计时文字使用纯色、不虚化、不透明。 |
+| Juju 球体动效与进度 | 已完成 | Ellipse 10 呼吸收缩幅度加大；答题页 `1/3` 进度文字下移到外侧圆环下方，题目回显卡片同步下移避免重叠。 |
+| classic 声线锁定 | 已完成 | classic 语音控制面板新增 3 位面试官的独立 Azure 声线锁定区，当前面试官播放按对应配置生效。 |
+| 全局保存 | 已完成 | 新增 `/api/speech-settings/active`，保存到 `outputs/active-speech-settings.json`；浏览器 localStorage 作为读取/保存兜底。 |
+| 本次范围 | 已完成 | 未改题目、报告、STT/TTS 接口契约；仅扩展 classic 配置 UI、服务端配置存储和 Juju 答题展示。 |
+| 验证 | 已通过 | `npm run typecheck`、`npm run build`、`npm run smoke:contract -- http://127.0.0.1:3100` 通过；`POST /api/speech-settings/active` 可写入并返回全局声线配置；`git diff --check` 仅有既有 LF/CRLF 提示。 |
+
+## 内测新增 P0 工期评估 - 2026-07-21
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 评估范围 | 已完成 | 评估《PassBuddy 内测计划与成本测算》第六节 7 项 P0：账号登录、数据持久化、邀请码/白名单、隐私授权、运营看板、报告后反馈、异常监控。 |
+| 当前基础 | 已核对 | 核心面试闭环、语音降级、报告生成、部署和开发故障注入已有基础；账号、数据库、邀请码、授权、用户反馈、生产数据看板尚未实现，线上集中监控/报警仅有局部异常兜底基础。 |
+| 推荐工期 | 已评估 | 采用托管数据库/认证、托管监控与最小运营看板时，预计 20-28 人日；单名熟悉项目的全栈开发约 4-6 周，两名开发并行约 2.5-4 周。文档中将全部 P0 压入 1 周筹备期风险过高。 |
+| 验证方式 | 已完成 | 完整结构化读取源 DOCX；核对 `package.json`、App/API 目录、状态机、部署说明、既有 TODO 和仓库关键词。当前环境缺少 LibreOffice，未执行 DOCX 分页渲染，按 documents 技能降级为结构化审查。 |
+| 主要风险 | 待确认 | 校园身份核验方式、账号/数据库技术选型、隐私协议法律文本、数据保留/删除规则、看板指标口径会显著影响工期；学校 SSO、短信实名或自建认证不包含在最短估算内。 |
+| 下一步建议 | 建议 | 先冻结身份核验与数据模型，按 10-20 人灰度验收后再开放首批约 50 人；把正式内测开始时间放在 P0 完成后的独立稳定性验证周。 |
+
+## 内测 P0 框架化估算与现有项目工时对比 - 2026-07-21
+
+| 项目 | 估算 | 口径 |
+| --- | --- | --- |
+| 新增 P0 纯实现 | 14-19 人日 | 优先使用托管认证/数据库、托管邮件 OTP、现成监控和最小运营看板；不做学校 SSO、短信、复杂历史页或自建数据平台。 |
+| 新增 P0 可内测交付 | 18-23 人日 | 在纯实现上增加安全检查、邮件送达验证、10-20 人灰度和阻塞问题修复。 |
+| 单人日历时间 | 约 3.5-5 周 | 1 名熟悉 Next.js 的全栈开发连续投入。 |
+| 双人日历时间 | 约 2-3 周 | 认证/数据链路与运营/监控链路并行，最后共同集成验收。 |
+| 邮箱验证码登录 | 2-3 人日 | 邮箱 + 邀请码提交，邮件发送一次性验证码，验证码换安全 Session；包含过期、重发间隔、错误次数限制和退出登录。 |
+| 当前已完成项目等价工时 | 约 40-55 人日 | 使用同样的“成熟框架 + 有异常路径和集成验证”口径，覆盖规划契约、Next.js 主闭环、LLM、报告、语音、文件解析、多主题视觉、Prompt/运维工具、部署和验收迭代。 |
+| 对比结论 | 约为现有项目的 35%-50% | 新增代码量可能不大，但认证、数据、权限和合规跨模块，集成风险高于普通页面需求。 |
+| 关键边界 | 待冻结 | 用户不设密码；不做手机号/学号登录；邀请码区分学校；核心训练数据落库；用户侧历史列表延期；删除请求可先由管理员人工执行并留痕。 |
+
+## 受控内测文档规划 - 2026-07-23
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 工作流模板审查 | 已完成 | `docs/Development-Workflow-and-Instruction-Template.md` 适合作为单任务执行模板；不替代本轮共享范围、Contract、Data/API Contract 和 Acceptance Matrix。 |
+| 文档路线图 | 已完成 | 新增 `docs/internal-beta/00_document_plan.md`，定义独立内测文档层、文档优先级、9 类产物、7 个模块 instruction、开发波次和集成门禁。 |
+| 当前阶段 | 等待决策 | 需先确认目标阶段、托管平台、邮箱 OTP、邀请码规则、数据保存/保留、反馈是否阻断、管理员和指标口径，再生成正式 Contract 与 instruction。 |
+| 验证方式 | 已完成 | 核对现有 00–16 文档、旧 Alpha Contract/Acceptance/Module Map、新工作流模板和当前工作区；未修改业务代码。 |
+| 下一步 | 建议 | 确认 `docs/internal-beta/00_document_plan.md` 中 D-01 至 D-10 的推荐默认值，然后生成 `01_scope_and_decisions.md`。 |
+
+## 受控内测完整文档包 - 2026-07-23
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 默认决策 | 已确认后变更 | 2026-07-23 初始接受 Supabase 方案；2026-07-24 因国内邮箱送达约束，D-02/D-03 已按变更控制切换为 Better Auth + 腾讯云 SES API + 腾讯云 PostgreSQL。 |
+| 共享契约文档 | 已完成 | 已生成范围决策、内测 Contract、架构与数据契约、API/事件契约、63 条 Acceptance Matrix 和模块执行计划。 |
+| 开发 instructions | 已完成 | 已生成 IB-01 至 IB-07，覆盖数据底座、邮箱 OTP/邀请码、主闭环持久化、隐私删除、反馈事件、看板监控和安全灰度。 |
+| 运营与放量 | 已完成 | 已生成运营/隐私 Runbook 和 G0/G1/G2/G3 灰度发布与 Go/No-Go 验收文档。 |
+| 一致性检查 | 已通过 | 16 份 `internal-beta` Markdown 文件存在；Acceptance ID 共 63 个且唯一；`git diff --check` 无新增格式错误；未修改业务代码。 |
+| 当前状态 | Ready for execution | 建议从 `docs/internal-beta/instructions/IB-01-backend-data-foundation.md` 开始，逐 Wave 实施，禁止直接跳到放量。 |
+
+## 内测技术栈复核与 IB-01 数据底座 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 技术栈前置门禁 | 已完成 | 工作流模板新增 Stack Fit Gate；后续先核对用户地域、可达性、真实账号样本、配额成本、审核周期、合规、故障和退出策略，再生成开发指令。 |
+| 架构变更 | 已完成 | 移除 Supabase 依赖方案，改为 Next.js 自托管 Better Auth、腾讯云 SES API 邮件、同地域/VPC 腾讯云 PostgreSQL；开发测试使用 PostgreSQL 16 容器。 |
+| 国内邮箱门禁 | 已定义 | IB-02/G0 要求 QQ、163、两所学校域名各至少 3 次真实 OTP 收件测试，记录延时和垃圾箱情况；不把 provider 接受请求等同于用户收到邮件。 |
+| IB-01 实现 | 已完成 | 新增 Better Auth/pg 依赖、4 张 auth 表生成 migration、9 张业务表、FORCE RLS、原子邀请码消费、运行时/admin pool、transaction-local 用户上下文、mapper 和脱敏配置校验。 |
+| IB-01 自测 | 已通过 | 空库 migration + 重复幂等、7 个静态/单元测试、真实 DB 双用户隔离、连接池无身份泄漏、邀请码并发、typecheck/build/security 均通过；证据见 `docs/internal-beta/evidence/IB-01-data-foundation.md`。 |
+| 已知风险 | 待 IB-02/预发布关闭 | Better Auth CLI 1.4.21 与运行库 1.6.25 版本号不同；腾讯云 SES 域名/模板待审核，腾讯云 staging 地域/VPC、备份恢复和国内邮箱真实送达尚未验证。 |
+| 下一步 | Ready for IB-02 | 先完成腾讯云 SES 域名/模板和邮箱样本准备，再执行 `IB-02-email-otp-invite.md`；不使用 fake 邮件宣称通过 AUTH-001。 |
+
+## 内测邮箱 OTP 有效期变更 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 产品决策 | 已确认 | 腾讯云 SES 纯文本模板已采用“30 分钟内有效”，OTP Contract 从 10 分钟调整为 30 分钟。 |
+| 补偿控制 | 已锁定 | 6 位数字、60 秒重发、最多 3 次错误尝试、重发生成新码并使旧码失效、数据库仅保存 hash。 |
+| 代码与文档 | 已同步 | Better Auth `expiresIn` 改为 1800，增加 `resendStrategy: rotate`；同步范围决策、架构/API Contract、IB-02 instruction、测试和 IB-01 证据。 |
+| 验证 | 已通过 | `npm run test:internal-beta`、`npm run typecheck`、`git diff --check`。 |
+
+## 内测 SES 免费额度保护补充 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 30 分钟适用范围 | 已冻结 | 仅作为受控内测临时值，用于减少测试用户因验证码超时产生的重复发信；正式上线前调整为 5–10 分钟并重新执行 Auth 验收。 |
+| 额度控制口径 | 已补充 | OTP 有效期不等于发送额度控制；IB-02 增加单邮箱/IP 日限额、全局 SES 预算预警/停止阈值和停止后不调用 SES 的要求。 |
+| 配置原则 | 已冻结 | 免费额度和阈值不硬编码，使用环境变量配置，便于额度或套餐变化后调整。 |
+| 当前状态 | 待 IB-02 实现 | 本次只同步 Contract、API Contract、IB-02 instruction 和灰度门禁；发送预算计数、告警与测试在 IB-02 实施。 |
+
+## IB-02 阶段 1A · 腾讯云 SES 发送探针 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 环境配置 | 已确认 | 五项 SES 变量均已配置；只检查存在性，未输出 SecretId、SecretKey 或具体配置值。 |
+| SES adapter | 已完成 | 使用腾讯云官方 Node.js SDK；server-only 入口、10 秒请求超时、模板变量 `code`、验证码触发类型和稳定错误映射。 |
+| 安全探针 | 已完成 | `npm run ses:probe` 默认只校验配置/请求体；仅显式 `--send` 才真实发信，避免误耗免费额度。 |
+| 本地自测 | 已通过 | 11/11 internal-beta tests、typecheck、production build、security scan、diff check 通过；dry probe 返回 `SES_PROBE_CONFIG_OK`。 |
+| 真实收件 | 已确认 | 初次 CAM 权限错误已修复；重试获得腾讯云 RequestId/MessageId，用户确认测试邮箱收到。时延、垃圾箱、发件人显示和 6 位变量替换仍待补充。 |
+| Better Auth 接入 | 进行中 | 已将 sign-in `sendVerificationOTP` 接到 server-only SES adapter；其他 OTP 类型 fail-closed。尚需完成 Auth 路由、邀请码挑战、Session 与完整 E2E。 |
+| 证据 | 已记录 | `docs/internal-beta/evidence/IB-02-ses-probe.md`。 |
+
+## IB-02 阶段 1B · Better Auth 运行时路由 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 运行时 Auth | 已实现 | 新增 server-only Better Auth 实例，使用最小权限 runtime pool，不使用 migration/admin pool。 |
+| Auth 路由 | 已实现 | 新增 Node.js catch-all Auth handler，承载 Email OTP 与 Session Cookie。 |
+| Cookie | 已实现 | 生产环境强制 Secure Cookie；密码登录关闭。 |
+| SES hook | 已集成 | 仅 sign-in OTP 调用已验证的腾讯云 SES adapter；其他 OTP 类型 fail-closed。 |
+| 下一停止点 | 进行中 | 实现邀请码预检/挑战、预算限流、profile 原子初始化和项目契约 API。 |
+
+## IB-02 本地 PostgreSQL 可重复环境 - 2026-07-24
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Compose | 已补充 | PostgreSQL 16 Alpine，仅绑定 `127.0.0.1:5432`，持久化命名卷和健康检查。 |
+| 账号分离 | 已补充 | 本地 `passbuddy_admin` 执行 migration，`passbuddy_app` 作为最小权限运行时账号；固定密码仅用于本机开发，不得用于部署。 |
+| 启动与迁移 | 已通过 | Docker Desktop 启动；PostgreSQL 16 容器 healthy；4 个 migration 应用成功；DB integration 验证 5 张 auth 表（含 OTP 预算表）、9 张业务表、邀请码并发与 RLS 隔离通过。 |
+| 本地运行配置 | 已完成 | `.env.local` 已配置数据库与 Auth 变量；Better Auth runtime `get-session` 冒烟返回 200/null，项目 Session 门禁匿名返回 401。 |
+
+## IB-02 邮箱 OTP、Session 与邀请码实现 - 2026-07-25
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| 项目 Auth API | 已完成 | 新增 request-otp、verify-otp、session、logout；原生 Better Auth OTP 写端点封闭，不能绕过邀请码与预算。 |
+| 邀请码与 challenge | 已完成 | 邀请码仅存 HMAC；预检 valid/invalid/expired/exhausted；AES-GCM challenge 绑定邮箱、邀请码 hash、nonce 和时效；首次登录原子消费。 |
+| SES 额度保护 | 已完成 | PostgreSQL 原子记录 email/IP/global UTC 日桶；阈值可配置，停止阈值后不调用 SES；不存邮箱/IP 明文。 |
+| 登录 UI 与门禁 | 已完成 | figma/juju/classic 共用邮箱+邀请码、验证码两步 UI，支持 Session 恢复、60 秒重发倒计时和幂等退出；生产 feature flag 默认关闭。 |
+| Admin bootstrap/API | 已完成 | 首位 admin 两阶段 bootstrap；学校 GET/POST、邀请码 GET/POST/PATCH；每次校验 Session + DB role，邀请码明文只返回一次。 |
+| 自动化自测 | 已通过 | 19/19 单测、typecheck、production build、真实 PostgreSQL 集成、匿名运行时负向路径、三主题 SSR 均通过；未消耗新增 SES 邮件。 |
+| 真实验收 | 待执行 | 随机 OTP 完整登录、Cookie 刷新/退出、普通 user/admin 角色 E2E、错误/过期/3 次尝试、profile 故障恢复，以及 QQ/163/两所学校邮箱各 3 次送达矩阵。 |
+| 浏览器视觉 | 待人工复核 | 浏览器插件无法持续连接命令启动的本机服务；需在本机 `npm run dev` 后用 390×844 检查三主题登录页，无横向溢出。 |
+| 当前结论 | Implementation complete / Acceptance pending | IB-02 代码实现完成，但在上述真实 Auth/邮箱门禁完成前不得将 AUTH-001–008 或 IB-02 整体标记为 Pass，也不应进入真实放量。 |
+
+### IB-02 Bootstrap CLI 参数兼容修正 - 2026-07-25
+
+- npm 11 会将 `npm run ... -- --prepare --email ...` 中的长选项解析为 npm config，导致脚本只收到参数值。
+- CLI 已调整为稳定位置参数：`prepare <email> <school-code> "<school-name>"` 与 `promote <email>`。
+- 同时兼容 npm 11 已转发的旧三值/单值形态；首次失败发生在参数解析阶段，未写入数据库。
+
+### IB-02 首次真实 OTP 故障修正 - 2026-07-25
+
+- 有效邀请请求返回统一的“验证码发送失败”，SES dry probe 正常。
+- 只读诊断确认 runtime DB search path 为 `"$user", public` 且 verification 记录为 0；Better Auth 在发信前无法访问 `auth.verification`。
+- runtime pool 已固定 `auth,public` search path 并增加静态回归断言；失败请求没有发送邮件，但按额度保护策略保留一次尝试计数。
+
+### IB-02 注册、邀请码与体验次数契约变更 - 2026-07-25
+
+- 产品确认邮箱 OTP 独立负责注册/登录；没有内测资格的 Auth Session 再单独提交邀请码，已有 active profile 后续登录跳过邀请码。
+- 新增 `/api/auth/redeem-invite` 和 `authenticated_uninvited` 受限状态；request-otp 不再接收或预检邀请码。
+- 邀请码的可激活人数与单账号体验次数分离；当前每个激活账号默认获得 3 个新面试会话名额，快照到 profile，IB-03 创建 session 时原子占用。
+- 自测通过：22/22 单测、PostgreSQL 集成（额度 3/已用 0）、typecheck、production build、安全扫描；匿名 redeem 401、原生 OTP 写端点 404。
+
+### IB-02 OTP 浏览器 pattern 修正 - 2026-07-25
+
+- 正确 6 位验证码被浏览器原生格式校验拦截，未进入 verify API。
+- 将存在转义歧义的 `\d{6}` 改为 `[0-9]{6}`，增加 min/max length 双重约束和静态回归测试。
+- 该故障未消耗验证码错误尝试次数；未重发时原码仍按 30 分钟有效期处理。
+
+### 本地开发模式步骤切换卡顿修正 - 2026-07-25
+
+- 性能基线确认卡顿来自 Next.js 开发模式首次按路由编译：画像接口首次 4223ms、再次 79ms；出题接口首次 1115ms、再次 79ms。
+- 登录恢复或完成后，仅在开发环境后台以 `OPTIONS` 预热画像、出题、流式报告和非流式报告路由；不执行业务逻辑、不调用 LLM、不消耗外部额度。
+- 生产环境不执行预热；生产构建通过，画像接口实测首次 145ms、再次 15ms。最终内测体验仍需使用 `npm run build` + `npm run start` 验收。
+- 自测通过：24/24 internal-beta tests、typecheck、production build、diff check。
+
+### IB-02 收尾验收 - 2026-07-25
+
+- [x] IB-02 邮箱 OTP、Session、邀请码与开发路由预热实现完成。
+- 自动化复验：`test:internal-beta` 24/24、真实 PostgreSQL integration、typecheck、production build 全部 Pass。
+- 已确认 active profile 的 Session 契约返回 `needsInvite=false`；刷新/重登的真实 Cookie 浏览器复核本轮因本地 dev chunk 缓存失效及浏览器安全策略未完成，不虚报 Pass。
+- 腾讯云 SES 已有真实收件确认；QQ、163、两所学校邮箱各 3 次送达矩阵仍是放量门禁，不阻止进入 IB-03 开发。
+- 运行风险：不要在 `next dev` 存活时并行执行 `next build`，两者共用 `.next` 会使旧 dev 进程引用的 chunk 失效；build 后需重启 dev。
+
+## IB-03 面试闭环持久化 - 2026-07-25
+
+- [x] 核对现有状态机、PostgreSQL schema、RLS、Auth Session 和画像/出题/报告接口。
+- [x] 补齐创建 Session 的额度/幂等契约、`GET /current` 恢复入口与 SESSION-009 验收行。
+- [x] 实现原子额度占用、Session/答案 repository 和 API。
+- [x] 接入画像、题目、回答、报告与数据库恢复 adapter。
+- [x] 完成并发、额度耗尽、用户隔离、版本冲突、非法状态和旧 contract smoke。
+- [ ] 浏览器刷新/退出重登/Node 中途重启矩阵、真实 DB fault UI、事件 usage/耗时。
+
+### IB-03 阶段验收记录 - 2026-07-25
+
+- 阶段 1 数据/API：Pass。迁移 `0006/0007`、repository、6 类 persistence Route Handler 与 28/28 tests。
+- 阶段 2 原子/幂等：Pass。真实 PostgreSQL 并发相同 key 只建 1 个 Session、只扣 1 次、只写 1 个开始事件；3 次用尽后旧 Session 仍可推进。
+- 阶段 3 source 接线：Pass/Partial。画像、题目、三题答案、报告、completed 和 current/by-id 恢复已接 UI；真实浏览器恢复矩阵待人工。
+- 真实 production smoke：Pass。签名 Better Auth Cookie、consent gate=true、完整状态链、冲突/非法输入、双用户隔离和额度均通过；fixture 已清理。
+- 兼容回归：28/28 tests、DB integration、security check、dev contract smoke、production build、typecheck 全部 Pass。
+- 证据：`docs/internal-beta/evidence/IB-03-interview-persistence.md`。
+- 运行约束：`next dev`、`next build`、`typecheck` 涉及 `.next` 时必须顺序执行，禁止并行。
+
+## IB-04 隐私同意与删除留痕 - 2026-07-25
+
+- [x] 服务端版本化 policy、当前同意查询、接受版本/scope 校验和幂等记录。
+- [x] AuthGate 同意页、隐私与数据面板、`privacyOnly` 删除处理中状态。
+- [x] 创建 Session 的数据库二次同意门禁，新版本保留历史并要求重新同意。
+- [x] 用户创建/查看删除请求，admin 列表、审批、执行和 failed 重试。
+- [x] 完成后删除正文/身份/可关联 OTP 数据，保留无 userId/正文的表级 audit summary。
+- [ ] 产品/法务冻结最终正文并发布新 policyVersion；人工复核 390×844 浏览器视觉矩阵。
+
+### IB-04 阶段验收记录 - 2026-07-25
+
+- 阶段 1 policy/consent：Pass。旧版本 409、重复接受同一记录、历史版本共存、普通用户不能覆盖同意记录。
+- 阶段 2 UI/业务门禁：Pass/Partial。Auth/Session/DB 双重门禁和 production HTTP 已通过；浏览器插件 localhost 安全策略阻断，视觉点击矩阵未虚报。
+- 阶段 3 删除演练：Pass。仅使用 `example.test` fixture；成功删除 9 类记录，完成审计去除 user 映射；事务故障完整回滚、failed 可重试完成。
+- 安全：普通 user 调 admin execute 返回 403；production 异常响应只返回稳定错误码，不含 SyntaxError/SQL/provider 细节。
+- 自动化：33/33 tests、既有 DB integration、IB-04 DB drill、production privacy/persistence smoke、typecheck、build 均 Pass。
+- 证据：`docs/internal-beta/evidence/IB-04-consent-deletion.md`。
+- 当前结论：IB-04 implementation/contract acceptance complete；最终法务正文和人工浏览器视觉复核保留为灰度放量门禁。
+- 下一步：进入 IB-05“报告后反馈与核心产品事件”，先核对 FEED-001–005、EVENT-001–004 和事件隐私 allowlist。
+
+## IB-05 报告反馈与核心产品事件 - 2026-07-25
+
+- [x] 反馈 repository/API：owner、report 状态、1–5 星、500 字、每 Session 一条、重复返回既有。
+- [x] 三主题共用非阻断 FeedbackPanel：提交、跳过、失败可重试，报告和复制始终先渲染。
+- [x] server/client 事件字典、properties allowlist、RLS 与幂等；客户端不能声明权威完成事件。
+- [x] admin 反馈聚合只返回数量/均值/星级分布，不返回用户或正文。
+- [x] fixture reconciliation：业务完成、完成事件、反馈行、反馈事件与 report view 对齐。
+- [ ] 三主题真实浏览器提交/跳过/故障重试；provider usage/latency 真实测量。
+
+### IB-05 阶段验收记录 - 2026-07-25
+
+- 事件阶段：Pass。迁移 `0009`、strict validators、服务端事务事件、客户端 owner 派生和重放去重通过。
+- 反馈阶段：Pass/Partial。API/DB/production HTTP 全通过；浏览器插件无法访问 localhost，FEED-001/004 保留 Partial。
+- 对账阶段：Pass。fixture 范围 `completed session/event=1/1`、`feedback row/event=1/1`、`report view=1`，事件正文敏感词命中 0。
+- 自动化：38/38 tests、feedback DB integration、production persistence+feedback/events smoke、typecheck、production build 均 Pass。
+- 证据：`docs/internal-beta/evidence/IB-05-feedback-events.md`。
+- 当前结论：IB-05 implementation complete；浏览器交互与 usage/latency 是明确延期项，不阻止进入 IB-06。
+- 下一步：进入 IB-06 最小运营看板、结构化日志、错误监控与告警。
+
+## 内测开发交接快照 - 2026-07-25
+
+> 本节是内容压缩/新 Session 交接基线。详细结论仍以各模块 evidence 和 Acceptance Matrix 为准，不得用本快照把 `Partial` 提升为 `Pass`。
+
+| 模块 | 当前结论 | 未关闭项 |
+| --- | --- | --- |
+| IB-01 数据底座 | Complete | staging 地域/VPC、备份恢复仍属于放量环境验收。 |
+| IB-02 邮箱 OTP、Session、邀请码 | Implementation complete / Acceptance pending | 浏览器刷新与重新登录矩阵、完整真实邮箱送达矩阵；不得为补证据无意义重复发送真实 OTP。 |
+| IB-03 面试闭环持久化 | Core delivery complete | 浏览器刷新/退出重登/Node 重启矩阵、真实 DB 故障注入、事件 provider usage/耗时均为 `Partial`。 |
+| IB-04 隐私同意与删除 | Implementation/contract acceptance complete | 最终法务正文与 policyVersion 冻结、390×844 浏览器视觉矩阵为放量门禁。 |
+| IB-05 反馈与核心事件 | Implementation complete | 三主题浏览器交互矩阵、真实 provider usage/latency 为 `Partial`。 |
+| IB-06 管理与可观测性 | Ready to start | 先核对真实监控平台/项目配置；没有真实依赖时不得虚报监控采集、告警或演练 `Pass`。 |
+
+IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落库、恢复 API、用户隔离与 production smoke 都通过；尚未完成的是浏览器重登/Node 重启矩阵、真实 DB 故障注入和事件 usage/耗时，这些已明确标为 `Partial`，不影响进入下一模块。
+
+当前自动化基线：38/38 internal-beta tests、真实 PostgreSQL feedback integration、production persistence + feedback/events smoke、typecheck、production build 和 diff check 均通过。数据库已应用至 `0009` migration。`next dev`、`next build` 和依赖 `.next` 的检查必须顺序执行。
+
+新 Session 的可复制交接指令见 `docs/internal-beta/handoffs/2026-07-25-IB-06-new-session.md`。
+
+## IB-06 管理与可观测性 - 2026-07-25
+
+- [x] 阶段 0：核对 git/diff、技术栈、migration 0001–0009、admin/event/audit/log 现状与监控配置存在性；保留全部 IB-02–IB-05 修改。
+- [x] 阶段 1：统一 requestId、结构化日志、原始 API 耗时、隐私 scrubber、provider-neutral 监控 adapter、前端错误入口。
+- [x] 阶段 2：admin metrics repository/API、统一 admin audit 和受保护最小运营看板。
+- [x] 阶段 3：真实 PostgreSQL 对账、权限/隐私/事务故障、监控不可用和告警演练。
+
+### IB-06 阶段 1 记录
+
+- 新增 `0010_admin_observability.sql`，定义仅技术字段的 API latency 和 admin audit 表；尚待真实 PostgreSQL apply/integration。
+- auth、consent/privacy、session、feedback/events 和非流式核心生成 Route 已进入统一 request context。
+- scrubber 本地 captured payload 注入审查通过；response body/header/log requestId 可关联。
+- 自动化：41/41 internal-beta tests、typecheck Pass。
+- 真实 Sentry/等价项目未发现；OBS-001、OBS-004 和 OBS-002/003 的真实平台部分保持 `Partial`。
+- 证据：`docs/internal-beta/evidence/IB-06-admin-observability.md`。
+
+### IB-06 阶段 2 记录
+
+- migration `0010` 已应用到真实本地 PostgreSQL；API latency/admin audit 两表均 FORCE RLS。
+- 新增 admin metrics repository/API 与 `/admin` 页面，覆盖注册/激活、开始/完成/失败、fallback、反馈、额度、token usage、待删除和 global API P50/P95。
+- 学校/邀请码写操作与成功审计同事务；删除审批/执行和 bootstrap role promotion 已接统一审计。
+- 自动化：46/46 internal-beta tests、admin PostgreSQL integration、typecheck Pass。
+- PostgreSQL fixture 对账：registered/started/completed=1/1/1，P50/P95=125/125ms，审计 2 条，普通用户可见审计 0 条；fixture 已清理。
+
+### IB-06 最终验收记录
+
+- requestId/日志/监控：所有项目 API Route Handler 已进入统一 wrapper，响应体、`x-request-id`、JSON log 和 provider tag 共用同一 ID；Better Auth 原生 handler 由 Next instrumentation 捕获未处理异常。
+- admin：production HTTP 证明普通 user API 403/页面 404；admin 页面渲染、学校/邀请码创建/停用、聚合指标和 3 条写审计通过。
+- privacy：scrubber 的 token/OTP/Cookie/Authorization/简历/JD/答案/报告注入测试通过；production 日志无敏感原值。
+- failure/reconciliation：真实 PostgreSQL 指标对账、4 类本地告警触发、admin mutation 后故障整体回滚、普通用户 audit 0 行。
+- 相邻回归：IB-03 production persistence+feedback/events smoke、IB-04 production privacy smoke、base/privacy/feedback/admin PostgreSQL integration 均 Pass。
+- 最终自动化基线：50/50 internal-beta tests、typecheck、production build（33 个页面/路由）、security scan（170 files）、diff check Pass；migration 到 `0010`。
+- Acceptance：OBS-005/006、ADMIN-002–005 为 Pass；OBS-001–004 因无真实监控项目/告警渠道保持 Partial；ADMIN-001 沿用既有 Pending，不用本轮局部证据擅自替代完整 IB-02 admin E2E。
+- 既有 Partial 保持：SESSION-003/004/008、FEED-001/004 未因本轮自动升级；provider usage 尚未可靠传播到 Session events。
+- 证据：`docs/internal-beta/evidence/IB-06-admin-observability.md`。
+- 下一步：配置 staging 真实监控 provider 并完成远端 captured payload/requestId/alert drill；然后进入 IB-07 安全与灰度门禁。
+
+## Post-IB-06 遗留验收收敛与 IB-07 准备 - 2026-07-26
+
+- [x] SESSION-004：classic 浏览器真实 PostgreSQL 写故障下 Draft/画像保留；DB 保持 `draft`/version 1，画像里程碑和完成事件均为 0。
+- [x] FEED-001/004：figma、juju、classic 均完成提交、保存失败不阻断、跳过不阻断和复制；反馈/事件 DB 对账及隐私 allowlist 通过。
+- [x] ADMIN-001：admin 浏览器创建学校、批量邀请码、停用与指标查看通过；普通 user API 403、页面 404；默认每码可用次数改为 1，批量条数独立可调。
+- [x] IB-04 390×844：三主题同意/隐私基础视觉矩阵通过；修复 Juju 对比度和移动端卡片滚动。
+- [x] SESSION-003 子矩阵：浏览器刷新和 Node 重启恢复原 3 道题通过。
+- [ ] SESSION-003 退出重登：本轮禁止发送新 OTP，签名 fixture Cookie 不计真实 OTP 登录证据，整体保持 Partial。
+- [x] SESSION-008 本地接线：provider/model/requestId/真实 latency/attempts/provider usage 可传播到关联记录；不可用 usage 保存 null，fallback 不伪造 token。
+- [x] SESSION-008 真实测量：2026-07-28 staging 候选以单次 attempt guard 完成唯一一次非敏感 fixture 调用；provider usage 明确返回 input 772/output 1079 tokens，真实 latency 17171 ms、attempts=1、requestId 全链路一致，未记录业务或 prompt 正文。
+- [ ] OBS-001–004：未发现已配置可用的真实监控 provider，保持 Partial。
+- [x] IB-07 readiness 盘点完成；结论 HOLD / NO-GO，未启动 10–20 人真实灰度。
+
+### 验证记录
+
+- 浏览器：SESSION-004、三主题反馈/复制、admin 正向与普通用户负向、SESSION-003 刷新/Node 重启、三主题 390×844 同意/隐私人工矩阵。
+- 数据库：migration `0010`；persistence/privacy/feedback/admin integration Pass；故障状态、事件、批量邀请码和 audit 均以 `example.test` fixture 对账。
+- 自动化：`npm run test:internal-beta` 52/52 Pass；`npm run test:internal-beta:db`、privacy、feedback、admin PostgreSQL integration Pass。
+- 工程验证：typecheck、production build、security check、`git diff --check` Pass；所有使用 `.next` 的命令顺序执行。
+- 配置存在性：真实 LLM=false、真实监控=false、远端 staging DB=false、公开 HTTPS base=false；仅报告布尔存在性，未输出配置值。
+- 浏览器脱敏汇总：`docs/internal-beta/evidence/artifacts/post-ib06/browser-matrix-summary.json`。
+- IB-07 readiness：`docs/internal-beta/evidence/IB-07-readiness-2026-07-26.md`。
+- 下一 session：`docs/internal-beta/handoffs/2026-07-26-post-IB-06-IB-07-readiness.md`。
+
+### 剩余门禁
+
+- 真实邮箱 QQ、163、两所学校域名送达/登录矩阵；未经新许可不得发送 OTP。
+- staging PostgreSQL、备份恢复、HTTPS/域名、Secure Cookie、真实监控/告警和应用回滚证据。
+- 隐私/服务协议最终正文与 policyVersion 冻结。
+- staging compatibility/security 全矩阵和全部 P0 关闭前，不得开始放量。
+
+## IB-07 本地批次 1–2：认证、权限与接口保护 - 2026-07-26
+
+- [x] migration `0011`：PostgreSQL-backed 写限流，只保存 HMAC scope 和技术字段。
+- [x] AUTH-002：无效、过期、停用、用尽邀请码 Route/DB 负向矩阵，无 profile/计数副作用。
+- [x] AUTH-003/004：Better Auth 3 次错误限制、Session=0、通用 429/Retry-After、OTP budget/rotate 配置对账。
+- [x] AUTH-005：首次激活原子、失败不消费、重试成功、重复登录不消费第二邀请码。
+- [x] AUTH-007/008：普通 user admin 403/404；profile DB 故障保持受限、可重试。
+- [x] SEC-001：source/docs + production client bundle 实际配置值扫描，命中 0。
+- [x] SEC-002：双 user/双 school IDOR、角色伪造、非法 owner 和 RLS 负向矩阵。
+- [x] SEC-003：Auth/feedback/event/admin 统一 Content-Type、实际 body size 和数据库限流。
+- [x] SEC-004：admin role 修改只存在于受控 server bootstrap 并写 audit。
+- [x] COMP-002：CommonResponse、稳定 enum/questionId、SSE 与单题重生成 contract smoke。
+- [ ] AUTH-001、AUTH-006、SEC-006：保持 Pending，等待邮箱/HTTPS 或回滚 drill。
+- [x] COMP-003/004：classic 完成 Azure/Web Speech、STT 手动编辑、报告和复制兜底；figma/juju 完成无麦克风文字兜底三题、报告和复制。
+
+### 本批验证
+
+- `npm run test:internal-beta`：安全批次 56/56 Pass；兼容批次新增守卫后 57/57 Pass。
+- base/privacy/feedback/admin/security PostgreSQL integration：Pass。
+- auth invite negative、auth recovery Route Handler integration：Pass。
+- production security smoke：Pass；未调用邮件发送接口。
+- development contract smoke：Pass；production 正确忽略 dev fault header。
+- bundle secret scan：58 个 `.next/static` 文件，实际配置敏感值命中 0。
+- migration：`0011_write_rate_limits.sql` 已应用。
+- 证据：`docs/internal-beta/evidence/IB-07-local-security-contract.md`。
+
+### 工具等待事故与修正
+
+- `Get-NetTCPConnection` 在当前受控环境中 30 次轮询耗时约 2557 秒，并曾误报端口状态。
+- 后续禁止用它做服务就绪轮询；统一使用唯一日志 `Ready in` + 直接 Node PID + `netstat` 最终复核。
+- production/development runner 均在 `finally` 关闭本轮进程。
+
+## IB-07 本地兼容与三主题闭环 - 2026-07-26
+
+- [x] COMP-003：真实 Azure TTS fixture 返回 `200 audio/mpeg`，classic 人工确认 Azure 有声。
+- [x] COMP-003：注入 TTS 故障后 classic 自动切换 Web Speech，人工确认有声。
+- [x] COMP-003：STT 失败后 fixture 答案保留且可手动追加文本；默认流式报告进入报告页。
+- [x] COMP-003：非流式报告由 contract smoke 覆盖；复制成功和 Clipboard 手动复制兜底均人工通过。
+- [x] COMP-004：classic 主闭环通过。
+- [x] COMP-004：figma/juju 新增无麦克风文字回答兜底，均实际完成 3 题、报告与复制；juju 配色清晰、无遮挡。
+- [x] 自动化守卫：speech input unavailable 时 figma/juju 必须保留文字输入、questionId Draft 更新和继续按钮语义。
+
+### 本批验证
+
+- 浏览器：classic Azure/Web Speech/STT edit/report/copy；figma、juju 无麦克风三题闭环。
+- API：`npm run smoke:contract -- http://127.0.0.1:3000` Pass。
+- 自动化：`npm run test:internal-beta` 57/57 Pass。
+- 工程：typecheck Pass；production build Pass（33 routes）。
+- 真实 Azure STT 录音没有可用麦克风，未伪造为 Pass；留待 HTTPS staging 有麦克风设备复验。
+- 证据：`docs/internal-beta/evidence/IB-07-local-compatibility.md`。
+
+### 工具等待事故补充
+
+- 带 stdout/stderr 重定向的 `Start-Process` 虽在 6.5 秒 Ready，但工具执行单元持续追踪子进程，造成约 21 分钟无返回；后续禁止用该方式托管长驻 Next。
+- 自动浏览器访问 localhost fixture 被控制层拦截；普通根路径又因浏览器插件外部统计请求超时耗时约 143 秒。后续 localhost fixture 使用用户前台 Next + 短人工矩阵，不再重复自动浏览器探测。
+
+## IB-07 staging foundation：HTTPS 现状、PostgreSQL 与备份恢复 - 2026-07-27
+
+- [x] 上海腾讯云 Lighthouse（此前口头称 CVM，控制台实例为 `lhins-*`）安装 PostgreSQL 16.14；仅监听 `127.0.0.1:5432`，SCRAM-SHA-256。
+- [x] 创建 `passbuddy_app` runtime 与 `passbuddy_admin` migration/admin 双角色；两者均非 superuser，admin 仅按契约启用 `BYPASSRLS`。
+- [x] staging 空库顺序应用 migration `0001`–`0011`，二次运行幂等通过。
+- [x] persistence/privacy/feedback/admin/security 五组真实 staging PostgreSQL integration Pass。
+- [x] 57/57 internal-beta、typecheck、security check、production build 和真实配置 bundle secret scan Pass。
+- [x] migration 前/后 dump 可读；恢复到独立临时数据库，核对 migrations=11、auth tables=6、public base tables=12；临时库已删除。
+- [x] 清理全部明确 fixture；主库 users/schools/sessions/events/OTP counters=0，migration=11。
+- [x] 生成 clean baseline 0011 dump，SHA-256 `800f75f290a1f397dfe77f4f209452847d051047d1fb83ef538ba94f346d36e0`。
+- [x] 独立 release 候选在 `127.0.0.1:3001` smoke：root 200、anonymous session 401、production fixture 404、Azure status 200；结束后 PM2 candidate 删除且 3001 释放，旧 3000 未中断。
+- [x] Nginx HTTPS 安全头和真实 client IP 转发加固；HTTPS 200。
+- [ ] 腾讯云接入备案关系当前无法确认，公网 HTTP 被 DNSPod webblock；TrustAsia 证书未被 certbot 管理，自动续期未闭环。
+- [x] systemd 每日自动本机备份：首次 oneshot `status=0/SUCCESS`，timer 下一次 03:17 CST，dump/sha256 校验 OK，本机保留 14 天。
+- [x] COS 异地备份与恢复：上海私有单 AZ、SSE-COS、`passbuddy/staging/db/` 最小权限、90 天生命周期；`.dump`/`.sha256` 上传成功，本地/远端 CRC64 一致，COS 下载 SHA-256 `OK`，独立恢复库核对 11/6/12；临时库和下载目录最终确认 `ABSENT`/removed。
+- [x] systemd 已升级为每日本机+COS：60/120 秒超时、最多 3 次短重试、远端对象检查；人工触发 `status=0/SUCCESS`、`PASSBUDDY_BACKUP_OK ... cos=verified`，下一次 03:18 CST。
+- [ ] COS 上传失败的邮件/微信真实告警仍待监控渠道；不得把 systemd/journal 本地结果冒充外部告警。
+- [ ] AUTH-001/006、SESSION-003/008、OBS-001–004、SEC-006 保持原 Pending/Partial；未发送 OTP，未启动真实灰度。
+
+当前决策：**可以继续 staging drill；10–20 人真实灰度 NO-GO。** COS 异地备份与恢复已关闭，下一步接真实监控邮件/微信告警；当前候选未切换公网 3000。
+
+### IB-07 腾讯云主机告警 - 2026-07-28
+
+- [x] 创建邮件+微信通知模板；未启用短信、电话、企业微信或接口回调。
+- [x] Lighthouse 正式策略覆盖 CPU >80%、内存 >85%、磁盘 >80%，均为 1 分钟粒度连续 5 点，任一触发、每小时最多重复一次。
+- [x] 临时 CPU >0% 策略真实触发，用户确认通知测试通过。
+- [ ] 修改测试阈值后未收到恢复通知，不伪造为 Pass；不执行 CPU 压测，留待自然告警或后续可控演练。
+- [x] 决定不为约 100 人受控内测购买 CLS：日志保持 vendor-neutral JSON/requestId，本机轮转；后续可迁移到 Loki、OpenTelemetry、Sentry 或其他平台。
+- [x] 候选代码新增 `GET /api/health`：实际查询 runtime PostgreSQL，正常返回 200，数据库不可用返回 503；响应不含配置或原始错误，禁用缓存且不写高频 DB metric。
+- [x] 健康端点变更完成 `npm run typecheck` 与 `npm run security:check`（183 files）Pass。
+- [x] Lighthouse PM2 日志接入系统 `logrotate`：每日轮转、单文件 10 MiB 提前轮转、保留 14 份、延迟压缩、`copytruncate`；当前和轮转文件均为 `ubuntu:ubuntu`/`640`。
+- [x] 人工强制轮转后 `pm2 ping=pong`、`facewall=online`，四个原日志完整进入 `.log.1`，当前日志清零后可继续写入；无需重启服务。
+- [x] 新候选包 `passbuddy-staging-candidate-health-20260728-003535.tar.gz` 已校验并构建；migration 幂等、typecheck、source/bundle security 和 production build Pass，production bundle 包含 `/api/health`。
+- [x] 隔离候选 `127.0.0.1:3001` smoke：health 200 且 application/database up、root 200、anonymous session 401、production fixture 404；旧 3000 与候选均 online。
+- [x] SEC-006：Nginx 3 处 upstream 临时切到 3001；候选 HTTPS health/root/auth/fixture/security headers Pass；EXIT trap 恢复 3000，回滚 root 200、旧版 health 404，实际切换/回滚闭环完成。
+- [ ] AUTH-006 不随 SEC-006 升级：仍需真实登录 Session 的 Secure Cookie 与退出后 401 浏览器证据。
+- [ ] 当前只关闭主机指标真实触达和本地 readiness 接线；应用异常远端聚合、requestId 远端关联及数据库/COS 备份失败外部告警仍未完成，OBS-001–004 保持 Partial。
+
+## IB-07 Post-SEC-006 本地 readiness 收敛 - 2026-07-28
+
+- [x] 隔离候选使用不可达 fixture DB 验证 `/api/health`：当前候选返回 `503`，仅包含 application up/database down，`Cache-Control=no-store`；未停止或修改真实 PostgreSQL。
+- [x] 两次临时候选均在阶段结束关闭，最终本机 3001 已释放；第一次旧 `.next` 返回 404，顺序执行 production build 后复测 503，不把旧构建结果冒充通过。
+- [x] 新增 vendor-neutral 本机 readiness/backup 检查脚本与 systemd oneshot/timer 模板，覆盖 HTTPS health、local Next health、PM2 online、PostgreSQL readiness、backup timer/service、备份 36 小时新鲜度和 SHA-256。
+- [x] 检查结果只写 vendor-neutral JSON 技术字段；网络/命令均有 3–15 秒短超时；不调用邮件、微信、Webhook、Sentry/CLS，也不记录 URL、DSN、响应正文或 credential。
+- [x] 本地契约验证 59/59、typecheck、production build、security check 和 `git diff --check` Pass。
+- [x] 已准备未上传候选归档 `outputs/passbuddy-staging-candidate-post-sec006-20260728-012941.tar.gz`，SHA-256 `0484e97689f299aaf98fe2e51610ee6ff9003076e9c71786505004d074b05a7f`；2001 个条目中 `.env.local/.git/.next/node_modules/outputs` 命中 0。
+- [ ] 当前 Windows 的 WSL/bash 启动被系统权限拒绝，Linux `bash -n` 与 systemd 实际执行必须在 staging 部署前复核；不得把静态测试等同于远端运行 Pass。
+- [x] 为真实 LLM drill 增加仅候选进程启用的单次 attempt 开关和脱敏 fixture 探针；只输出 provider/model/latency/usage 或 null/attempts/requestId，不输出简历、JD、回答、报告或 prompt。
+- [x] 更新候选归档为 `outputs/passbuddy-staging-candidate-post-sec006-20260728-112135.tar.gz`，SHA-256 `83ec25bb0d4930f3fa2c0c0cbd7258107e8bc03081bc1a4f014578226f634d49`；2002 个条目，禁入目录命中 0，包含 health/readiness/LLM probe。
+- [x] 相邻回归更新为 60/60、typecheck、production build、security check（188 files）和 `git diff --check` Pass；尚未调用真实 LLM。
+- [ ] Chrome 已进入登录后的 OrcaTerm，但远程截图/输入通道反复超时；只读远端侦察命令已交给用户在 WebShell 执行，等待脱敏输出后再部署。
+- [x] 经用户逐次确认，腾讯云 SES 探针向浙大校园邮箱调用 1 次并被 provider 接受；用户确认邮件进入收件箱，收件端显示 11:12，与 provider 接受时间同一分钟。公网旧稳定版 OTP API 为 404 且该 404 未调用 SES；本证据只关闭浙大域名单次模板可达子项，不能冒充完整 OTP 登录。
+- [x] 首次 LLM 探针在 `tsx/esbuild` CJS 转译阶段因 top-level await 失败，模块与 `fetch` 均未执行；旧 marker/result 保留为预检失败证据。修正脚本经本地/远端 CJS 纯编译后使用独立 marker 完成唯一一次真实 provider 调用，无重试。
+- [x] SESSION-008 升 Pass：真实 provider=`tokenhub.tencentmaas.com`、model=`hy3-preview`、latency=17171 ms、attempts=1、input/output usage=772/1079、requestId 匹配；输出仅含测量字段，不含简历、JD、回答、报告或 prompt。
+- [ ] OBS-001–004 保持 Partial；AUTH-001/006 和 SESSION-003 不变。
+
+## IB-07 staging candidate public deployment - 2026-07-28
+
+- [x] 用户通过 WebShell 完成远端只读侦察：旧 `facewall` online；仅 3000/5432 监听；Nginx 三处均指向 3000；PostgreSQL active/ready、migration=11；backup timer enabled/active 且上次 success；根盘使用 21%；临时候选不存在且 3001 释放。
+- [x] 新 release `/home/ubuntu/releases/passbuddy-20260728-112135` 从 SHA-256 已验证归档解包；Linux `bash -n` Pass；继承上一候选 `.env.production.local`，权限 600。
+- [x] 远端 `npm ci`、migration 幂等、60/60 internal-beta、typecheck、source security（188 files）、production build（33 routes）和 bundle security（57 files）Pass。
+- [x] 隔离 `facewall-candidate`/3001 smoke：health/root=200、DB ready、匿名 session=401、OTP GET=405、production fixture GET=404；单次 LLM attempt guard enabled；旧 3000 和 Nginx 均未受影响。
+- [x] 服务器候选初始缺 SES 配置；通过 SSH stdin 仅传输五项 SES 配置，不在命令行/聊天/日志显示值；合并前保留 600 权限 env 备份，候选重启后 health ready，incoming secret fragment 已删除。本步骤未发送邮件。
+- [x] 修正 root systemd readiness 读取 ubuntu PM2 daemon 的 `runuser`/`PM2_HOME` 接线；脚本 SHA 与 `bash -n` Pass。真实主机 local-only dry run 的 HTTPS/local/PM2/PostgreSQL/backup timer/service/freshness/checksum 和 summary 全部 Pass。
+- [x] `passbuddy-local-readiness.timer` 已启用并 active；首次 oneshot 的 9 条 vendor-neutral JSON 检查记录全部 Pass，service Result=success/ExecMainStatus=0，下一次运行已排期。该证据仅为本机日志，不冒充外部监控，OBS-001–004 保持 Partial。
+- [x] 公网候选切换成功：Nginx 配置备份为 `/etc/nginx/conf.d/facewall.conf.pre-ib07-20260728-120806`，三处 upstream 从 3000 精确切至 3001；`nginx -t` 和 reload Pass。
+- [x] 公网 HTTPS 验证：health/root=200、匿名 session=401、OTP GET=405、production fixture=404；HSTS/CSP/nosniff/frame/referrer/permissions headers Pass。旧 `facewall` 3000 与候选 3001 均 online，保留即时回滚。
+- [x] 修正 LLM 探针远端 SHA 与 CJS 纯编译 Pass；新的 provider-call marker 原子保留后完成唯一一次 fixture 调用，HTTP 200/source llm、provider/model、真实 latency、attempts=1、usage 和 requestId 对账全部通过；禁止重跑，SESSION-008 升 Pass。
+- [x] LLM drill 相邻回归：60/60 internal-beta、typecheck、production build（33/33 static generation）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [ ] 这只是 staging 公网候选部署，不是 10–20/100 人灰度；AUTH-006 仍缺合法登录后的 Secure Cookie/退出/401，OBS-001–004 不因本机日志升级。
+- [ ] 一次经用户单独授权的 AUTH-006 浏览器“发送验证码”点击在等待响应时控制通道超时；页面未确认进入 OTP，服务端结果未审计且没有重试。用户决定停止该路径；该不确定尝试不计 AUTH-001/006 或 SESSION-003 证据。
+- [x] 当次上线差距快照为 Matrix 52 Pass、5 Partial、7 Pending；本轮产品协议草案接入后新增 CONSENT-007 Partial，最新计数见下方“五组门禁复核”。
+
+## IB-07 release freeze - 2026-07-28
+
+- [x] 基线审计：`release/preview` 的 pre-freeze HEAD 为 `d62daff931540f406802608c6986b760044706c0`；当前冻结范围完整保留 IB-02 至 IB-07 修改，无 tracked deletion。
+- [x] 821 个初始 untracked 中有 657 个为 `outputs/.cdp-debug*` 浏览器 profile/cache/dump 和临时日志；补充 `.gitignore` 后仅排除这些运行产物，没有删除文件。
+- [x] release manifest 为 198 个路径：33 个 tracked 修改、165 个新增 application/migration/contracts/evidence/operations/tests；候选中未发现 `.env.local`、私钥、证书、数据库 dump、归档或 zip。
+- [x] 冻结前验证：60/60 internal-beta、typecheck、production build（33/33）、source security（188 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [x] release source commit=`19d791f26640edcc583053c4b9f70d4186d1faa4`；以 `core.autocrlf=false` 从该 commit 导出 `outputs/passbuddy-release-freeze-19d791f-20260728.tar.gz`，SHA-256=`3e9ada8c7f332a491cfca112ec2621c2bdb22b1ce72489199174bdd0ff58dbac`。
+- [x] 冻结归档 416 个条目，`.docx`/禁入路径/必需文件缺失均为 0；独立解包后 60/60、无增量 typecheck、production build 33/33 和 source security（189 files）Pass。首次受 Windows autocrlf 影响的 CRLF 归档已判废并替换。
+- [ ] 当前公网 3001 仍运行先前 SHA-256 验证候选；promotion 前需上传冻结归档、服务器校验 digest、从冻结 commit artifact 构建并重复最小 staging smoke。
+- [ ] 本 freeze 不关闭 AUTH/SESSION/OBS/法务/域名证书/G0/PILOT 门禁，也不授权真实灰度。
+
+## IB-07 产品协议草案与上线五组门禁复核 - 2026-07-28
+
+### 产品协议草案
+
+- [x] 按产品提供原文，将《用户服务协议》《隐私政策》替换原开发占位正文；未擅自修改邮箱拼写、运营主体或承诺内容。
+- [x] policyVersion 升级为 `2026-07-28-product-draft`；旧版本同意记录保留，已有用户必须重新同意后才能开始新 Session。
+- [x] AuthGate 的加载、提示和勾选文案同时指向《用户服务协议》和《隐私政策》；隐私契约最小测试 5/5 Pass。
+- [x] 相邻回归：60/60 internal-beta、typecheck、production build（33/33）、source security（190 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [ ] CONSENT-007 保持 Partial：正文尚未经过专业审核，运营主体/联系邮箱未验真，账号字段、LLM 前脱敏、语音分析、数据库密文和用户权利入口等承诺尚未与真实能力逐项闭环。
+- [ ] 当前只完成本地源码接入，尚未部署 staging，也未触发 OTP 或外部调用。
+
+### 上线前五组门禁 · 最新状态
+
+1. **Release freeze / promotion**
+   - [x] release source 基线 `19d791f…`、归档摘要、独立重建验证和 provenance commit 已完成，两个 commit 已按用户授权推送到 `origin/release/preview`。
+   - [ ] 本协议草案是冻结后的新增改动；最终 promotion 需在用户授权后形成后续确定 commit，重新导出/校验归档并从该 commit 构建。
+   - [ ] staging 需验证 PM2 开机恢复，并明确 `facewall-candidate` → 正式进程的名称、端口和即时回滚步骤。
+2. **真实认证闭环**
+   - [ ] AUTH-001：QQ、163、两所学校邮箱各 3 次真实应用 OTP 送达/登录；浙大单次 SES 模板探针不替代该矩阵。
+   - [ ] AUTH-006：合法登录 Session 的 Secure Cookie、退出和退出后受保护 API 401。
+   - [ ] SESSION-003：真实退出重登后的 Session 恢复。每次 OTP 发送前继续单独请求明确确认。
+3. **外部应用监控**
+   - [ ] OBS-001–004 保持 Partial：仍缺前端/服务端异常进入真实外部接收面、requestId 关联、登录/关键 API/PostgreSQL/备份失败外部告警及恢复通知。
+   - [x] 主机告警、本机 readiness 和 vendor-neutral JSON/requestId 是可复用基础，但不冒充外部应用监控验收；不要求购买 CLS。
+4. **法务、域名和证书运维**
+   - [ ] 专业审核并冻结最终协议正文、真实运营主体/联系方式和最终 policyVersion。
+   - [ ] 确认腾讯云接入备案关系，解决 HTTP DNSPod webblock，建立证书自动续期。
+   - [ ] 明确邀请码学校、额度、有效期、负责人和暂停方式。
+5. **G0 整体验收**
+   - [ ] 两个真实 user + 一个 admin 覆盖登录、邀请码、同意、完整面试、反馈、恢复、删除、A/B 隔离和 admin 权限。
+   - [ ] 覆盖 DB/LLM/TTS/STT/monitor 故障、暂停邀请、应用回滚和备份恢复，并至少观察一个完整工作日。
+
+当前决策：**产品协议草案已进入本地候选，但专业审核和其余上线门禁未关闭；10–20 人真实灰度仍为 NO-GO。**
+
+## Pre-G0 本地优先收敛与语音 provider 冗余 - 2026-07-28
+
+- [x] 完成本地/公网边界复核：OBS 本地 instrumentation、AUTH logout/401 本地路径、Session 刷新/Node 重启和语音浏览器/文字兜底已有证据；不得重复包装为外部 Pass。
+- [x] 修复 `/api/stt` 开发故障注入误用 `tts` kind；新增独立 `stt` kind、源码回归和实际 header 隔离测试。
+- [x] targeted dev/persistence/alerts/observability/security contracts 18/18 Pass。
+- [x] 用户新增 P0 语音冗余要求：Azure 为主，增加一个真实服务端备用 TTS/STT provider；主备均失败后保留 Web Speech/浏览器识别/手动编辑。
+- [x] 完成 D-13、API/Event Contract、VOICE-001～005 和 IB-08 instruction；VOICE-001 仅关闭公开契约兼容。
+- [ ] 备用 provider 的厂商、地域、中文能力、价格/配额、隐私条款和测试账号待产品决策；此前不安装 SDK、不调用真实 API、不创建生产 stub。
+- [ ] VOICE-002/003/005 Pending；VOICE-004 Partial。真实主备故障切换、HTTPS 桌面/手机麦克风和 provider requestId/latency 必须在公网 staging 取得。
+- [x] OBS 本地部分无需为“做本地”重复开发；剩余 OBS-001～004 必须接真实外部接收面并验证告警触发/恢复。
+- [ ] 本地 PostgreSQL integration 本轮无法重跑：Docker Desktop engine 因 WSL `E_ACCESSDENIED` 未就绪；本轮启动进程已关闭。既有 staging DB integration 证据保持有效。
+- [x] 最终本地回归：62/62 internal-beta、typecheck、production build（33/33）、source security（192 files）、bundle security（59 files）和 `git diff --check` Pass。
+- [x] 最新 Matrix 对账：70 行，55 Pass、5 Partial、10 Pending；剔除 PILOT-001～005 后预上线 55/65 Pass。
+
+下一顺序：先确认外部监控接收面和备用语音 provider；本地实现 adapter/timeout/error/scrub 后，再部署最终候选执行公网 Auth、语音、PM2、G0 和工作日观察。
+
+## IB-09 腾讯云 RUM 前端接收面 · 本地接入 - 2026-07-28
+
+- [x] 产品确认拒绝跨境 telemetry，选择腾讯云 RUM 广州作为 staging 前端真实接收面；继续不购买 CLS，服务端保持 vendor-neutral JSON/requestId。
+- [x] RUM 业务系统和 staging web 应用已在控制台创建；抽样按错误优先、性能/PV 降量配置。字段枚举模板仅影响 ext4–ext10 展示，本轮不使用。
+- [x] 安装并锁定 `aegis-web-sdk@1.41.14`；新增 exact enable + 合法 ID fail-off gate，SDK 加载/上报失败不影响业务。
+- [x] 固定中国大陆接收域；显式关闭持久 aid、真实 uin、device、自动 JS listener、console/click、静态资源测速、白屏截图、lag/memory 和 request/response detail。真实 Network 发现 whitelist/rateConfig 配置请求仍存在，不能继续声称 whitelist transport 已关闭。
+- [x] 既有 `reportClientError` 同时接本地 ingestion 与 RUM 最小事件；错误只保留类型、技术栈、来源和归一化路径，资源加载失败纳入受控 source。
+- [x] API speed 只保留 method/status/duration、去 query/hash 且聚合动态 ID 的 path，以及响应 `x-request-id`；请求 headers/body、响应 body 和业务 retcode 不上报。
+- [x] 本地 RUM contract 6/6、全量 internal-beta 68/68、typecheck、production build（33/33）、source security（196 files）、bundle security（60 files）和 `git diff --check` Pass；本轮 npm 临时 cache 已删除。
+- [x] staging 浏览器受控探针：匿名 Session=401、response requestId present；中国大陆 RUM collect preflight/actual=200/204；腾讯云日志查询出现 1 条与 `pre`/release 匹配的 JS 错误，远端样本无错误正文、query、凭据或用户业务正文。
+- [x] 定位真实 API 监控为空：`reportApiSpeed` 对象配置合法，旧 `beforeRequest` 把批量 speed records 根数组清洗为空；已改为逐条保留安全技术字段/requestId，空 batch 丢弃。
+- [x] 首轮 endpoint 修正已进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并部署到公网 3003；health/root/auth-negative/fixture/security headers/readiness 均 Pass，但浏览器执行匿名 Session 401（response requestId present）后未出现任何 `rumt-zh.com` 接收请求，API 监控仍无可验收数据。
+- [x] 复核锁定 SDK 的真实运行时后确认：Aegis 构造函数会在应用 constructor options 后按 `hostUrl` 重建全部 endpoint，因此“移除 hostUrl + constructor 内逐项 endpoint”仍会被 SDK 默认值覆盖；该假设已作废，不把 3003 结果算作 OBS-002/003 证据。
+- [x] 本地改为以大陆 `hostUrl` 初始化后立即调用公开 `setConfig` 二次锁定 endpoint；custom event/custom time/offline 置空，log/PV/speed/performance/web-vitals 保留，rateConfig 使用 SDK 实际 `/rateConfig` 路径。新增构造后覆写契约。
+- [x] 二次修正后 RUM contract 9/9、internal-beta 71/71、typecheck、production build 33/33、source security 196、bundle security 60 和 `git diff --check` Pass。
+- [x] 二次修正已进入 commit `f57a26d7d740159d298e62bd5591e44be93e53c3` 并推送；归档 SHA-256 在 staging 对账通过，detached build 完成 71/71、typecheck、source security 197、33/33 build、bundle security 58，3004 隔离与公网 smoke/readiness Pass，3000～3003 和新回滚副本保留。
+- [x] 3004 浏览器复核确认全局 monitor、adapter/Aegis chunks、instance、`report`、`setConfig` 和最终大陆 endpoint 均正常，但 `whiteListUrl=""` 时 SDK 既不发配置请求也不释放内部日志队列，受控错误只进入本地 monitor，RUM receiver 始终为空。CSP 误判已纠正：公开策略无 `default-src/connect-src`，不阻断 RUM，且相关 `sed` 未命中、配置未变化。
+- [x] 产品确认恢复锁定 SDK 官方同一大陆域 whitelist endpoint；继续 anonymous uin、`aid=false`、`device=false` 和正文/header/cookie 禁采集。下一候选必须人工复核 whitelist 请求字段后，再做 rateConfig/receiver/API requestId 对账。
+- [x] 官方大陆 whitelist 修正已在本地通过 RUM contract 9/9、internal-beta 71/71、typecheck、production build 33/33、source security 197、bundle security 60 和 `git diff --check`。
+- [x] 官方大陆 whitelist 修正已进入 commit `c4f20d8b811823f4d5022e71e7648052cd6cc2fc` 并推送；归档 SHA-256=`6743b4635451cdc214905e73a1247ddc1d9dbe4fc3acc20e35a24bc9d6996105` 在 staging 对账通过，detached build 完成 71/71、typecheck、source security 197、33/33 build、bundle security 58，3005 隔离与公网 smoke/security/readiness Pass。
+- [x] 3005 无痕页排除扩展噪声后确认 adapter、Aegis instance 和 whitelist/rateConfig/log 最终 endpoint 均正确，但 telemetry resource 仍为空。锁定 SDK 实现表明两个官方控制面请求都以 `whiteList/null` 经过 `beforeRequest`，现有 sanitizer 对空 envelope 返回 false，导致请求在网络层前取消。
+- [x] 本地最小修正仅允许严格的 `logType="whiteList"` + `logs=null` 控制面形态；任何携带对象、payload 或用户数据的同类型 envelope 继续拒绝。定向契约 10/10、internal-beta 72/72、typecheck、production build 33/33、source security 197、bundle security 60 和 `git diff --check` Pass。
+- [x] 控制面放行修正进入 commit `843386d079cf4ecc229522691b0d9eb20a3a911e` 并推送；归档 SHA-256=`2afc4e6709724149e1018ead6204828deb9f301d0247d3223475fe9194afab3f` 在 staging 对账通过。detached build 完成 72/72、typecheck、source security 197、33/33 build、bundle security 58，3006 隔离与公网 smoke/security/readiness Pass。
+- [x] 3006 无痕 Network 取得 whitelist/rateConfig GET 200，均无 body/Cookie/Authorization 且只有匿名技术字段；单次受控错误使本地 client-error POST 200 与大陆 collect preflight/actual 200/204；Session 401 和唯一只读 API 分别产生 `/speed` POST 204，payload 仅含归一化 path/method/status/duration 和匿名 SDK 元数据，无用户正文。
+- [x] Session response requestId 与 3006 PM2 warn JSON 精确对应；真实 `/speed` payload 证明锁定 SDK 在 `apiDetail=false` 时不把配置的 `resHeaders` 写入 duration record，因而尚不能完成 RUM requestId 对账。当前本地修正只从 Fetch Response/XHR context 提取合法 requestId，经 retcode 通道加入 speed sanitizer，仍保持正文/detail 关闭；定向契约 11/11、internal-beta 73/73、typecheck、source security 197、build 33/33、bundle security 61 Pass。
+- [x] 经明确授权将 response requestId 最小修正以 commit `d963d65c788479203854ed307a4585b6a0e1831a` 推送；确定归档在 staging 对账通过，构建前已在不输出配置值的前提下把 RUM release version 更新为该 source commit。3007 detached build 完成 73/73、typecheck、source security 197、33/33 build 和 bundle security 59，隔离及公网 smoke/security/readiness Pass。
+- [x] 3007 真实 `/api/health` GET 200 产生 `/speed` POST 204；payload 中 path/method/status、`ret`、显式 `requestId` 和当前 release 均正确，Cookie/Authorization、request/response body 与禁止用户内容均 absent。同一 requestId 已与 response header、PM2 `api.request.completed` JSON 和腾讯云 API Monitor `retcode` 精确对账，OBS-002/003 升为 Pass。
+- [x] 首次只读 `/api/azure-status` 样本虽完成 response→PM2 requestId 对账但未产生 `/speed`；未重复该请求。后续 `/api/health` 生命周期探针证明完整 speed pipeline 与真实远端接收可用；将单样本不保证发送记录为低量采样/发送非完备性风险，RUM 不作为每请求审计账本。
+- [ ] staging 首条数据后配置严重 JS error 和上报量告警；真实邮件/微信演练前说明接收对象和预计通知次数。
+- [ ] OBS-001/004 保持 Partial：仍缺服务端异常真实外部接收，以及应用/DB/备份外部告警触发和恢复通知。OBS-002/003 已由 3007 真实隐私 payload 与 requestId 远端对账关闭。
+- [ ] RUM 抽样不是费用硬上限；需确认日上报量阈值、负责人和控制台 stop/关闭 enable 的响应 runbook。
+
+## IB-07 Post-Freeze 候选归档 - 2026-07-29
+
+- [x] 用户授权后将协议草案、IB-08 和 IB-09 共 33 个路径提交为 source commit `9607f9e7d912b20baca58245e8e4e20e989fe737`，并推送到 `origin/release/preview`；commit 前 staged=33、unstaged=0、untracked=0、删除=0。
+- [x] 从确定 commit 以 `core.autocrlf=false` 导出 `outputs/passbuddy-release-post-freeze-9607f9e-20260729.tar.gz`，SHA-256=`3fb91f2686001dbd08a629e68bb8cd4c77fceb91214e479a6ea67f703de45418`。
+- [x] 最终归档 424 entries，禁入路径 0、必需文件缺失 0；显式排除 Git 已跟踪的历史 `outputs/` 和非运行时产品 `.docx`。
+- [x] 两次不合格导出分别因包含 tracked outputs 和 `.docx` 被拒绝且未上传；最终归档替换后重新计算摘要。
+- [x] 仓库外独立解包后 `npm ci`、68/68 internal-beta、typecheck、production build（33/33）、source security（196 files）和 bundle security（60 files）Pass；临时目录已删除。
+- [x] 最终归档已上传 staging，远端 SHA-256 与本地一致；继承既有 server-only 配置并以隐藏输入补齐 RUM public build config，`npm ci`、68/68、typecheck、source security 和 systemd 脱离会话 production build（33/33）Pass。
+- [x] 新 release `/home/ubuntu/releases/passbuddy-20260729-9607f9e` 以 `facewall-rum-candidate` 运行于 3002；bundle security Pass（58 files），隔离 health/root/auth-negative/fixture smoke Pass。
+- [x] Nginx 与本地 readiness 已由 3001 切到 3002；公网 health/root=200、anonymous session=401、OTP GET=405、production fixture=404、security headers 和 readiness oneshot Pass；3000/3001、Nginx/readiness 回滚配置仍保留。
+- [x] 首条真实 RUM 前端错误和 captured payload 脱敏复核已取得；受控正文/query/凭据/用户业务正文均未出现在远端样本。
+- [x] API speed 批量清洗首轮修正进入 commit `caa52eece298b19937558248cdb6f98c0a222702` 并推送；其归档部署为 `/home/ubuntu/releases/passbuddy-20260729-caa52ee`，`facewall-rum-fix-candidate` 在 3003 通过隔离与公网切换验证，Nginx/readiness 回滚配置和 3000/3001/3002 旧运行时保留。
+- [x] 构造后 runtime endpoint 修正 `f57a26d` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-f57a26d`，`facewall-rum-runtime-candidate` 在 3004 通过 build、隔离 smoke、公网切换和 readiness；Nginx/readiness 新回滚副本与 3000～3003 旧运行时保留。
+- [x] 官方大陆 whitelist 修正 `c4f20d8` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-c4f20d8`，`facewall-rum-whitelist-candidate` 在 3005 通过 build、隔离 smoke、公网切换和 readiness；新回滚副本与 3000～3004 旧运行时保留。
+- [x] 严格 `whiteList/null` 放行修正已以 `843386d` 部署 3006；response requestId 修正已以 `d963d65` 部署并公开切到 3007。真实 control-plane、receiver privacy、当前 release 和 response/RUM/PM2/腾讯云 API Monitor requestId 对账均 Pass；OBS-002/003 关闭。OBS-001/004、告警触发/恢复和真实灰度仍未开始。
+
+## IB-10 Theme Gate、问卷调研与 Juju 问答回看 - 2026-07-31
+
+- [x] 新增 D-15/D-16/D-17、IB-10 instruction、API/Data/Acceptance/Runbook 条目；后续未单独说明的需求默认在 Juju 开发。
+- [x] Classic/Figma 无验证码门禁且不启用用户持久化；Juju 保留 OTP。浏览器只读验证未发送 OTP，未重复 IB-09 探针。
+- [x] Classic 新增四题型全局问卷配置；生产保存默认 fail-closed。
+- [x] Juju 第一场完成后由报告确认动作触发邀请并进入动态问卷。
+- [x] 新增 migration `0012`、owner/首次完成/版本/唯一提交、RLS、删除覆盖和脱敏事件。
+- [x] Juju 右侧工具按钮进入当前会话问答回看。
+- [x] typecheck Pass；internal-beta 80/80 Pass。
+- [x] production build 34/34、source security 206 files、bundle security 63 files、`git diff --check` Pass。
+- [ ] PostgreSQL integration 与 staging 合法 Juju Session E2E 待授权；SURVEY-005/006 Partial，SURVEY-007 Pending。
+- [ ] 本轮不 stage/commit/push，不改公网 3007；OBS-001/004 和其他灰度门禁保持原状态。
+
+### IB-10 follow-up · 2026-07-31
+
+- [x] 新增非生产固定 OTP：默认 `999999`，保留发送/输入/验证步骤，不调用 SES、不预留邮件预算；production 强制关闭。
+- [x] 用户协议、隐私政策和同意勾选移入验证码登录表单；登录或邀请码激活后自动保存同意记录。
+- [x] Juju 语音不可用时移除文字输入框，按录制失败、语音过短、网络异常三选一提示；网络异常 5 秒返回首页。
+- [x] 报告问卷入口移到手机卡片固定底部并为报告滚动区预留空间。
+- [x] 首轮 typecheck Pass；新增验收项后 internal-beta 最终基线见下条。
+- [x] 本地 PostgreSQL 已应用 `0012`；固定 OTP HTTP 验证取得 `deliveryMode=local`、`999999` 验证成功、Session Cookie 建立和 `needsInvite=true`，未调用 SES。
+- [x] 收口验证：internal-beta 82/82、typecheck、production build 34/34、source security 206、bundle security 63、diff check 均 Pass。
+- [x] 登录页已按 `Log in_email` 导出节点 JSON 做首轮像素级调整：375×812 画板；标题 `(32,210,210×34)`、副标题 `(32,244,210×20)`、输入卡 `(24,288,327×138)`、登录按钮 `(24,458,327×48)`、协议行 `(32,522,319×17)`、光球 `(220,147,200×232)` 均经浏览器 `getBoundingClientRect` 对账；邮箱/验证码/登录/协议业务逻辑未改，浏览器检查未发送 OTP。
+- [x] 登录默认态移除“使用受邀邮箱进入 PassBuddy 内测。”提示；异常、OTP 和本地验证码状态提示继续保留。
+- [x] 邮箱与验证码图标直接静态导入用户提供的 `email__350-986@2x.png`、`Verification_code__350-992@2x.png`，页面固定渲染为 16×16；已删除对应 CSS 拼图。
+- [x] 登录页《用户协议》《隐私政策》分别打开可滚动、可关闭的页面内 WebView；内容从服务端当前 policy 按章节拆分，支持关闭按钮与 Escape。
+- [x] OTP/登录按钮改为可反馈校验：空或非法邮箱、重发倒计时、未发送 challenge、验证码不足 6 位、未勾选协议均显示明确状态；倒计时点击不会重复请求，本地成功后显示通用码与剩余秒数。
+- [x] 本地 HTTP 复验：request 返回 `deliveryMode=local`、60 秒重发间隔和固定码匹配；随后 999999 验证成功、Session Cookie 建立并进入 `needsInvite=true`，真实邮件发送为 false。全量 internal-beta 83/83、typecheck、diff check Pass。
+- [x] OTP 成功态收口：移除本地固定码说明、重复成功状态和“修改邮箱”按钮；页面只保留发送按钮倒计时，错误与登录前置校验提示按需出现。
+- [x] 本地固定 OTP 验收强制保留邀请码页面：新账号继续走真实 `needsInvite` 兑换；已激活账号只在 local OTP 模式进入邀请码 UI 验收检查点，填写后返回已授权产品，不重复消费邀请码；production 不受影响。
+- [x] 邀请码页严格按 `Log in_invite` 导出节点 JSON 收口：375×812 画板；`Hey！` `(32,243)`、副标题 `(32,277)`、输入卡 `(24,321,327×70)`、主按钮 `(24,423,327×48)`、光球 `(220,180,200×232)`；默认态仅保留 JSON 中的“请输入邀请码”和“确 定”，移除先前自行加入的长说明与“换一个邮箱登录”。导出文件未包含邀请码图标图片资源，当前继续使用既有占位图标，待提供独立图片后直接替换。
+- [x] 刷新/Session 检查态按 `Log in` 导出节点 JSON 改为纯启动画面：光球 `(87.5,149,200.5×200)`、`Hey！` `(150,385,76×34)`、副标题 `(100,435,176×22)`；隐藏 JSON 中不存在的 Session、恢复状态和验证码脚注。
+- [x] 刷新启动、邮箱验证码登录、邀请码三个认证页面的顶部区域恢复为项目其他 Juju 页面共用样式：动态时间 + `Facewall`，移除认证页独有的“首页”、系统状态图标和小程序胶囊；其余 Figma 内容坐标不变。
+- [x] 邀请码输入框图标改为直接静态导入用户提供的 `Invitation_code__350-1090@2x.png`，按 Figma 节点固定渲染为 16×16，并移除 CSS 占位符。
+- [x] Juju 面试评分页移除右上角“复制整份报告”入口；题目内优化答案复制能力继续保留。
+- [x] 问卷邀请弹窗按 `Frame 71` 节点调整为 279×325、16px 圆角及对应标题/说明/按钮/关闭按钮坐标；顶部 `IMAGE_FILL` 仍待单独导出的原始 PNG。
+- [x] Juju 内测问卷按 `Navigation Bar`、打分、单选、多选、开放式节点统一 375px 画板状态栏与 343px 题卡尺寸，保留动态问卷数据、必答校验和提交逻辑。
+- [x] 问卷页像素对账修正：移除 `<fieldset>/<legend>` 特殊排版，题目稳定落在卡片 `(25,25)`；补齐 `(276,54,87×32)` 小程序胶囊，标题区下移到 y=82，首张题卡从 y=129 开始。
+- [x] 问卷邀请弹窗顶部 `IMAGE_FILL` 改为直接导入用户提供的 `Gemini_Generated_Image_eiqufreiqufreiqu_1__388-1104@2x.png`，按节点 `(12,-50,247.2×194.9)` 渲染，并删除 CSS 模拟便签。
+- [x] 调查问卷顶部恢复为其他 Juju 页面共用样式：左侧动态时间 + 右侧 `Facewall`；移除系统信号/电池图标和小程序胶囊，题卡与标题坐标保持不变。
+- [x] 调查问卷标题与副标题统一为 18px/700，所有题面改为 14px/700；选项字体保持原样。题卡之间继续使用 12px 间距，副标题与首题之间继续使用 7px 间距。
+- [x] 调查问卷纵向间距更新：题卡之间改为 18px，副标题底部到第一题顶部改为 24px；第一题顶部相应移动到 y=156。
+- [ ] AUTH-009/CONSENT-007/VOICE-006/SURVEY-008 浏览器 E2E 完成前保持 Partial。
+- [x] Juju 登录主题回归修复：`auth-shell` 自带与 Juju 页面一致的浅紫/粉/绿色渐变变量，不再依赖 hydration 后的 body token；登录和邀请码共用半透明输入卡、粉色主按钮和底部指示条。localhost:3000 浏览器复核背景、文字对比度和表单可见性通过；internal-beta 82/82、typecheck、diff check Pass。
+## Juju 用户画像 TabBar 像素级还原 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 以 `figma_TabBar_2026-07-31T16-47-47-293Z.json` 为唯一视觉基准，读取 `TabBar / Tabs / button_half-width / Indicator` 全部 6 个节点。 |
+| TabBar | Done | 用户画像底栏调整为 `375×90`，使用透明白到纯白线性渐变及 `16px` 背景模糊；滚动内容延伸到底栏下方，使毛玻璃可透出页面内容。 |
+| CTA | Done | 按钮调整为 `180×48`、顶部 `4px`、圆角 `24px`、`#FF0080`；文案恢复为“开始面试”，使用 `14px / 500 / 20px`，保留原 `onNext` 流转。 |
+| Home Indicator | Removed | 根据验收反馈，用户画像 TabBar 不显示底部 Indicator。 |
+| Scope | Pass | 仅调整 `theme=juju` 用户画像页底部视觉和文案；未改登录、OTP、画像数据、面试状态机、接口契约或公网 staging。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 选择面试官首屏卡片和返回按钮 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 完整读取 `figma_Frame_3_2026-07-31T16-59-10-749Z.json` 的 6 个节点；单卡基准为 `180×222`，头像区 `180×180`，姓名 `18px Medium`，角色 `12px Regular`。 |
+| Portrait layer | Done | 面试官卡片保留 `180×222` 结构，并按节点新增独立 `#D9D9D9` 圆形底层与 `8px` layer blur；人物图片继续使用现有正式资源。 |
+| Back action | Done | Juju 首个选择面试官页面新增统一的 `figma-jd-back-button figma-interviewer-back-button`，点击返回候选人画像。 |
+| Scope | Pass | 仅调整 `theme=juju` 选择面试官第一页；详情确认页、面试状态机和接口契约保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 登录后工具栏移除 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Session toolbar | Done | `theme=juju` 登录后不再渲染“PassBuddy 受控内测 / 隐私与数据 / 退出登录”顶部工具栏。 |
+| Scope | Pass | 仅移除 Juju 的工具栏入口；会话恢复、退出登录及隐私数据处理函数未删除，其他主题行为保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 画像 TabBar 透明度与面试官卡片底层修正 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile TabBar transparency | Done | 保留 `375×90`、`16px` backdrop blur、`180×48` CTA 和现有 `onNext`；渐变改为顶部更透明、向下逐级增加白色 alpha，底部最高 alpha 收敛到 `0.68`，滚动内容在底栏下方仍可见。 |
+| Interviewer backplate stacking | Done | 三个 `180×180`、`#D9D9D9`、`8px` blur 圆从按钮内部伪元素移到独立装饰层：底层圆 `z-index:0`、白色渐变内容层 `z-index:1`、人物卡片与点击区 `z-index:3`；头像不参与模糊，点击范围与人物资源不变。 |
+| Windows test portability | Done | internal-beta 两个源码读取 helper 统一将 CRLF 归一化为 LF，避免 Windows checkout 让固定换行断言误报；未改变业务断言或产品行为。 |
+| Scope | Pass | 仅调整 `theme=juju` 画像底栏、选择面试官首屏装饰层和测试读取兼容；未改状态机、接口契约、OTP、告警或公网 3007。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 选择面试官毛玻璃与头像效果对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Visual reference | Done | 对比当前实现截图与设计师效果图，重点校准选择页白色毛玻璃透明度、顶部圆角和三位面试官抠像层次。 |
+| Glass surface | Done | 白色内容层上移到 `top:138px`，增加 `24px` 顶部圆角和 `20px` backdrop blur；白色 alpha 从 `0.76` 平缓过渡到 `0.56`，避免原实现越往下完全透明、底部彩色背景过强。 |
+| Portrait effect | Done | 删除额外的三个 `#D9D9D9 + 8px blur` 灰色圆，不再制造头像周围独立灰雾；头像取消圆形裁切，并用底部轻渐隐让透明 PNG 自然融入毛玻璃背景。 |
+| Scope | Pass | 仅调整 `theme=juju` 选择面试官首屏视觉；人物资源、姓名/角色、卡片点击区、返回按钮、状态机和接口契约保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 听题文字滚动像素级对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Interview_Responses_2026-07-31T17-44-07-267Z.json`，以 `Frame 52 (18,425,343×118)` 和问题文本 `(28,435,323×132)` 为视觉基准。 |
+| Question viewport | Done | Juju 听题态问题视口固定为 `(28,435,323×98)`，使用 `PingFang SC 16px / 22px / 400` 居中排版；不改变题目内容和 TTS 状态机。 |
+| Overflow motion | Done | 根据问题文本实际 `scrollHeight` 动态计算溢出距离，只滚动超出视口的内容；末尾停在最后一行，不再整段淡出或滚离画面。 |
+| Scope | Pass | 仅调整 `theme=juju` 听面试官读题时的问题文字展示；现有题目、TTS、答题切换和接口保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 语音答题态像素级对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Interview_Responses_2_2026-07-31T17-47-42-164Z.json`，以中央文案、四层监听波纹和 `Frame 11` 控件节点为视觉基准。 |
+| Listening label | Done | 录音态只显示“面试官正在聆听...”，固定于 `(28,432,319×22)`，使用 `PingFang SC 16px / 22px / 400` 居中排版及 `#4D4D4D → #B2B2B2 → #808080` 文字渐变。 |
+| Recording control | Done | 点击中央麦克风进入录音态后，`80×80 / #FF0080` 主按钮切换为居中的 `24×24 / 2px` 白色停止方块；点击行为继续调用现有结束回答逻辑。 |
+| Listening rings | Done | 四层监听波纹以 `(188,682)` 为共同圆心，尺寸严格调整为 `320 / 226 / 158 / 104`，不阻挡三个按钮的点击。 |
+| Scope | Pass | 仅调整 `theme=juju` 录音态视觉；录音计时仍在状态层持续维护，STT 失败分支、题目推进和接口契约未改。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 语音失败提示与恢复逻辑 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Frame_52_2026-07-31T17-49-18-768Z.json` 全部 4 个节点；三种提示共用 `Frame 52`，单条文本基准为 `(10,10,323×28)`。 |
+| Text style | Done | 页面内失败提示固定于 `(28,435,323×28)`，使用 `PingFang SC 20px / 28px / 400`、零字距、居中显示；每次只显示录制失败、语音过短或网络异常之一。 |
+| Retry behavior | Done | 录制/识别失败和不足 2 秒且无文本的回答均返回待录制状态，不推进下一题；中央按钮恢复为麦克风，可重新作答。 |
+| Network exit | Done | 网络类错误独立归类并启动 5 秒定时器，到时调用现有 `onExitInterview` 返回首页；重试、切题或错误状态解除时清理定时器。 |
+| Scope | Pass | 仅补齐 `theme=juju` 失败态视觉与分支行为；Classic/Figma 的文字兜底保持不变，正常录音、STT 和报告接口不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Codex worktree 本地认证环境恢复 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Done | Codex worktree 未自动继承 Git 忽略的 `.env.local`，导致数据库健康检查为 down，Session 与当前协议接口返回 500；协议为空进一步禁用了同意勾选框。 |
+| Local config | Done | 从本机原项目目录复制现有 `.env.local` 到当前 worktree；仅核对键名和数量，未输出任何配置值，且确认文件继续由 Git 忽略。 |
+| Runtime | Done | 重新从 worktree 物理路径启动 3000；`/api/health`、`/api/auth/session`、`/api/consent/current` 均返回 200。 |
+| UI check | Pass | 浏览器确认协议勾选框 enabled 且可切换为 checked；安全校验错误消失。验证码输入框按既有状态机在发送 challenge 前保持 disabled，本次未调用发送验证码接口。 |
+| Scope | Pass | 仅恢复本地开发配置与运行时；未修改敏感配置值、未发送 OTP、未改公网 3007，也未 stage/commit/push。 |
+
+## Juju 录音初始态与桌面预览修正 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Initial state | Done | 失败提示只接受当前题已经点击过麦克风的录音尝试；答案初始化使用的 `manual` 状态不再误触发“录制失败”。 |
+| Desktop preview | Done | 桌面端 STT 不可用或权限失败时先保留录音视觉态、监听波纹和停止按钮；点击停止后才显示非网络错误，确保可检查主按钮图标切换。 |
+| Network behavior | Done | 网络异常仍立即结束录音视觉态、显示错误，并保持 5 秒退出逻辑。 |
+| Error color | Done | 仅“录制失败”“语音过短”“网络异常”三个关键词使用 `#CC0000`；“抱歉”、后续说明和省略号保持 `#4D4D4D`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 新版题目内容框与短录音语义 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Frame_52_2026-08-01T03-46-58-714Z.json` 全部 2 个节点；新版 `Frame 52` 为 `343×142`，正文为 `(10,10,323×132)`。 |
+| Question frame | Done | 未开始答题时显示正常问题正文；内容框固定于 `(18,425,343×142)`，正文视口 `(28,435,323×132)`，使用 PingFang SC Regular 16px、居中、零字距。 |
+| Short recording | Done | 每次点击开始时清零本题录音时长；点击结束时以本次开始到结束的实际时长判断，`≤2 秒` 无条件归为“语音过短”，不依赖是否识别出文本。 |
+| Error emphasis | Done | 错误句整体保持正常色，仅三个错误关键词单独包裹并使用 `#CC0000`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## 本地完整流程入口与 Git worktree 说明 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Repository topology | Done | `D:/hackthon/facewall` 与 `E:/codex-data/.codex/worktrees/6a49/facewall` 均由同一个 Git common dir `D:/hackthon/facewall/.git` 管理，基线 HEAD 均为 `ce883e3`。 |
+| Worktree isolation | Confirmed | 原目录位于 `release/preview`；Codex worktree 为 detached HEAD。两个目录的未提交/未跟踪文件相互独立，因此当前 Juju 最新调整只在 Codex worktree 中完整存在。 |
+| Fresh flow | Ready | 当前 3000 从 Codex worktree 运行且 `/api/health` 为 200；无 Cookie 请求 `/api/auth/session` 返回 `401 AUTH_REQUIRED`，无痕窗口会从登录页开始完整流程。 |
+| Safety | Pass | 本轮未清空账号或业务数据、未发送 OTP、未 stage/commit/push，也未修改公网 3007。 |
+| Next decision | Pending | 若要让 `D:/hackthon/facewall` 成为唯一日常目录，需要用户另行授权一次明确的提交与整合方案；在授权前继续保留两个 working tree 的全部用户修改。 |
+
+## Juju 本地完整流程测试邀请码 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Local invite | Ready | 经用户明确授权，在本地数据库创建 1 个单次使用、24 小时有效的邀请码，激活后含 3 次完整面试额度；明文仅写入系统剪贴板，未进入终端输出、文档或日志。 |
+| Audit | Pass | 创建动作写入本地 admin audit；数据库仍只保存邀请码 hash。 |
+| Clipboard | Pass | 仅校验剪贴板内容存在、格式合法且长度符合预期，未读取或输出邀请码正文。 |
+| Safety | Pass | 未发送 OTP、邮件或微信，未修改公网 staging 3007，未 stage/commit/push。 |
+| Replacement invite | Ready | 原单次邀请码被首个账号消费后，经用户切换新账号的请求再次创建 1 个相同约束的本地单次邀请码；明文仅写入系统剪贴板，未进入终端、文档或日志。 |
+| Fresh full-flow invite | Ready | 2026-08-01 再次从登录页完整回归前，创建 1 个仅本地使用的 `example.test` fixture 邀请码；24 小时有效、单次使用、激活后 3 次面试额度。明文仅进入系统剪贴板，格式校验通过，未发送 OTP 或邮件。 |
+
+## Juju CV 首页侧边菜单 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整解析 `figma_home_2026-08-01T05-46-27-579Z.json` 的 82 个节点与 `figma_side_2026-08-01T05-47-21-369Z.json` 的 121 个节点，以首页菜单实例和 `Frame 61` 侧栏为视觉基准。 |
+| Menu entry | Done | 仅在 Juju CV 录入首页增加 `(16,58,32×32)` 橙色双横线入口；原简历输入、上传和继续到 JD 的状态机不变。 |
+| Side drawer | Done | 左侧抽屉按 `315×812` 实现；账号行 `y=48`、脱敏邮箱、毛玻璃区 `(0,128,315×300)`、菜单卡 `(24,152,267×127)` 和退出入口 `(65.5,720,184×44)` 与 JSON 对齐，并支持侧向动画、右侧空白点击和 Escape 关闭。 |
+| Placeholder actions | Done | “简历管理”“面试记录管理”均不导航、不调用业务接口，只显示 2.4 秒“下个版本开放”提示；退出入口复用现有本地 logout API。 |
+| Browser verification | Pass | 使用隔离的本地 browser fixture 在 375×812 视口对账；侧栏、菜单坐标、脱敏邮箱、Escape 关闭和原 CV 内容保留通过，浏览器控制台无应用错误；未发送 OTP。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 85/85 通过；`git diff --check` 通过。 |
+| Scope | Pass | 仅修改 Juju 首页视觉与客户端侧栏交互；Classic/Figma、认证契约、持久化接口和公网 staging 3007 未改，未 stage/commit/push。 |
+
+## Juju 启动页与侧边菜单视觉复核 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Auth launch indicator | Done | Juju `checking` 启动页不再渲染底部 Indicator；登录、邀请码等既有认证状态机和输入流程不变。 |
+| Menu asset | Done | 将用户提供的 `menue__343-906@2x.png` 从原项目目录原样复制到当前 worktree，SHA-256 一致；首页静态导入并固定渲染为 `(16,58,32×32)`，删除 CSS 模拟双横线。 |
+| Side overlay | Done | 抽屉层打开时使用 `rgba(0,0,0,0.5)` 黑色蒙层；315px 亮色侧栏覆盖其上，右侧 60px 显示半透明暗化的原 CV 页面。 |
+| Logout outline | Done | 退出登录保持 `(65.5,720,184×44)`，补充 `1px solid #FF0080` 描边、24px 圆角和透明底。 |
+| Browser verification | Pass | 375×812 浏览器对账：启动页 Indicator 数量 0；菜单图片来源为静态构建资源且尺寸 32×32；蒙层计算色 `rgba(0,0,0,0.5)`；退出按钮计算边框 `1px solid rgb(255,0,128)`；控制台无应用错误。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 86/86 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## Juju 六行听题滚动与 interview response 资源复刻 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Design sources | Done | 完整读取 `figma_Component_1_2026-08-01T08-08-34-922Z.json` 全部 17 个节点，并以用户截图作为答题页整体基准；五张 PNG 从 `D:/hackthon/facewall/面壁者` 原样复制，源/目标 SHA-256 逐一一致。 |
+| Six-line viewport | Done | 题目视窗保持 `(28,435,323×132)`，正文为 `PingFang SC 16px / 22px / 400`，最多可见 6 行；顶部遮罩在 `0 / 22 / 44px` 分别使用 `0.18 / 0.52 / 1` alpha，形成由下向上逐步变淡的前两行。 |
+| Speech-linked scroll | Done | TTS 开始后按固定 `22px` 整行向上平滑推进，并按 Azure 实际音频时长或 Web Speech 估算时长覆盖全部溢出行；播放结束、停止、失败或切题均清理定时器并复位第一行。非播放态保留无滚动条的纵向触摸/鼠标滚动。 |
+| Control assets | Done | 答题页右侧按钮改用 `message__295-1277@2x.png`，打开现有答题记录/response 页面；该页右下返回按钮改用 `voice_S__379-1437@2x.png`，点击仍返回当前答题。两枚原始 64×64 PNG 均按设计以 32×32 显示在 52/54px 半透明圆形按钮内。 |
+| Response avatars | Done | 左侧头像严格按 JSON 在 48×48 容器内叠放 `B_01__326-805@2x.png` `(6.2,8.6,35.5×35.5)` 与 `B_01__326-806@2x.png` `(6.2,6.2,35.5×35.5)`；右侧和 CV side 页均直接复用 48×48 `avatar__342-897@2x.png`。 |
+| Browser verification | Pass | 375×812 本地 Juju fixture 对账：视窗实际为 `323×132`、`overflow-y:auto`、`touch-action:pan-y`、遮罩 stop 为 `0/22/44px`；消息图标 32×32。response 页双层坐标、用户头像 48×48、返回语音图标 32×32 均与预期一致；未发送 OTP，验收后恢复视口并关闭页面。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 87/87 通过；`git diff --check` 通过。 |
+| Scope | Pass | 仅调整 `theme=juju` 的听题文字视觉/滚动和既有 answer-history/side 资源；题目、TTS/STT、录音、回答、会话及接口状态机保持不变。公网 3007 未动，未 stage/commit/push。 |
+
+## PassBuddy 顶栏品牌与 Juju 跳题确认 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Response navigation | Done | interview response/答题记录页移除左上角返回按钮；右下 `voice_S` 按钮继续作为唯一返回当前答题入口。 |
+| Header brand | Done | Auth、CV/JD、画像、面试官、答题、response、报告和问卷等产品状态栏右上角统一由 `Facewall` 改为 `PassBuddy`；桌面画布标签同步改为 `PASSBUDDY INTERVIEW`。源码扫描确认 `app/` 与 `components/` 不再残留 `Facewall/FACEWALL` UI 文案。 |
+| Skip confirmation | Done | Juju 答题页左侧 X 不再直接清空并推进；先显示 303px 半透明毛玻璃确认框，文案为“是否跳过当前题目？”，提供同风格“取消/确认跳过”按钮，并支持 Escape 取消。 |
+| Final-question path | Done | 前两题确认跳过后进入下一题；第三题显示“跳过后将结束本轮面试”和“跳过并完成”，确认后以空回答集合中的当前题更新状态并调用现有 `onGenerateReport` 进入报告流程，不再停留在第 3/3 题。录音态确认跳过会先停止 STT/TTS。 |
+| Browser check | Partial | 本地 375×812 已确认实际 CV 顶栏显示 `PassBuddy`；现有 fixture 已回到 CV 首页，浏览器控制通道受外部统计网络超时影响，未重复创建新的答题 fixture。跳题三段路径由新增契约测试覆盖。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 89/89 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## Juju 默认入口、上传约束与首次问卷解锁 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default theme | Done | 根路径和非法/缺省 `theme` 默认进入 Juju；显式 `?theme=figma`、`?theme=classic` 仍保持匿名 Demo，只有 Juju 启用 AuthGate 与 source persistence。 |
+| Development loading | Improved / provider latency remains | 开发路由的无副作用 `OPTIONS` 预热从“登录完成后”提前到 AuthGate 挂载时执行，不调用 LLM/TTS/STT、不消耗额度。既有实测表明 dev 首次路由编译可达 4.2s，而 staging 真实 LLM 单次曾为 17.171s；后者需备用 provider、prompt/token 优化和 P50/P95 对比，不以缩短超时掩盖。 |
+| CV/JD upload | Done | CV 提示改为“您可粘贴至输入框或点击“+”上传word 文档 最大不超过1M。”；浏览器与 `/api/files/parse` 双重限制为 `.txt/.docx` 且 `<=1MB`，PDF、旧 `.doc`、空文件和超限文件均在解析前拒绝。 |
+| Icon reliability | Done | Juju CV 的展开/收起按钮和 JD 返回按钮改为 CSS 实体线条，不再依赖偶发未绘制的 URL 图片；现有 menu PNG 保留并补充独立合成层、显式可见性与 z-index。无需用户补图。 |
+| Questionnaire entry | Done | 首场评分页问卷快照加载中会禁用确认，失败可重试，不再把空 snapshot 当作“无需问卷”并误回 CV；关闭邀请只回评分报告，草稿提交失败仍保留。 |
+| Questionnaire unlock gate | Implemented / E2E pending | 首场完成但未提交问卷时，current-session 恢复首场报告，`POST /api/interview-sessions` 返回稳定 `409 QUESTIONNAIRE_REQUIRED`；相同创建 key 幂等重放不重复扣额度。提交问卷后才恢复剩余 2 次会话创建。SURVEY-009 在真实 DB + 刷新/重登浏览器矩阵前保持 Partial。 |
+| Admin acceptance | Existing scope Pass / release gate remains | `ADMIN-001–005`（学校、邀请码创建/停用、聚合指标、权限、隐私、审计、错误回滚）已有浏览器/DB 证据并为 Pass；G0 仍需两个真实 user + 一个 admin 的整体验收，新增问卷解锁/聚合也需相邻复验。 |
+| Backup providers | Pending product inputs | 现有 Classic 可保存 Prompt、问卷配置和语音参数，但没有 LLM/TTS/STT 主备 provider 顺序、健康状态和非敏感 endpoint/model 配置契约。待确认厂商、地域、接口、模型/音色、超时、配额和隐私后实现；凭据仅由 server secret 引用，不进入 Classic 客户端或配置文件明文。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 91/91 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## 2026-08-02：Juju 验收流程修复与 Classic Provider 备案
+
+- [x] 画像生成前增加独立 pending 状态：Session/额度前置检查期间不再短暂露出旧答题页；`SESSION_QUOTA_EXHAUSTED` 在 JD 页原位提示且不会调用画像生成。
+- [x] Juju 题目改为随语音时长连续上移：长题按溢出距离移动，少于 6 行仍至少移动 1.5 行，不再因 `maxScrollTop === 0` 静止。
+- [x] 首次报告的问卷状态加载期间固定显示灰色禁用“确认并返回首页”；加载成功后恢复可点击，第二/三次报告跳过重复问卷加载直接返回 CV 首页。
+- [x] 首次问卷提交后返回 CV 输入页；问卷邀请弹窗保持 279×325 与 128px 图片可视区，将图片内容下移并按设计框裁切，未把图片扩成整窗背景。
+- [x] LLM 增加 NVIDIA NIM 默认配置：`NVIDIA_API_KEY` 对应官方 OpenAI-compatible 端点与 `deepseek-ai/deepseek-v4-flash`，既有 OpenAI/LLM 显式配置仍优先。
+- [x] TTS/STT 增加腾讯云服务端 SDK：腾讯云优先、Azure 次级、Web Speech/手动文本继续兜底；Classic 增加不含密钥的 provider/model/region 状态卡。
+
+验证：
+
+- `npx tsc --noEmit --incremental false`：Pass（默认增量模式因 6a49 worktree 的 `tsconfig.tsbuildinfo` 写权限被环境拒绝，非类型错误）。
+- `npm run test:internal-beta`：92/92 Pass。
+- `git diff --check`：Pass（仅换行格式提示，无 whitespace error）。
+- `http://localhost:3000/?theme=classic`：HTTP/UI 编译 Pass，Classic provider 状态卡可见，控制台无应用 error/warn。
+- `http://localhost:3000/?theme=juju`：登录入口编译 Pass；未发送 OTP，未运行真实 LLM/TTS/ASR，也未重复 IB-09 浏览器探针。
+
+风险与后续：
+
+- 当前 3000 对应 6a49 worktree 的 `.env.local` 尚不含 D 盘新增变量；本轮重启时已只在进程内安全加载 D 盘配置，状态页确认 NVIDIA 与腾讯语音均 configured，未复制密钥文件。
+- 先由用户在现有登录态验收 Juju 答题滚动、问卷弹窗和三次额度；通过后再做 6a49 → D 主工作树的逐文件冲突审计与同步，禁止直接覆盖 D 盘 dirty working tree。
+- 外网发布至少需完成本轮用户验收、真实 provider 的单次受控 smoke、全量回归和发布/回滚快照；本轮未触碰公网 3007。
