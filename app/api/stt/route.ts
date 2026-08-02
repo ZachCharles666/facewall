@@ -89,44 +89,45 @@ async function handlePost(request: Request) {
     return NextResponse.json({ error: "Audio body is too large." }, { status: 413 });
   }
 
-  // Azure is the preferred engine; Tencent covers its free-tier concurrency
-  // limits and any transient failure so a candidate is never blocked mid-answer.
-  let azureError: SttProviderError | null = null;
-  if (azureConfigured) {
+  // Tencent runs in-region and answers in well under a second; Azure measured
+  // 8-10s per segment from this host, which the candidate feels directly on the
+  // final segment. Azure stays as the fallback so a Tencent outage or quota
+  // problem still leaves a working path.
+  if (tencentConfigured) {
     try {
-      const text = await recognizeWithAzure(audio, azureKey as string, azureRegion);
+      const text = await recognizeWithTencent({
+        audio: Buffer.from(audio),
+        contentType: request.headers.get("content-type") || "audio/wav"
+      });
       return NextResponse.json(
-        { text, provider: "azure" },
+        { text, provider: "tencent" },
         { status: 200, headers: { "Cache-Control": "no-store" } }
       );
-    } catch (error) {
-      azureError =
-        error instanceof SttProviderError
-          ? error
-          : new SttProviderError("Failed to reach Azure STT.", 502);
-      if (!tencentConfigured) {
-        return NextResponse.json({ error: azureError.detail }, { status: azureError.status });
+    } catch {
+      if (!azureConfigured) {
+        return NextResponse.json({ error: "Tencent ASR request failed." }, { status: 502 });
       }
     }
   }
 
-  if (!tencentConfigured) {
+  if (!azureConfigured) {
     return NextResponse.json({ error: "STT is not configured." }, { status: 503 });
   }
 
   try {
-    const text = await recognizeWithTencent({
-      audio: Buffer.from(audio),
-      contentType: request.headers.get("content-type") || "audio/wav"
-    });
+    const text = await recognizeWithAzure(audio, azureKey as string, azureRegion);
     return NextResponse.json(
-      { text, provider: "tencent" },
+      { text, provider: "azure" },
       { status: 200, headers: { "Cache-Control": "no-store" } }
     );
-  } catch {
-    // Surface the Tencent failure on its own terms. Reporting a stale Azure
-    // status here is what made the earlier 401 so hard to trace.
-    return NextResponse.json({ error: "Tencent ASR request failed." }, { status: 502 });
+  } catch (error) {
+    // Report Azure's own status rather than a stale one from the other
+    // provider; conflating the two is what made the earlier 401 hard to trace.
+    const failure =
+      error instanceof SttProviderError
+        ? error
+        : new SttProviderError("Failed to reach Azure STT.", 502);
+    return NextResponse.json({ error: failure.detail }, { status: failure.status });
   }
 }
 
