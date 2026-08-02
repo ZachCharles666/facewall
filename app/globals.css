@@ -6397,19 +6397,6 @@ body[data-visual-theme="juju"] {
   text-align: center;
 }
 
-.theme-juju .juju-interviewer-select-option::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: #d9d9d9;
-  filter: blur(8px);
-  pointer-events: none;
-}
-
 .theme-juju .juju-interviewer-select-option.option-1 {
   left: 6px;
   top: 305px;

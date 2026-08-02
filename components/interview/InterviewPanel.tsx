@@ -880,18 +880,6 @@ export function InterviewPanel({
       );
     }
 
-    if (showJujuHistory) {
-      return (
-        <JujuAnswerHistory
-          answers={answers}
-          currentIndex={currentIndex}
-          interviewerStyleId={interviewerStyleId}
-          onClose={() => setShowJujuHistory(false)}
-          questions={questions}
-        />
-      );
-    }
-
     return (
       <section className="figma-phone-stage juju-interview-stage" aria-label="Interview response">
         <div className={isRecording ? "figma-phone-card figma-home-card figma-interview-card juju-interview-card is-answering" : "figma-phone-card figma-home-card figma-interview-card juju-interview-card is-question"}>
