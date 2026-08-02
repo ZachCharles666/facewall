@@ -1,5 +1,12 @@
 # 面试嘴替教练开发 TODO
 
+## Linux 发布归档运行时素材完整性修复 - 2026-08-02
+
+- [x] 定位 `51f121b` 服务器 build 失败原因为 `InterviewPanel` / `SetupPanel` 直接 import 的 5 张 `面壁者/*.png` 被素材目录忽略规则排除；Windows 本地 build 曾借用未跟踪文件通过，而 Git 发布归档不含这些运行时输入。
+- [x] 仅解除并纳入 5 张实际运行时图片，不引入其余本地 Figma/素材产物；新增契约守卫，要求运行时图片存在且 `.gitignore` 明确保留。
+- 风险与处置：服务器失败 unit、旧 3007 和已解压的 `51f121b` release 原样保留；不在服务器手工热补无来源文件。修复需完整回归、提交推送并从新 commit 重建发布包，再创建新的候选 release。
+- 验证：定向素材契约 9/9、internal-beta 99/99、typecheck、source security 208 files、production build 34/34 Pass；bundle security、`git diff --check` 与新 commit 归档审计在提交前继续执行。服务器已确认失败前 `npm ci`、internal-beta 98/98、typecheck、source security 208 files Pass，production build 仅因上述 5 个 module not found 中止。
+
 ## TokenHub LLM 主备链 - 2026-08-02
 
 - [x] 新增 server-only LLM 候选链：TokenHub `hy3` → `deepseek-v4-flash` → `kimi-k3` → NVIDIA Hosted `deepseek-ai/deepseek-v4-flash`；Hy3 Preview 未恢复、未调用。

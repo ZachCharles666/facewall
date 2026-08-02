@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function source(path: string) {
   return (await readFile(new URL(`../../${path}`, import.meta.url), "utf8")).replaceAll("\r\n", "\n");
 }
+
+test("Juju runtime image imports remain release-archive inputs", async () => {
+  const assets = [
+    "面壁者/avatar__342-897@2x.png",
+    "面壁者/B_01__326-805@2x.png",
+    "面壁者/B_01__326-806@2x.png",
+    "面壁者/message__295-1277@2x.png",
+    "面壁者/voice_S__379-1437@2x.png"
+  ];
+  const ignoreRules = await source(".gitignore");
+
+  for (const asset of assets) {
+    await access(new URL(`../../${asset}`, import.meta.url));
+    assert.match(ignoreRules, new RegExp(`^!${asset.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "m"));
+  }
+});
 
 test("session create migration locks quota, rechecks idempotency, and writes one server event", async () => {
   const migration = await source("db/migrations/0006_interview_persistence.sql");
