@@ -1,12 +1,29 @@
 # 面试嘴替教练开发 TODO
 
+## Classic/Figma Basic Auth 范围修正 - 2026-08-02
+
+- [x] 按产品最新确认将临时 HTTP Basic Auth 从全站门禁收窄到 `?theme=classic`、`?theme=figma` 与 Classic Prompt 管理 API；默认/Juju 不再要求共享凭据，只保留 OTP、邀请码和用户 Session。
+- [x] `/admin` 不经过临时 Basic Auth，继续由 HttpOnly Session 与数据库 `role=admin` 独立保护；`/api/health` 继续匿名用于 readiness。
+- 风险与边界：三个主题共享部分生成 API，临时 Basic Auth 仅作为 Classic/Figma 演示入口门禁，不替代各业务 API 自身的身份、限流和数据权限校验。服务器仍需从新提交重建候选并完成隔离 smoke 后切换，不能热改现网 release。
+
+## 外网 3008 发布完成 - 2026-08-02
+
+- [x] 将最终提交 `ba1883c` 的 Git 跟踪内容打包为 `passbuddy-release-ba1883c.tar.gz`；SHA-256 为 `db9c15f45a343211cc1d6e3a1af8c23d5ad6078de65fdcf534c1e65baab4b01f`，归档 463 项、禁入项 0，10 个运行时素材全部存在。
+- [x] 在 `/home/ubuntu/releases/passbuddy-20260802-ba1883c` 完成独立 Linux 构建：internal-beta 99/99、typecheck、source security 208 files、production build 34/34、bundle security 71 files 全部 Pass。
+- [x] 脱敏 metadata preflight 确认 TokenHub 的 `hy3`、`deepseek-v4-flash`、`kimi-k3` 与 NVIDIA 的 `deepseek-ai/deepseek-v4-flash` 均可用；一次性真实探针由 TokenHub `hy3` 成功返回，HTTP 200、约 5.3 秒、attempts=1，未输出 key、prompt 或响应正文，且不得重复该探针。
+- [x] 候选进程 `facewall-external-ba1883c-candidate` 在 `127.0.0.1:3008` 隔离 smoke 全部通过后完成 Nginx/readiness 切换；公网 health 200、匿名页面 401、共享 Basic Auth 下 Classic/Figma/Juju 200，readiness 的 health、PM2、Postgres、备份 timer/service/freshness/checksum 全部 Pass。
+- [x] 清除 `/api/prompts/active` 的旧 Nginx 双重认证层，仅保留应用统一的临时 HTTP Basic Auth；验收为匿名 401、同一共享 Basic Auth 200。旧 htpasswd 未删除，并保留切换前配置。
+- [x] 外网安全验收通过：匿名 `/api/health` 200 且 ready；session/admin API 无应用会话 401；OTP GET 405；fixture GET 404；admin 页面无会话 404；HSTS、CSP、nosniff、frame、referrer policy、permissions policy 六类响应头均存在。
+- [x] 回滚保护保留：旧 `127.0.0.1:3007` health 200；Nginx/readiness 切换前备份分别位于 `/etc/nginx/conf.d/facewall.conf.pre-external-ba1883c-20260802-172008` 与 `/etc/passbuddy/readiness.env.pre-external-ba1883c-20260802-172008`；Basic Auth 统一前 Nginx 备份位于 `/etc/nginx/conf.d/facewall.conf.pre-basic-unify-ba1883c-20260802-173712`。
+- 风险与边界：未发送 OTP、未创建或输出真实邀请码、未执行真实邮件/微信告警演练、未执行 `pm2 save`、未清理旧 release/失败 unit/3007。NVIDIA 仅作末级备用；尚未强制制造 TokenHub 故障验证真实 fallback，避免增加不必要的外部调用。
+
 ## Linux 发布归档运行时素材完整性修复 - 2026-08-02
 
 - [x] 定位 `51f121b` 服务器 build 失败原因为 `InterviewPanel` / `SetupPanel` 直接 import 的 5 张 `面壁者/*.png` 被素材目录忽略规则排除；Windows 本地 build 曾借用未跟踪文件通过，而 Git 发布归档不含这些运行时输入。
 - [x] 仅解除并纳入 5 张实际运行时图片，不引入其余本地 Figma/素材产物；新增契约守卫，要求运行时图片存在且 `.gitignore` 明确保留。
 - [x] `fd2d965` 首次 Linux 重建进一步暴露遗漏的 `menue__343-906@2x.png`；改为动态扫描 `app/components/lib` 中全部 `@/面壁者/*` import，并对当前 10 个运行时素材逐项要求文件存在及精确 ignore 例外，避免继续按 webpack 单条报错补漏。
-- 风险与处置：服务器失败 unit、旧 3007 和已解压的 `51f121b` release 原样保留；不在服务器手工热补无来源文件。修复需完整回归、提交推送并从新 commit 重建发布包，再创建新的候选 release。
-- 验证：定向素材契约 9/9、internal-beta 99/99、typecheck、source security 208 files、production build 34/34 Pass；bundle security、`git diff --check` 与新 commit 归档审计在提交前继续执行。服务器已确认失败前 `npm ci`、internal-beta 98/98、typecheck、source security 208 files Pass，production build 仅因上述 5 个 module not found 中止。
+- [x] 最终修复提交 `ba1883c` 已推送并重建发布包；服务器失败 unit、旧 3007、`51f121b`/`fd2d965` release 原样保留，未在服务器手工热补无来源文件。
+- 验证：最终动态素材契约、internal-beta 99/99、typecheck、source security 208 files、production build 34/34、bundle security、`git diff --check` 与归档审计全部 Pass；最终 Linux 构建亦通过。
 
 ## TokenHub LLM 主备链 - 2026-08-02
 
@@ -16,9 +33,9 @@
 - [x] 单候选默认 8 秒超时，画像/出题/单题报告/总评的业务级超时放宽至 35 秒，使主备链有机会完成，同时保留请求取消传播。
 - [x] `.env.example`、Classic 非敏感 provider 状态、源码守卫和客户端 bundle 真实 secret 扫描已覆盖 TokenHub 配置。
 - 验证：定向 provider 测试 3/3 Pass；`npm run typecheck`、`npm run test:internal-beta` 98/98、`npm run build` 34/34、`npm run security:check` 208 files、`npm run security:bundle` 73 files、`git diff --check` Pass。
-- 受控真实探针：本机仅存在 NVIDIA 配置；单次、8 秒上限的极小 JSON 调用约 3.4 秒返回 HTTP 529，未重试且未输出 key、prompt 或响应正文。
-- 风险：本机尚无 TokenHub key，三段 TokenHub 链目前只有受控假 server 的顺序、错误语义和 key 隔离证据；部署候选前需在服务器以隐藏输入配置 TokenHub key，并先查询 `/v1/models` 确认账号可用模型，再执行一次脱敏受控 smoke。NVIDIA 继续只作为末级备用，不能作为外测唯一 provider。
-- 下一步：提交并推送确定 commit，重建 SCP 包；随后先做 Lighthouse WebShell 只读侦察，再上传到新候选端口，隔离 smoke 全通过后才切 Nginx/readiness，保留 3007 与时间戳回滚配置。
+- 受控真实探针：服务器 metadata preflight 确认四个配置模型均可用；仅执行一次真实外部调用，由 TokenHub `hy3` 约 5.3 秒返回 HTTP 200、attempts=1，未输出 key、prompt 或响应正文，且不得重复。
+- 风险：TokenHub 三段主链的顺序、错误语义和 key 隔离已有自动化证据；真实发布仅验证首选 `hy3` 成功，未主动制造故障触发 fallback。NVIDIA 继续只作为末级备用，不能作为外测唯一 provider。
+- [x] 最终提交、SCP 包、Lighthouse 只读侦察、候选端口隔离 smoke、Nginx/readiness 切换与 3007 回滚保护均已完成。
 
 ## 外测候选回并与 GitHub 归档 - 2026-08-02
 
@@ -26,8 +43,8 @@
 - [x] 合并后移除 Git 自动保留的两段旧实现残留，业务代码树与已验证候选一致；`.env.local` 保留在主目录并继续由 `.gitignore` 排除。
 - [x] `release/preview` 已推送 GitHub；源码扫描、typecheck、internal-beta 96/96、production build、客户端 bundle 密钥扫描和 `git diff --check` 均通过。
 - [x] 生成仅含 Git 跟踪源码/素材的 SCP 发布归档，排除 `.env.local`、`outputs`、`.next`、`node_modules`、coverage 与日志。
-- [ ] 公网尚未切换：需恢复 Lighthouse SSH/SCP 身份访问，先部署到新候选端口并完成隔离 smoke，再保留 3007 作为回滚并切换 Nginx/readiness。
-- [ ] 外测前需落实稳定 LLM 主备链；`Hy3 Preview` 不再使用，当前 NVIDIA Hosted 的 529/长延迟风险不适合作为唯一真实报告 provider。
+- [x] 公网已切换至 3008：候选隔离 smoke、Nginx/readiness、统一 Basic Auth 与外网路由验收全部通过；3007 保留为健康回滚实例。
+- [x] 外测 LLM 主备链已落实为 TokenHub `hy3` → `deepseek-v4-flash` → `kimi-k3` → NVIDIA；`Hy3 Preview` 未恢复、未调用，NVIDIA 不作为唯一 provider。
 
 ## Juju 额度耗尽提示优化 - 2026-08-02
 
@@ -48,7 +65,7 @@
 - [x] 拆分后首次真实单题诊断在约 1.37 秒收到 NVIDIA HTTP 529，确认当前失败包含 Hosted 端临时过载，而非大 prompt 或 schema 校验；免费 Hosted 端仍需主/备 provider 才能达到真实内测可用性。
 - [x] Juju JD 提交后先立即进入统一 Loading，再检查/占用额度并生成画像；额度耗尽也从 Loading 转入 3/3 提示弹窗，不再停留在 JD 页面等待网络结果。
 - [x] 第三题完成后先立即进入报告 Loading，再保存答案、启动渐进报告；答案保存或 NVIDIA 请求最终失败后才进入真实失败页，不再在答题页等待完成后直接闪到失败态。
-- [x] 新增临时外网预览 HTTP Basic Auth：生产环境变量显式开启，缺凭据 fail-closed；覆盖整站并保留 `/api/health` 匿名 readiness。共享凭据不写仓库且不授予 Juju/admin 权限，外网验收结束后移除。
+- [x] 新增临时外网预览 HTTP Basic Auth：生产环境变量显式开启，缺凭据 fail-closed；首次发布覆盖整站并保留 `/api/health` 匿名 readiness。其范围随后按最新产品确认收窄至 Classic/Figma 与 Classic Prompt 管理 API；共享凭据不写仓库且不授予 Juju/admin 权限。
 - [x] 发布前验证：Basic Auth 进程内生产行为取得匿名/错误凭据 401、合法凭据 200、health 200、缺配置 503；typecheck、internal-beta 96/96、production build、source security 208 files、bundle security 73 files、diff check 均 Pass。现网域名切换和管理员创建尚未执行。
 - 验证：`npm run typecheck`、`npm run test:internal-beta`、`git diff --check`。
 - 风险：浏览器语音音色取决于系统；当前完整报告仍可能触发 60 秒超时。内测前需拆分逐题报告并完成主/备 LLM 故障切换，不能依赖演示报告掩盖真实失败。

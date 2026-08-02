@@ -96,7 +96,7 @@
 - 现有非流式报告接口继续作为流式失败保底。
 - 现有 Demo fallback 继续可用于开发与明确的失败兜底，但生产 UI 必须能区分。
 - 未登录的开发演示行为如需保留，只能在非生产环境或显式受保护的 Demo 模式中存在。
-- 临时外网预览门禁启用时必须 fail-closed：缺少用户名或密码不得放行；`/api/health` 可匿名用于 readiness。共享预览凭据不产生应用用户、学校、邀请码或 admin 权限。
+- 临时外网预览门禁启用时，Classic/Figma 入口及 Classic Prompt 管理 API 必须 fail-closed：缺少用户名或密码不得放行；默认/Juju、`/admin` 和 `/api/health` 不经过该门禁，分别由 Juju Auth、admin role 与 readiness 契约保护。共享预览凭据不产生应用用户、学校、邀请码或 admin 权限。
 
 ## 9. State And Consistency
 

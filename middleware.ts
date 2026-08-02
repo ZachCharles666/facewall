@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const HEALTH_PATH = "/api/health";
+const PROMPT_ADMIN_PATH = "/api/prompts/active";
+const BASIC_AUTH_THEMES = new Set(["classic", "figma"]);
+
+function requiresPreviewBasicAuth(request: NextRequest) {
+  if (request.nextUrl.pathname === PROMPT_ADMIN_PATH) return true;
+  if (request.nextUrl.pathname !== "/") return false;
+  return BASIC_AUTH_THEMES.has(request.nextUrl.searchParams.get("theme") ?? "");
+}
 
 function secureEqual(left: string, right: string) {
   const maxLength = Math.max(left.length, right.length);
@@ -24,6 +32,7 @@ function unauthorized() {
 export function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === HEALTH_PATH) return NextResponse.next();
   if (process.env.PREVIEW_BASIC_AUTH_ENABLED !== "true") return NextResponse.next();
+  if (!requiresPreviewBasicAuth(request)) return NextResponse.next();
 
   const expectedUsername = process.env.PREVIEW_BASIC_AUTH_USERNAME;
   const expectedPassword = process.env.PREVIEW_BASIC_AUTH_PASSWORD;
