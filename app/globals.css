@@ -7129,12 +7129,38 @@ body[data-visual-theme="juju"] {
     left: calc(var(--juju-design-offset) + 28px);
   }
 
+  /* The 812px design canvas is taller than a phone viewport, so anchoring the
+     controls inside it put them below the fold: reaching them meant scrolling
+     the page, which pushed the orb and question out of view and still left the
+     row half-hidden behind the browser chrome. Pinning them to the visual
+     viewport removes the scroll entirely. */
   .theme-juju .juju-interview-controls {
-    left: calc(var(--juju-design-offset) + 32px);
+    position: fixed;
+    left: 50%;
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 6;
+    transform: translateX(-50%);
+  }
+
+  .theme-juju .juju-interview-replay-button {
+    position: fixed;
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
+    z-index: 6;
   }
 
   .theme-juju .juju-interview-toast {
     left: calc(var(--juju-design-offset) + 88px);
+  }
+
+  /* iOS zooms the whole page whenever a focused field computes under 16px.
+     Matching the threshold is the only reliable way to stop it; disabling zoom
+     in the viewport tag would break pinch-to-zoom for everyone. */
+  .app-shell input,
+  .app-shell select,
+  .app-shell textarea {
+    font-size: 16px;
   }
 }
 

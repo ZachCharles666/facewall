@@ -32,6 +32,9 @@ type FigmaAnswerPhase = "prompt" | "recording" | "processing";
 // answer ends on our terms instead of failing somewhere downstream.
 const MAX_ANSWER_SECONDS = 180;
 
+// Subtitle scroll pace relative to the spoken audio. 1 tracks the voice exactly.
+const QUESTION_SCROLL_SPEED = 2;
+
 function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
@@ -457,9 +460,12 @@ export function InterviewPanel({
     setQuestionTextMotionRun(motionToken);
     setQuestionTextMotionPhase("playing");
 
-    const motionDurationSec = durationSec && Number.isFinite(durationSec)
+    const spokenDurationSec = durationSec && Number.isFinite(durationSec)
       ? Math.max(2.5, durationSec)
       : estimateQuestionSpeechDuration(text);
+    // The subtitle used to crawl at exactly speech pace, which reads as sluggish
+    // because the reader is already ahead of the voice.
+    const motionDurationSec = Math.max(1.2, spokenDurationSec / QUESTION_SCROLL_SPEED);
     window.requestAnimationFrame(() => {
       if (jujuQuestionMotionTokenRef.current !== motionToken) return;
       const viewport = jujuQuestionViewportRef.current;
