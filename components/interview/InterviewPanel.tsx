@@ -27,6 +27,16 @@ import messageIcon from "@/面壁者/message__295-1277@2x.png";
 import voiceIcon from "@/面壁者/voice_S__379-1437@2x.png";
 
 type FigmaAnswerPhase = "prompt" | "recording" | "processing";
+
+// Product ceiling for a single answer. Recording stops itself here so a long
+// answer ends on our terms instead of failing somewhere downstream.
+const MAX_ANSWER_SECONDS = 180;
+
+function formatElapsed(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 type QuestionTextMotionPhase = "idle" | "playing" | "finished";
 type JujuVoiceFailureKind = "recording" | "too-short" | "network";
 const classicSpeechSettingsStorageKey = "facewall:classic:speech-settings:v1";
@@ -298,6 +308,13 @@ export function InterviewPanel({
       setFigmaElapsedSec(Math.max(1, Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
     return () => window.clearInterval(timer);
+  }, [figmaAnswerPhase, figmaElapsedSec]);
+
+  useEffect(() => {
+    if (figmaAnswerPhase !== "recording" || figmaElapsedSec < MAX_ANSWER_SECONDS) return;
+    setVoiceMessage(`单题回答上限 ${MAX_ANSWER_SECONDS / 60} 分钟，已自动结束录音并提交识别。`);
+    void finishFigmaAnswer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [figmaAnswerPhase, figmaElapsedSec]);
 
   useEffect(() => {
@@ -998,7 +1015,9 @@ export function InterviewPanel({
 
           {isRecording && !showVoiceFailure && (
             <>
-              <p className="juju-interview-listening-label">{interviewerName}正在聆听...</p>
+              <p className="juju-interview-listening-label">
+                {interviewerName}正在聆听... {formatElapsed(figmaElapsedSec)} / {formatElapsed(MAX_ANSWER_SECONDS)}
+              </p>
               <div className="figma-interview-listening-rings juju-interview-listening-rings" aria-hidden="true">
                 <span className="ring ring-outer" />
                 <span className="ring ring-large" />
