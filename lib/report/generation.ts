@@ -9,8 +9,8 @@ import type { CandidateProfile, GenerationMeasurement, GenerationResult, Intervi
 import type { LlmJsonResult } from "@/lib/ai/provider";
 import { getCurrentRequestId } from "@/lib/observability/context";
 
-const QUESTION_REPORT_TIMEOUT_MS = 20000;
-const FINAL_REPORT_TIMEOUT_MS = 15000;
+const QUESTION_REPORT_TIMEOUT_MS = 35000;
+const FINAL_REPORT_TIMEOUT_MS = 35000;
 const QUESTION_REPORT_CONCURRENCY = 2;
 
 export interface ReportGenerationPayload {

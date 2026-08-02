@@ -5,7 +5,7 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path: string) => readFile(`${root}/${path}`, "utf8");
 
-test("NVIDIA DeepSeek and Tencent speech stay server-side and surface in classic", async () => {
+test("TokenHub/NVIDIA LLM chain and Tencent speech stay server-side", async () => {
   const [provider, speech, ttsRoute, sttRoute, statusRoute, panel, app, env] =
     await Promise.all([
       read("lib/ai/provider.ts"),
@@ -19,6 +19,10 @@ test("NVIDIA DeepSeek and Tencent speech stay server-side and surface in classic
     ]);
 
   assert.match(provider, /process\.env\.NVIDIA_API_KEY/);
+  assert.match(provider, /process\.env\.TOKENHUB_API_KEY/);
+  assert.match(provider, /https:\/\/tokenhub\.tencentmaas\.com\/v1/);
+  assert.match(provider, /deepseek-v4-flash/);
+  assert.match(provider, /kimi-k3/);
   assert.match(provider, /https:\/\/integrate\.api\.nvidia\.com\/v1/);
   assert.match(provider, /deepseek-ai\/deepseek-v4-flash/);
   assert.match(speech, /TENCENT_SPEECH_SECRET_ID/);
@@ -32,6 +36,7 @@ test("NVIDIA DeepSeek and Tencent speech stay server-side and surface in classic
   assert.match(panel, /腾讯云 TTS \/ ASR/);
   assert.match(app, /!isFigmaLikeTheme[\s\S]*<ProviderStatusPanel/);
   assert.match(env, /^NVIDIA_API_KEY=$/m);
+  assert.match(env, /^TOKENHUB_API_KEY=$/m);
   assert.match(env, /^TENCENT_SPEECH_SECRET_ID=$/m);
   assert.doesNotMatch(panel, /SECRET|API_KEY|secretKey/);
 });

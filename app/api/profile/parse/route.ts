@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErrorCode } from "@/lib/ai/provider";
+import { generateJsonWithRetry, isLlmConfigured, createTimeoutSignal, getLlmErrorCode, getLlmProviderDescriptor } from "@/lib/ai/provider";
 import { fallbackMeasurement, llmMeasurement } from "@/lib/ai/measurement";
 import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { demoScenario } from "@/lib/demo/scenario";
@@ -11,15 +11,8 @@ import { observeRoute } from "@/lib/observability/route";
 import type { CandidateProfile } from "@/lib/types";
 
 function getSafeLlmRuntimeInfo() {
-  const baseUrl = process.env.OPENAI_BASE_URL || process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL || process.env.LLM_MODEL || "gpt-4o-mini";
-  let host = "invalid-base-url";
-  try {
-    host = new URL(baseUrl).host;
-  } catch {
-    host = "invalid-base-url";
-  }
-  return { host, model };
+  const descriptor = getLlmProviderDescriptor();
+  return { host: descriptor.provider, model: descriptor.model };
 }
 
 function logProfileMode(mode: string, extra?: Record<string, string | number | boolean | null>) {
@@ -66,7 +59,7 @@ async function handlePost(request: Request) {
     );
   }
 
-  const timeout = createTimeoutSignal();
+  const timeout = createTimeoutSignal(35_000, request.signal);
   try {
     logProfileMode("llm_request", getSafeLlmRuntimeInfo());
     const promptOverrides = await resolvePromptOverrides(payload);

@@ -1,5 +1,17 @@
 # 面试嘴替教练开发 TODO
 
+## TokenHub LLM 主备链 - 2026-08-02
+
+- [x] 新增 server-only LLM 候选链：TokenHub `hy3` → `deepseek-v4-flash` → `kimi-k3` → NVIDIA Hosted `deepseek-ai/deepseek-v4-flash`；Hy3 Preview 未恢复、未调用。
+- [x] TokenHub 与 NVIDIA 使用独立 key 和 endpoint；自动化验证 Authorization 不串发。只配置 NVIDIA 时仍可作为单 provider 使用，并对 429/5xx/网络/超时做一次有界重试。
+- [x] 多 provider 正常链路每个候选最多调用一次；400 类错误立即停止，429/5xx/网络/单候选超时才切换；staging 单次 attempt guard 继续严格限制为一次外部请求。
+- [x] 单候选默认 8 秒超时，画像/出题/单题报告/总评的业务级超时放宽至 35 秒，使主备链有机会完成，同时保留请求取消传播。
+- [x] `.env.example`、Classic 非敏感 provider 状态、源码守卫和客户端 bundle 真实 secret 扫描已覆盖 TokenHub 配置。
+- 验证：定向 provider 测试 3/3 Pass；`npm run typecheck`、`npm run test:internal-beta` 98/98、`npm run build` 34/34、`npm run security:check` 208 files、`npm run security:bundle` 73 files、`git diff --check` Pass。
+- 受控真实探针：本机仅存在 NVIDIA 配置；单次、8 秒上限的极小 JSON 调用约 3.4 秒返回 HTTP 529，未重试且未输出 key、prompt 或响应正文。
+- 风险：本机尚无 TokenHub key，三段 TokenHub 链目前只有受控假 server 的顺序、错误语义和 key 隔离证据；部署候选前需在服务器以隐藏输入配置 TokenHub key，并先查询 `/v1/models` 确认账号可用模型，再执行一次脱敏受控 smoke。NVIDIA 继续只作为末级备用，不能作为外测唯一 provider。
+- 下一步：提交并推送确定 commit，重建 SCP 包；随后先做 Lighthouse WebShell 只读侦察，再上传到新候选端口，隔离 smoke 全通过后才切 Nginx/readiness，保留 3007 与时间戳回滚配置。
+
 ## 外测候选回并与 GitHub 归档 - 2026-08-02
 
 - [x] 将 `codex/external-beta-20260802` 无损合并回 `D:\hackthon\facewall` 的 `release/preview`；合并前以保护提交保存主目录全部既有非敏感修改，未 reset、checkout、stash、clean 或删除用户文件。

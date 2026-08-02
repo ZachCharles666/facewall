@@ -52,7 +52,7 @@ async function handlePost(request: Request) {
     );
   }
 
-  const timeout = createTimeoutSignal();
+  const timeout = createTimeoutSignal(35_000, request.signal);
   try {
     const promptOverrides = await resolvePromptOverrides(payload);
     const result = await generateJsonWithRetry(buildQuestionsPrompt(payload, promptOverrides), { signal: timeout.signal });

@@ -28,6 +28,7 @@ test("temporary preview basic auth is server-configured, fail-closed, and keeps 
   assert.match(contract, /共享预览凭据不产生应用用户/);
 
   const bundleCheck = await read("scripts/client-bundle-secret-check.mjs");
+  assert.match(bundleCheck, /"TOKENHUB_API_KEY"/);
   assert.match(bundleCheck, /"PREVIEW_BASIC_AUTH_USERNAME"/);
   assert.match(bundleCheck, /"PREVIEW_BASIC_AUTH_PASSWORD"/);
 });

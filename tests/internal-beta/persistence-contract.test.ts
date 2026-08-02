@@ -118,7 +118,7 @@ test("Juju preserves answers and retries only a real report instead of masking f
   assert.match(app, /initialVisualTheme === "juju"[\s\S]*?真实复盘报告生成超时或服务暂时不可用/);
   assert.doesNotMatch(app, /initialVisualTheme === "juju"[\s\S]*?handleUseFallbackReport\(reportPayload\.answers/);
   assert.match(apiClient, /signal: handlers\.signal/);
-  assert.match(provider, /createTimeoutSignal\(timeoutMs = 25000, parentSignal\?: AbortSignal\)/);
+  assert.match(provider, /createTimeoutSignal\(timeoutMs = 25_000, parentSignal\?: AbortSignal\)/);
   assert.match(reportGeneration, /QUESTION_REPORT_CONCURRENCY = 2/);
   assert.match(reportGeneration, /buildQuestionReportPrompt[\s\S]*?buildFinalReportPrompt/);
   assert.match(report, /state\.kind === "error" && visualTheme !== "juju"/);
