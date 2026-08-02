@@ -111,3 +111,24 @@
 | PILOT-003 | 50 users | 完成率、失败率、OTP 和告警达到当前阈值 | Metrics snapshot | Pending |
 | PILOT-004 | 100 users | 容量、成本、隐私和运营流程可持续 | Release decision record | Pending |
 | PILOT-005 | Recovery | 每档均有暂停邀请、回滚版本和用户通知方式 | Runbook drill | Pending |
+
+## I. Theme, Questionnaire And Current-Session History
+
+| ID | Dimension | Acceptance Criterion | Evidence Form | Status |
+| --- | --- | --- | --- | --- |
+| THEME-001 | Functional | Classic/Figma 无验证码门禁并直达 Demo | local browser + contract test | Pass |
+| THEME-002 | Functional | Juju 保留验证码入口；本轮不发送 OTP | local browser + contract test | Pass |
+| THEME-003 | Compatibility | 三主题主闭环与 IB-02 以来修改不被覆盖 | full suite | Pass |
+| SURVEY-001 | Configuration | Classic 配置四种题型并生成版本 | browser + contract test | Pass |
+| SURVEY-002 | Trigger | Juju 第一场完成且报告确认后才出现邀请 | component/contract test | Pass |
+| SURVEY-003 | Functional | 参与后进入动态问卷；关闭邀请返回评分报告且不误回 CV 首页 | component/contract test | Pass |
+| SURVEY-004 | Validation | 服务端验证必答、评分、选项和长度 | contract test | Pass |
+| SURVEY-005 | Idempotency | 每用户/会话最多一次提交 | 待 DB integration | Partial |
+| SURVEY-006 | Privacy | RLS、无正文事件、删除覆盖 | 待 DB integration | Partial |
+| SURVEY-007 | Integration | staging 合法 Session 完成首次问卷 | staging E2E | Pending |
+| HISTORY-001 | Functional | Juju 回看仅显示当前会话已体验/当前题和回答 | component/contract test | Pass |
+| AUTH-009 | Development | 本地仍走 OTP 输入/验证，固定码不调用 SES/预算且 production 强制失效 | config/route contract + local HTTP | Pass |
+| CONSENT-007 | Functional | 用户协议、隐私政策及勾选位于验证码登录页，登录/激活后保存同意记录 | component contract；待 Figma node/browser | Partial |
+| VOICE-006 | Recovery | Juju 不弹文字框，只显示三种失败提示之一；网络异常 5 秒退出 | component contract + browser | Partial |
+| SURVEY-008 | Functional | 报告页问卷按钮固定在可视底部，不依赖滚动到报告末尾 | component/CSS contract + browser | Partial |
+| SURVEY-009 | Entitlement | 首场问卷提交前刷新/重登恢复评分报告并拒绝创建第 2/3 场；提交后解锁剩余额度 | component/service contract；待 DB/browser E2E | Partial |

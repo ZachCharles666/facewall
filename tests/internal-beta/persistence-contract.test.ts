@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function source(path: string) {
-  return readFile(new URL(`../../${path}`, import.meta.url), "utf8");
+  return (await readFile(new URL(`../../${path}`, import.meta.url), "utf8")).replaceAll("\r\n", "\n");
 }
 
 test("session create migration locks quota, rechecks idempotency, and writes one server event", async () => {
@@ -71,16 +71,86 @@ test("client restores a database snapshot while keeping React answers as editabl
   assert.match(app, /initialPersistenceMode/);
 });
 
-test("figma and juju preserve a manual answer path when speech input is unavailable", async () => {
+test("Juju replaces unavailable speech input with one bounded notice while Figma keeps fallback editing", async () => {
   const interview = await source("components/interview/InterviewPanel.tsx");
+  const apiClient = await source("lib/api/client.ts");
+  const prewarm = await source("lib/dev/prewarm.ts");
+  const styles = await source("app/globals.css");
 
   assert.match(interview, /currentAnswer\.sttStatus === "unsupported"/);
-  assert.match(interview, /figma-interview-answer juju-interview-manual-answer/);
+  assert.doesNotMatch(interview, /figma-interview-answer juju-interview-manual-answer/);
   assert.match(interview, /aria-label="文字回答"/);
   assert.match(interview, /当前设备无法录音，可直接输入回答/);
   assert.match(interview, /answerText: event\.target\.value/);
   assert.match(interview, /inputMode: "text"/);
-  assert.match(interview, /输入后点击中间按钮继续/);
+  assert.match(interview, /juju-interview-voice-notice-keyword">录制失败/);
+  assert.match(interview, /juju-interview-voice-notice-keyword">语音过短/);
+  assert.match(interview, /juju-interview-voice-notice-keyword">网络异常/);
+  assert.match(interview, /recordedDurationSec <= 2/);
+  assert.match(interview, /jujuRecordingAttemptQuestionId !== currentAnswer\.questionId/);
+  assert.match(interview, /showVoiceFailure = !isRecording && jujuVoiceFailureKind !== null/);
+  assert.match(interview, /setFigmaAnswerPhase\("prompt"\)/);
+  assert.match(interview, /jujuVoiceFailureKind !== "network"/);
+  assert.match(interview, /setTimeout\(\(\) => onExitInterview\?\.\(\), 5000\)/);
+  assert.match(interview, /ttsPlaybackTokenRef/);
+  assert.match(interview, /ttsAbortControllerRef\.current\?\.abort\(\)/);
+  assert.match(interview, /playbackToken !== ttsPlaybackTokenRef\.current/);
+  assert.match(interview, /providerTimedOut/);
+  assert.match(interview, /jujuAdvanceLockRef/);
+  assert.match(interview, /正在进入下一步…/);
+  assert.match(apiClient, /signal: options\?\.signal/);
+  assert.match(prewarm, /"\/api\/tts"/);
+  assert.match(prewarm, /"\/api\/azure-status"/);
+  assert.match(styles, /\.theme-juju \.juju-interview-question-frame p \{[\s\S]*?color: #4d4d4d;/);
+  assert.match(styles, /\.theme-juju \.juju-interview-question-frame \{[\s\S]*?height: 142px;/);
+  assert.match(styles, /\.theme-juju \.juju-interview-question-viewport \{[\s\S]*?height: 132px;/);
+  assert.match(styles, /\.theme-juju \.juju-interview-voice-notice \{[\s\S]*?color: #4d4d4d;/);
+  assert.match(styles, /\.theme-juju \.juju-interview-voice-notice-keyword \{[\s\S]*?color: #cc0000;/);
+});
+
+test("Juju preserves answers and retries only a real report instead of masking failures with demo output", async () => {
+  const app = await source("components/InterviewCoachApp.tsx");
+  const apiClient = await source("lib/api/client.ts");
+  const provider = await source("lib/ai/provider.ts");
+  const reportGeneration = await source("lib/report/generation.ts");
+  const report = await source("components/report/ReportPanel.tsx");
+
+  assert.match(app, /initialVisualTheme === "juju"[\s\S]*?真实复盘报告生成超时或服务暂时不可用/);
+  assert.doesNotMatch(app, /initialVisualTheme === "juju"[\s\S]*?handleUseFallbackReport\(reportPayload\.answers/);
+  assert.match(apiClient, /signal: handlers\.signal/);
+  assert.match(provider, /createTimeoutSignal\(timeoutMs = 25000, parentSignal\?: AbortSignal\)/);
+  assert.match(reportGeneration, /QUESTION_REPORT_CONCURRENCY = 2/);
+  assert.match(reportGeneration, /buildQuestionReportPrompt[\s\S]*?buildFinalReportPrompt/);
+  assert.match(report, /state\.kind === "error" && visualTheme !== "juju"/);
+  assert.match(report, /state\.kind === "error" && visualTheme === "juju"[\s\S]*?重新生成真实报告/);
+});
+
+test("Juju enters loading before quota, persistence, profile, and report work begins", async () => {
+  const app = await source("components/InterviewCoachApp.tsx");
+
+  assert.match(
+    app,
+    /setProfileGenerationPending\(true\)[\s\S]*?正在检查面试额度并生成候选人画像[\s\S]*?await ensurePersistedSession\(nextForm\)/
+  );
+  assert.match(
+    app,
+    /setStep\("report"\)[\s\S]*?正在保存答案并启动真实复盘报告[\s\S]*?await persistAnswersNow\(nextAnswers\)/
+  );
+});
+
+test("Juju turns exhausted interview quota into a blocking 3/3 dialog after entering loading", async () => {
+  const app = await source("components/InterviewCoachApp.tsx");
+  const styles = await source("app/globals.css");
+
+  assert.match(app, /error instanceof ApiClientError && error\.code === "SESSION_QUOTA_EXHAUSTED"/);
+  assert.match(app, /模拟面试额度已用完/);
+  assert.match(app, /你已完成 3\/3 次模拟面试/);
+  assert.ok(
+    app.indexOf("setProfileGenerationPending(true)", app.indexOf("async function handleParseProfile")) <
+      app.indexOf("await ensurePersistedSession(nextForm)")
+  );
+  assert.match(styles, /\.theme-juju \.juju-quota-dialog-overlay/);
+  assert.match(styles, /\.theme-juju \.juju-quota-dialog/);
 });
 
 test("TTS and STT development faults are independently injectable", async () => {

@@ -495,7 +495,7 @@ input[type="range"] {
 }
 
 .topbar > div:first-child::before {
-  content: "FACEWALL INTERVIEW";
+  content: "PASSBUDDY INTERVIEW";
   display: inline-flex;
   margin-bottom: var(--space-3);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4935,20 +4935,272 @@ body[data-visual-theme="juju"] {
   top: 116px;
 }
 
+.theme-juju .juju-home-menu-button {
+  position: absolute;
+  top: 58px;
+  left: 16px;
+  z-index: 8;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.theme-juju .juju-home-menu-button img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  opacity: 1;
+  visibility: visible;
+  transform: translateZ(0);
+}
+
+.theme-juju .juju-home-menu-button:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  transform: none;
+}
+
+.theme-juju .figma-home-card > .figma-statusbar {
+  z-index: 35;
+}
+
+.theme-juju .juju-home-side-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: background-color 260ms ease;
+}
+
+.theme-juju .juju-home-side-layer[data-open="true"] {
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.theme-juju .juju-home-side-dismiss {
+  position: absolute;
+  inset: 0 0 0 315px;
+  z-index: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  opacity: 0;
+  box-shadow: none;
+}
+
+.theme-juju .juju-home-side-dismiss:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  transform: none;
+}
+
+.theme-juju .juju-home-side-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 315px;
+  overflow: hidden;
+  background: #ebedff;
+  color: #4d4d4d;
+  transform: translateX(-100%);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.theme-juju .juju-home-side-layer[data-open="true"] .juju-home-side-panel {
+  transform: translateX(0);
+}
+
+.theme-juju .juju-home-side-account {
+  position: absolute;
+  top: 48px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.theme-juju .juju-home-side-avatar {
+  display: block;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.theme-juju .juju-home-side-glass {
+  position: absolute;
+  top: 128px;
+  left: 0;
+  width: 315px;
+  height: 300px;
+  border-radius: 24px 24px 0 0;
+  padding: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(153, 153, 153, 0) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-home-side-menu {
+  position: relative;
+  width: 267px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.theme-juju .juju-home-side-menu::after {
+  content: "";
+  position: absolute;
+  top: 63px;
+  right: 24px;
+  left: 24px;
+  z-index: 2;
+  height: 1px;
+  background: rgba(77, 77, 77, 0.14);
+}
+
+.theme-juju .juju-home-side-menu button {
+  position: relative;
+  width: 267px;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 0;
+  padding-right: 24px;
+  padding-left: 24px;
+  background: #ffffff;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-home-side-menu button:first-child {
+  height: 63px;
+  padding-top: 24px;
+  padding-bottom: 15px;
+}
+
+.theme-juju .juju-home-side-menu button:last-child {
+  height: 64px;
+  padding-top: 16px;
+  padding-bottom: 24px;
+}
+
+.theme-juju .juju-home-side-menu button:hover:not(:disabled) {
+  border: 0;
+  background: #ffffff;
+  transform: none;
+}
+
+.theme-juju .juju-home-side-menu i {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.theme-juju .juju-home-side-menu i::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  width: 7px;
+  height: 12px;
+  border-top: 2px solid #4d4d4d;
+  border-right: 2px solid #4d4d4d;
+  transform: rotate(45deg) scale(0.64);
+}
+
+.theme-juju .juju-home-side-notice {
+  position: absolute;
+  top: 300px;
+  left: 50%;
+  z-index: 4;
+  margin: 0;
+  border-radius: 18px;
+  padding: 8px 16px;
+  background: rgba(26, 26, 26, 0.78);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-home-side-logout {
+  position: absolute;
+  top: 720px;
+  left: 65.5px;
+  width: 184px;
+  min-width: 184px;
+  height: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 24px;
+  padding: 12px 64px;
+  box-sizing: border-box;
+  border: 1px solid #ff0080;
+  background: transparent;
+  color: #ff0080;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.theme-juju .juju-home-side-logout:hover:not(:disabled) {
+  border: 1px solid #ff0080;
+  background: transparent;
+  transform: none;
+}
+
 .theme-juju .juju-jd-orb {
   top: 136px;
 }
 
 .theme-juju .figma-jd-back-button {
-  background: url("/juju/home/back.svg?v=2026071006") center / 32px 32px no-repeat;
+  background: #ffffff;
+  color: #333333;
 }
 
 .theme-juju .figma-jd-back-button span {
-  display: none;
+  display: block;
+  border-color: #333333;
 }
 
 .theme-juju .figma-jd-back-button:hover:not(:disabled) {
-  background: url("/juju/home/back.svg?v=2026071006") center / 32px 32px no-repeat;
+  background: #ffffff;
 }
 
 .theme-juju .figma-home-toolbar {
@@ -4966,6 +5218,7 @@ body[data-visual-theme="juju"] {
 
 .theme-juju .figma-frame4-frame1-button,
 .theme-juju .figma-frame4-group1-button {
+  position: relative;
   width: 32px;
   min-width: 32px;
   height: 32px;
@@ -5033,10 +5286,10 @@ body[data-visual-theme="juju"] {
   left: 0;
   right: 0;
   top: 102px;
-  bottom: 98px;
+  bottom: 0;
   z-index: 3;
   overflow-y: auto;
-  padding: 0 16px 8px;
+  padding: 0 16px 98px;
   scrollbar-width: none;
 }
 
@@ -5241,53 +5494,48 @@ body[data-visual-theme="juju"] {
   bottom: 0;
   z-index: 8;
   width: 100%;
-  height: 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding-top: 17px;
-  background: transparent;
+  height: 90px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 28%,
+    rgba(255, 255, 255, 0.14) 52%,
+    rgba(255, 255, 255, 0.34) 76%,
+    rgba(255, 255, 255, 0.68) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: none;
-  isolation: isolate;
   pointer-events: none;
 }
 
 .theme-juju .juju-profile-tabs::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.22) 38%,
-    rgba(255, 255, 255, 0.52) 100%
-  );
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%);
+  content: none;
 }
 
 .theme-juju .juju-profile-next-button {
-  position: relative;
+  position: absolute;
+  top: 4px;
+  left: 50%;
   z-index: 1;
-  width: 184px;
-  min-width: 184px;
-  height: 44px;
-  min-height: 44px;
+  width: 180px;
+  min-width: 180px;
+  height: 48px;
+  min-height: 48px;
   margin: 0;
   padding: 12px 64px;
   border: 0;
-  border-radius: 22px;
+  border-radius: 24px;
   background: #ff0080;
   color: #ffffff;
+  font-family: "PingFang SC", var(--font-sans);
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 500;
   line-height: 20px;
+  letter-spacing: 0;
+  white-space: nowrap;
   box-shadow: none;
-  transform: none;
+  transform: translateX(-50%);
   pointer-events: auto;
 }
 
@@ -5296,7 +5544,7 @@ body[data-visual-theme="juju"] {
   border: 0;
   background: #ff0080;
   color: #ffffff;
-  transform: none;
+  transform: translateX(-50%);
   outline: 0;
 }
 
@@ -5330,7 +5578,7 @@ body[data-visual-theme="juju"] {
   bottom: 0;
   z-index: 3;
   overflow-y: auto;
-  padding: 0 16px 32px;
+  padding: 0 16px 104px;
   scrollbar-width: none;
 }
 
@@ -5964,12 +6212,141 @@ body[data-visual-theme="juju"] {
   position: absolute;
   left: 0;
   right: 0;
-  top: 144px;
+  top: 138px;
   z-index: 1;
   width: 100%;
-  height: 668px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+  height: 674px;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.76) 0%,
+    rgba(255, 255, 255, 0.68) 42%,
+    rgba(255, 255, 255, 0.56) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   pointer-events: none;
+}
+
+.theme-juju .juju-quota-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(32, 32, 42, 0.48);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-juju .juju-quota-dialog {
+  width: min(327px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 24px;
+  padding: 28px 24px 24px;
+  background: #ffffff;
+  color: #4d4d4d;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(37, 33, 50, 0.28);
+}
+
+.theme-juju .juju-quota-dialog-badge {
+  min-width: 72px;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: #fff0f5;
+  color: #ff007a;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.theme-juju .juju-quota-dialog h2 {
+  margin: 18px 0 10px;
+  color: #252525;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.theme-juju .juju-quota-dialog p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.theme-juju .juju-quota-dialog .juju-quota-dialog-hint {
+  margin-top: 6px;
+  color: #999999;
+  font-size: 13px;
+}
+
+.theme-juju .juju-quota-dialog button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #ff007a;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.theme-juju .juju-quota-dialog button:hover,
+.theme-juju .juju-quota-dialog button:focus-visible {
+  background: #e6006e;
+}
+
+.theme-juju .figma-frame4-frame1-button {
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.theme-juju .figma-frame4-frame1-button img,
+.theme-juju .figma-frame4-close-button img {
+  display: none;
+}
+
+.theme-juju .figma-frame4-frame1-button::before,
+.theme-juju .figma-frame4-frame1-button::after,
+.theme-juju .figma-frame4-close-button::before,
+.theme-juju .figma-frame4-close-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: #333333;
+  transform-origin: center;
+}
+
+.theme-juju .figma-frame4-frame1-button::before {
+  transform: translate(-50%, -50%);
+}
+
+.theme-juju .figma-frame4-frame1-button::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.theme-juju .figma-frame4-close-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-juju .figma-frame4-close-button::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.theme-juju .figma-frame4-close-button::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .theme-juju .juju-interviewer-select-copy {
@@ -6050,16 +6427,18 @@ body[data-visual-theme="juju"] {
   top: 0;
   width: 180px;
   height: 180px;
-  overflow: hidden;
-  border-radius: 50%;
+  overflow: visible;
+  border-radius: 0;
   border: 0;
-  background-color: rgba(255, 255, 255, 0.16);
+  background-color: transparent;
   background-repeat: no-repeat;
   background-position: center top;
   background-size: 146px auto;
   box-shadow: none;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, rgba(0, 0, 0, 0.72) 92%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, rgba(0, 0, 0, 0.72) 92%, transparent 100%);
 }
 
 .theme-juju .juju-interviewer-select-portrait.hero-strictHr {
@@ -6118,7 +6497,7 @@ body[data-visual-theme="juju"] {
   top: 425px;
   z-index: 3;
   width: 343px;
-  height: 118px;
+  height: 142px;
   padding: 0;
 }
 
@@ -6127,56 +6506,54 @@ body[data-visual-theme="juju"] {
   left: 10px;
   top: 10px;
   width: 323px;
-  height: 88px;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%);
+  height: 132px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.18) 0,
+    rgba(0, 0, 0, 0.52) 22px,
+    #000000 44px,
+    #000000 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.18) 0,
+    rgba(0, 0, 0, 0.52) 22px,
+    #000000 44px,
+    #000000 100%
+  );
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.theme-juju .juju-interview-question-viewport::-webkit-scrollbar {
+  display: none;
 }
 
 .theme-juju .juju-interview-question-frame p {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
+  position: static;
+  width: 100%;
   margin: 0;
   color: #4d4d4d;
+  font-family: "PingFang SC", var(--font-sans);
   font-size: 16px;
   font-weight: 400;
   line-height: 22px;
   letter-spacing: 0;
   text-align: center;
-  will-change: opacity, transform;
 }
 
-.theme-juju .juju-interview-question-frame.is-playing p {
-  animation: juju-question-text-scroll var(--juju-question-scroll-duration) linear forwards;
+.theme-juju .juju-interview-question-frame p.is-speech-scrolling {
+  animation: juju-question-text-scroll var(--juju-question-scroll-duration, 6s) linear both;
+  will-change: transform;
 }
 
-.theme-juju .juju-interview-question-frame.is-finished p {
-  position: static;
-  opacity: 1;
-  color: #1a1a1a;
-  text-align: left;
-  transform: none;
-  will-change: auto;
-}
-
-.theme-juju .juju-interview-question-frame.is-finished {
-  top: 410px;
-  height: auto;
-  min-height: 0;
-  border-radius: 20px;
-  padding: 16px 18px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.theme-juju .juju-interview-question-frame.is-finished .juju-interview-question-viewport {
-  position: static;
-  width: 100%;
-  height: auto;
-  overflow-y: auto;
-  -webkit-mask-image: none;
-  mask-image: none;
+.theme-juju .juju-interview-question-frame.is-playing .juju-interview-question-viewport {
+  overflow-y: hidden;
+  pointer-events: none;
+  touch-action: none;
 }
 
 .theme-juju .juju-interview-listening-label {
@@ -6187,6 +6564,7 @@ body[data-visual-theme="juju"] {
   width: 319px;
   margin: 0;
   text-align: center;
+  font-family: "PingFang SC", var(--font-sans);
   font-size: 16px;
   font-weight: 400;
   line-height: 22px;
@@ -6194,24 +6572,6 @@ body[data-visual-theme="juju"] {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-.theme-juju .juju-interview-recording-timer {
-  position: absolute;
-  left: 28px;
-  top: 462px;
-  z-index: 3;
-  width: 319px;
-  margin: 0;
-  color: #1a1a1a;
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 34px;
-  text-align: center;
-  opacity: 1;
-  filter: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 .theme-juju .juju-interview-listening-rings {
@@ -6297,6 +6657,13 @@ body[data-visual-theme="juju"] {
 
 .theme-juju .juju-interview-controls .juju-interview-control-frame9 {
   right: 0;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.theme-juju .juju-interview-controls .juju-interview-control-frame9 img {
+  width: 32px;
+  height: 32px;
+  margin: 10px;
 }
 
 .theme-juju .juju-interview-controls .juju-interview-control-frame8 {
@@ -6356,6 +6723,84 @@ body[data-visual-theme="juju"] {
   text-align: center;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.theme-juju .juju-interview-skip-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 18, 28, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.theme-juju .juju-interview-skip-dialog {
+  width: 303px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #333333;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(76, 65, 110, 0.18);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-interview-skip-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 25px;
+}
+
+.theme-juju .juju-interview-skip-dialog p {
+  margin: 10px 0 0;
+  color: #666666;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19px;
+}
+
+.theme-juju .juju-interview-skip-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.theme-juju .juju-interview-skip-actions button {
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(255, 0, 128, 0.22);
+  border-radius: 22px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #ff0080;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-interview-skip-actions button.confirm {
+  border-color: #ff0080;
+  background: #ff0080;
+  color: #ffffff;
+}
+
+.theme-juju .juju-interview-skip-actions button:hover:not(:disabled),
+.theme-juju .juju-interview-skip-actions button:focus-visible {
+  transform: none;
+}
+
+.theme-juju .juju-interview-skip-actions button.confirm:hover:not(:disabled),
+.theme-juju .juju-interview-skip-actions button.confirm:focus-visible {
+  border-color: #e90074;
+  background: #e90074;
 }
 
 /* Juju selected-interviewer detail page (Select Interviewer_2) */
@@ -6585,6 +7030,18 @@ body[data-visual-theme="juju"] {
     left: calc(var(--juju-design-offset) + 24px);
   }
 
+  .theme-juju .juju-home-menu-button {
+    left: calc(var(--juju-design-offset) + 16px);
+  }
+
+  .theme-juju .juju-home-side-panel {
+    width: min(315px, calc(100vw - 60px));
+  }
+
+  .theme-juju .juju-home-side-dismiss {
+    left: min(315px, calc(100vw - 60px));
+  }
+
   .theme-juju .figma-jd-card .figma-copy {
     left: calc(var(--juju-design-offset) + 34px);
   }
@@ -6625,7 +7082,7 @@ body[data-visual-theme="juju"] {
     left: calc(var(--juju-design-offset) + 28px);
   }
 
-  .theme-juju .juju-interview-recording-timer {
+  .theme-juju .juju-interview-voice-notice {
     left: calc(var(--juju-design-offset) + 28px);
   }
 
@@ -6663,12 +7120,43 @@ body[data-visual-theme="juju"] {
     opacity: 1;
     transform: translateY(0);
   }
-  72% {
-    opacity: 0.82;
-  }
   100% {
-    opacity: 0;
-    transform: translateY(calc(-100% - 88px));
+    opacity: 1;
+    transform: translateY(calc(var(--juju-question-scroll-distance, 0px) * -1));
+  }
+}
+
+.provider-status-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.provider-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.provider-status-grid article {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.provider-status-grid span {
+  overflow-wrap: anywhere;
+}
+
+.provider-status-grid small {
+  color: var(--color-muted);
+}
+
+@media (max-width: 720px) {
+  .provider-status-grid {
+    grid-template-columns: 1fr;
   }
 }
 .observability-error-page {
@@ -6881,8 +7369,7 @@ body[data-visual-theme="juju"] {
     width: 100%;
   }
 }
-.figma-report-copy-all,
-.juju-report-copy-all {
+.figma-report-copy-all {
   position: absolute;
   z-index: 8;
   top: 48px;
@@ -6897,12 +7384,1191 @@ body[data-visual-theme="juju"] {
   backdrop-filter: blur(10px);
 }
 
-.juju-report-copy-all {
-  position: sticky;
-  top: 8px;
-  float: right;
-  margin: 8px 16px 0 0;
+/* Questionnaire configuration is intentionally isolated to the classic operator surface. */
+.questionnaire-config-panel {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.questionnaire-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.questionnaire-config-header h2 {
+  margin: 0 0 6px;
+}
+
+.questionnaire-config-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.questionnaire-config-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.questionnaire-config-meta label,
+.questionnaire-config-question > label {
+  display: grid;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.questionnaire-config-meta input,
+.questionnaire-config-meta textarea,
+.questionnaire-config-question input,
+.questionnaire-config-question select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--color-surface-subtle);
+  color: var(--text);
+}
+
+.questionnaire-config-meta textarea {
+  min-height: 82px;
+}
+
+.questionnaire-config-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.questionnaire-config-question {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--color-surface-subtle);
+}
+
+.questionnaire-config-question-head {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(140px, 180px) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.questionnaire-required-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.questionnaire-required-toggle input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.questionnaire-option-editor {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+}
+
+.questionnaire-option-editor > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.questionnaire-config-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Juju authentication follows the three-state Figma reference while preserving OTP semantics. */
+.theme-juju.auth-shell {
+  --juju-auth-background:
+    radial-gradient(ellipse 474px 514px at 100% 84.9%, rgba(153, 255, 173, 0.82) 0%, rgba(153, 255, 173, 0.42) 34%, rgba(153, 255, 173, 0) 70%),
+    radial-gradient(ellipse 332px 331px at 50.6% 87%, rgba(215, 153, 255, 0.72) 0%, rgba(215, 153, 255, 0.36) 38%, rgba(215, 153, 255, 0) 74%),
+    radial-gradient(circle 365px at 0% 95.3%, rgba(255, 240, 204, 0.84) 0%, rgba(255, 240, 204, 0.44) 34%, rgba(255, 240, 204, 0) 72%),
+    #ebedff;
+  --juju-phone-background: var(--juju-auth-background);
+  color-scheme: light;
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--juju-auth-background);
+  color: #1a1a1a;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.theme-juju .auth-card {
+  position: relative;
+  width: 375px;
+  height: 812px;
+  max-height: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 32px;
+  padding: 0;
+  background: var(--juju-auth-background);
+  box-shadow: 0 24px 80px rgba(35, 30, 48, 0.22);
+}
+
+.theme-juju .juju-auth-statusbar {
+  position: absolute;
+  top: 14px;
+  left: 26px;
+  right: 24px;
+  z-index: 4;
+}
+
+.theme-juju .juju-auth-orb {
+  --juju-orb-frame-offset: 0px;
+  position: absolute;
+  top: 147px;
+  left: 220px;
+  width: 200px;
+  height: 232px;
+}
+
+.theme-juju .auth-card > .auth-eyebrow {
+  display: none;
+}
+
+.theme-juju .auth-card > h1,
+.theme-juju .auth-card > .auth-lead {
+  position: absolute;
+  z-index: 3;
+  left: 32px;
+  width: 210px;
+  margin: 0;
+}
+
+.theme-juju .auth-card > h1 {
+  top: 210px;
+  color: #1a1a1a;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 34px;
+}
+
+.theme-juju .auth-card > .auth-lead {
+  top: 244px;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.theme-juju .auth-card-checking > .juju-auth-orb {
+  top: 149px;
+  left: 87.5px;
+}
+
+.theme-juju .auth-card-checking > h1 {
+  top: 385px;
+  left: 150px;
+  width: 76px;
+}
+
+.theme-juju .auth-card-checking > .auth-lead {
+  top: 435px;
+  left: 100px;
+  width: 176px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.theme-juju .juju-auth-login-form,
+.theme-juju .auth-card > .auth-form {
+  position: absolute;
+  z-index: 3;
+  top: 288px;
+  left: 24px;
+  width: 327px;
+  margin: 0;
+  gap: 0;
+}
+
+.theme-juju .auth-card-invite > h1 {
+  top: 243px;
+  left: 32px;
+  width: 210px;
+}
+
+.theme-juju .auth-card-invite > .auth-lead {
+  top: 277px;
+  left: 32px;
+  width: 220px;
+  font-weight: 400;
+}
+
+.theme-juju .auth-card-invite > .juju-auth-orb {
+  top: 180px;
+  left: 220px;
+}
+
+.theme-juju .auth-card-invite > .juju-auth-invite-form {
+  top: 321px;
+  left: 24px;
+  width: 327px;
+  gap: 0;
+}
+
+.theme-juju .juju-auth-invite-form > label {
+  display: flex;
+  align-items: center;
+  height: 70px;
+  min-height: 70px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.72);
+  color: transparent;
+  font-size: 0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-juju .juju-auth-invite-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  object-fit: contain;
+}
+
+.theme-juju .juju-auth-invite-form input {
+  min-height: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: 14px;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-invite-form input::placeholder {
+  color: #666666;
+  opacity: 0.44;
+}
+
+.theme-juju .juju-auth-invite-form > .auth-primary {
+  height: 48px;
+  min-height: 48px;
+  margin-top: 32px;
+}
+
+.theme-juju .auth-card-invite > .auth-message {
+  top: 487px;
+}
+
+.theme-juju .juju-auth-login-form > label,
+.theme-juju .juju-auth-code-row {
+  min-height: 69px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-juju .juju-auth-login-form > label {
+  border-radius: 16px 16px 0 0;
+}
+
+.theme-juju .juju-auth-login-form > label::after {
+  content: "";
+  position: absolute;
+  right: 24px;
+  bottom: 0;
+  left: 24px;
+  height: 1px;
+  background: rgba(102, 102, 102, 0.14);
+}
+
+.theme-juju .juju-auth-code-row {
+  border-bottom: 0;
+  border-radius: 0 0 16px 16px;
+}
+
+.theme-juju .juju-auth-login-form label {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: transparent;
+  font-size: 0;
+}
+
+.theme-juju .juju-auth-field-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.theme-juju .juju-auth-login-form input {
+  min-height: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: 14px;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-login-form input:disabled {
+  opacity: 1;
+}
+
+.theme-juju .juju-auth-login-form input:focus {
+  outline: 0;
+}
+
+.theme-juju .juju-auth-send-code {
+  min-width: 133.5px;
+  min-height: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #666666;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: right;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-send-code:disabled {
+  opacity: 1;
+}
+
+.theme-juju .juju-auth-login-form > .auth-primary,
+.theme-juju .auth-card > .auth-form > .auth-primary {
+  min-height: 48px;
+  margin-top: 32px;
+  border: 0;
+  border-radius: 24px;
+  background: #ff0080;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-login-form > .auth-primary:disabled {
+  opacity: 1;
+}
+
+.theme-juju .juju-auth-login-form > .auth-primary:hover:not(:disabled),
+.theme-juju .auth-card > .auth-form > .auth-primary:hover:not(:disabled) {
+  border: 0;
+  background: #e90074;
+  transform: none;
+}
+
+.theme-juju .auth-card-invite > .juju-auth-invite-form > button.auth-primary {
+  letter-spacing: 0;
+  text-indent: 0;
+}
+
+.theme-juju .auth-card > .auth-message {
+  position: absolute;
+  top: 552px;
+  left: 32px;
+  right: 32px;
+  z-index: 3;
+  min-height: 20px;
+  margin: 0;
+  color: #69646f;
+  font-size: 12px;
+}
+
+.theme-juju .auth-card > .auth-footnote {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 32px;
+  z-index: 3;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: #77727e;
+  font-size: 11px;
+  text-align: center;
+}
+
+.theme-juju .juju-auth-home-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 4;
+  width: 135px;
+  height: 5px;
+  border-radius: 999px;
+  background: #111111;
+  transform: translateX(-50%);
+}
+
+/* Juju limited in-session history. */
+.theme-juju .juju-history-card {
+  position: relative;
+  width: 375px;
+  height: 812px;
+  overflow: hidden;
+  border-radius: 24px;
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-history-header {
+  position: absolute;
+  top: 46px;
+  left: 16px;
+  right: 16px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-juju .juju-history-header h2 {
+  margin: 0;
+  color: #333333;
+  font-size: 16px;
+}
+
+.theme-juju .juju-history-scroll {
+  position: absolute;
+  top: 94px;
+  left: 0;
+  right: 0;
+  bottom: 76px;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+  scrollbar-width: none;
+}
+
+.theme-juju .juju-history-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-juju .juju-history-pair {
+  display: grid;
+  gap: 26px;
+  margin-bottom: 36px;
+}
+
+.theme-juju .juju-history-message {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.theme-juju .juju-history-message p {
+  width: 238px;
+  margin: 0;
+  border-radius: 0 16px 16px 16px;
+  padding: 16px;
   background: rgba(255, 255, 255, 0.82);
-  color: #1f1b25;
-  border-color: rgba(31, 27, 37, 0.12);
+  color: #66616b;
+  font-size: 13px;
+  line-height: 1.55;
+  box-shadow: 0 12px 28px rgba(96, 77, 145, 0.08);
+}
+
+.theme-juju .juju-history-message.candidate {
+  justify-content: flex-end;
+}
+
+.theme-juju .juju-history-message.candidate p {
+  order: 1;
+  border-radius: 16px 0 16px 16px;
+  background: rgba(220, 234, 255, 0.82);
+}
+
+.theme-juju .juju-history-orb {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.theme-juju .juju-history-orb img {
+  position: absolute;
+  display: block;
+  width: 35.5px;
+  height: 35.5px;
+  object-fit: contain;
+}
+
+.theme-juju .juju-history-orb-glow {
+  top: 8.6px;
+  left: 6.2px;
+}
+
+.theme-juju .juju-history-orb-core {
+  top: 6.2px;
+  left: 6.2px;
+}
+
+.theme-juju .juju-history-avatar {
+  order: 2;
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.theme-juju .juju-history-return {
+  position: absolute;
+  right: 30px;
+  bottom: 56px;
+  z-index: 5;
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 8px 18px rgba(62, 56, 77, 0.18);
+}
+
+.theme-juju .juju-history-return img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 11px;
+  object-fit: contain;
+}
+
+/* First-completion questionnaire invitation and form. */
+.theme-juju .juju-report-confirm-home {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 24;
+  width: 272px;
+  min-height: 52px;
+  display: block;
+  margin: 0;
+  border: 0;
+  border-radius: 26px;
+  background: #ff0080;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: none;
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-report-confirm-home:hover:not(:disabled) {
+  border: 0;
+  background: #e90074;
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-interview-voice-notice {
+  position: absolute;
+  left: 28px;
+  top: 435px;
+  z-index: 8;
+  width: 323px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  color: #4d4d4d;
+  background: transparent;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.theme-juju .juju-report-confirm-home:disabled {
+  cursor: default;
+  background: #c9c9cc;
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+}
+
+.theme-juju .juju-interview-voice-notice-keyword {
+  color: #cc0000;
+}
+
+.theme-juju .juju-auth-policy {
+  position: relative;
+  display: block;
+  width: 319px;
+  margin-top: 16px;
+  margin-left: 8px;
+  color: #666666;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.theme-juju .juju-auth-consent-row {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: 17px;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.theme-juju .juju-auth-consent-row > input {
+  flex: 0 0 16px;
+  width: 16px !important;
+  min-height: 16px !important;
+  height: 16px;
+  margin: 0;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  accent-color: #ff0080;
+}
+
+.theme-juju .juju-auth-consent-row > label {
+  display: inline;
+  flex: 0 0 auto;
+  color: #666666;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+}
+
+.theme-juju .juju-auth-consent-row > button {
+  width: auto;
+  min-width: 0;
+  min-height: 17px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: #0075ff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-webview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(32, 32, 42, 0.46);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-juju .juju-auth-webview {
+  width: 343px;
+  height: 724px;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #333333;
+  box-shadow: 0 24px 70px rgba(37, 33, 50, 0.28);
+}
+
+.theme-juju .juju-auth-webview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #eeeeee;
+  padding: 0 16px 0 20px;
+}
+
+.theme-juju .juju-auth-webview h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.theme-juju .juju-auth-webview > header button {
+  width: auto;
+  min-width: 48px;
+  min-height: 32px;
+  border: 0;
+  padding: 0 8px;
+  background: transparent;
+  color: #0075ff;
+  font-size: 14px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-auth-webview-content {
+  overflow-y: auto;
+  padding: 18px 20px 28px;
+  color: #4d4d4d;
+  font-size: 13px;
+  line-height: 1.72;
+  overscroll-behavior: contain;
+}
+
+.theme-juju .juju-auth-webview-content p {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+}
+
+.theme-juju .juju-auth-webview-content p:last-child {
+  margin-bottom: 0;
+}
+
+.theme-juju .juju-auth-webview-content strong {
+  color: #1a1a1a;
+}
+
+.theme-juju .juju-questionnaire-invite-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 36px;
+  background: rgba(38, 39, 47, 0.58);
+  backdrop-filter: blur(8px);
+}
+
+.theme-juju .juju-questionnaire-invite {
+  position: relative;
+  width: 279px;
+  height: 325px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #ffffff;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 24px 60px rgba(33, 31, 43, 0.28);
+}
+
+.theme-juju .juju-questionnaire-invite-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: #333333;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.theme-juju .juju-questionnaire-invite-visual {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 279px;
+  height: 128px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 280px 207px at 0% -10%, rgba(191, 181, 236, 0.76), transparent 72%),
+    radial-gradient(ellipse 240px 219px at 100% -8%, rgba(245, 191, 227, 0.72), transparent 72%),
+    #f8f3f8;
+}
+
+.theme-juju .juju-questionnaire-invite-image {
+  position: absolute;
+  top: -28px;
+  left: 12px;
+  width: 247.2px;
+  height: 194.9px;
+  object-fit: cover;
+  object-position: center center;
+  filter: drop-shadow(-8px 8px 16px rgba(68, 0, 102, 0.15));
+}
+
+.theme-juju .juju-questionnaire-invite-copy {
+  position: absolute;
+  top: 128px;
+  left: 24px;
+  width: 231px;
+  height: 173px;
+  padding: 0;
+}
+
+.theme-juju .juju-questionnaire-invite-copy h2 {
+  height: 25px;
+  margin: 0 0 16px;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 25px;
+}
+
+.theme-juju .juju-questionnaire-invite-copy p {
+  width: 231px;
+  height: 60px;
+  margin: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-line;
+}
+
+.theme-juju .juju-questionnaire-invite-copy button {
+  position: absolute;
+  top: 125px;
+  left: 23.5px;
+  width: 184px;
+  height: 48px;
+  min-height: 48px;
+  margin: 0;
+  border: 0;
+  border-radius: 24px;
+  background: #ff0080;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.theme-juju .juju-questionnaire-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--juju-phone-background);
+}
+
+.theme-juju .juju-questionnaire-statusbar {
+  top: 14px;
+  left: 26px;
+  right: 24px;
+  z-index: 4;
+}
+
+.theme-juju .juju-questionnaire-scroll {
+  position: absolute;
+  top: 82px;
+  left: 0;
+  right: 0;
+  bottom: 28px;
+  overflow-y: auto;
+  padding: 0 16px 26px;
+  scrollbar-width: none;
+}
+
+.theme-juju .juju-questionnaire-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-juju .juju-questionnaire-scroll > header {
+  padding: 0 8px 24px;
+}
+
+.theme-juju .juju-questionnaire-scroll h1 {
+  margin: 0;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+}
+
+.theme-juju .juju-questionnaire-scroll header p {
+  margin: 0;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+}
+
+.theme-juju .juju-questionnaire-list {
+  display: grid;
+  gap: 18px;
+}
+
+.theme-juju .juju-questionnaire-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 343px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+  padding: 25px;
+  background: #ffffff;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.theme-juju .juju-questionnaire-prompt {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  color: #4d4d4d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.theme-juju .juju-questionnaire-card.is-rating {
+  height: 118px;
+}
+
+.theme-juju .juju-questionnaire-card.is-multiple {
+  height: 310px;
+}
+
+.theme-juju .juju-questionnaire-card.is-single {
+  height: 208px;
+}
+
+.theme-juju .juju-questionnaire-card.is-text {
+  height: 156px;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.theme-juju .juju-questionnaire-card.is-text .juju-questionnaire-prompt {
+  width: 216px;
+  height: 20px;
+  margin-left: 8px;
+  color: #333333;
+}
+
+.theme-juju .juju-questionnaire-stars {
+  display: flex;
+  gap: 16px;
+  width: 293px;
+  height: 24px;
+  margin-top: 24px;
+}
+
+.theme-juju .juju-questionnaire-stars button {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #ff0080;
+  font-size: 23px;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.theme-juju .juju-questionnaire-options {
+  display: grid;
+  margin-top: 24px;
+  gap: 24px;
+}
+
+.theme-juju .juju-questionnaire-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  color: #4d4d4d;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.theme-juju .juju-questionnaire-options input {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 0;
+  appearance: none;
+  border: 1px solid #d9d9d9;
+  background: #ffffff;
+  accent-color: #ff0080;
+}
+
+.theme-juju .juju-questionnaire-card.is-multiple .juju-questionnaire-options input {
+  border-radius: 4px;
+}
+
+.theme-juju .juju-questionnaire-card.is-multiple .juju-questionnaire-options input:checked {
+  border-color: #ff0080;
+  background: #ff0080;
+}
+
+.theme-juju .juju-questionnaire-card.is-multiple .juju-questionnaire-options input:checked::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 10px;
+  height: 6px;
+  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  transform: rotate(-45deg);
+}
+
+.theme-juju .juju-questionnaire-card.is-single .juju-questionnaire-options label {
+  min-height: 22px;
+}
+
+.theme-juju .juju-questionnaire-card.is-single .juju-questionnaire-options input {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+  border-radius: 50%;
+}
+
+.theme-juju .juju-questionnaire-card.is-single .juju-questionnaire-options input:checked {
+  border-color: #ff0080;
+}
+
+.theme-juju .juju-questionnaire-card.is-single .juju-questionnaire-options input:checked::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff0080;
+}
+
+.theme-juju .juju-questionnaire-card textarea {
+  width: 100%;
+  height: 128px;
+  min-height: 128px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #4d4d4d;
+  font-size: 14px;
+  line-height: 20px;
+  resize: none;
+  box-shadow: none;
+}
+
+.theme-juju .juju-questionnaire-card textarea::placeholder {
+  color: #808080;
+  opacity: 1;
+}
+
+.theme-juju .juju-questionnaire-message {
+  min-height: 20px;
+  margin: 12px 8px 0;
+  color: #c52263;
+  font-size: 12px;
+  text-align: center;
+}
+
+.theme-juju .juju-questionnaire-submit {
+  width: 122px;
+  min-height: 44px;
+  display: block;
+  margin: 10px auto 0;
+  border: 0;
+  border-radius: 22px;
+  background: #ff0080;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.theme-juju .juju-questionnaire-complete {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  color: #333333;
+  text-align: center;
+}
+
+.theme-juju .juju-questionnaire-complete > span {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ff0080;
+  color: #ffffff;
+  font-size: 38px;
+}
+
+.theme-juju .juju-questionnaire-complete h2 {
+  margin: 22px 0 8px;
+}
+
+.theme-juju .juju-questionnaire-complete p {
+  margin: 0;
+  color: #66616b;
+}
+
+.theme-juju .juju-questionnaire-complete button {
+  width: 164px;
+  min-height: 44px;
+  margin-top: 28px;
+  border: 0;
+  border-radius: 22px;
+  background: #ff0080;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .questionnaire-config-header,
+  .questionnaire-config-meta,
+  .questionnaire-config-question-head {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .theme-juju.auth-shell {
+    min-height: 812px;
+    align-items: start;
+    padding: 0;
+  }
+
+  .theme-juju .auth-card {
+    width: 100%;
+    min-height: 812px;
+    border-radius: 0;
+  }
 }

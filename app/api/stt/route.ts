@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { observeRoute } from "@/lib/observability/route";
+import {
+  readTencentSpeechConfig,
+  recognizeWithTencent
+} from "@/lib/speech/tencentCloud";
+
+export const runtime = "nodejs";
 
 type AzureSimpleSttResponse = {
   RecognitionStatus?: string;
@@ -19,14 +25,39 @@ async function handlePost(request: Request) {
 
   const azureKey = process.env.AZURE_SPEECH_KEY;
   const azureRegion = process.env.AZURE_SPEECH_REGION || "eastasia";
-
-  if (!azureKey || azureKey === "replace_with_your_azure_speech_key") {
-    return NextResponse.json({ error: "Azure STT is not configured." }, { status: 503 });
-  }
+  const azureConfigured = Boolean(
+    azureKey && azureKey !== "replace_with_your_azure_speech_key"
+  );
+  const tencentConfigured = Boolean(readTencentSpeechConfig());
 
   const audio = await request.arrayBuffer();
   if (audio.byteLength < 512) {
     return NextResponse.json({ error: "Audio body is empty." }, { status: 400 });
+  }
+
+  if (audio.byteLength > 3 * 1024 * 1024) {
+    return NextResponse.json({ error: "Audio body is too large." }, { status: 413 });
+  }
+
+  if (tencentConfigured) {
+    try {
+      const text = await recognizeWithTencent({
+        audio: Buffer.from(audio),
+        contentType: request.headers.get("content-type") || "audio/wav"
+      });
+      return NextResponse.json(
+        { text, provider: "tencent" },
+        { status: 200, headers: { "Cache-Control": "no-store" } }
+      );
+    } catch {
+      if (!azureConfigured) {
+        return NextResponse.json({ error: "Tencent ASR request failed." }, { status: 502 });
+      }
+    }
+  }
+
+  if (!azureConfigured) {
+    return NextResponse.json({ error: "STT is not configured." }, { status: 503 });
   }
 
   const endpoint = new URL(`https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1`);
@@ -37,7 +68,7 @@ async function handlePost(request: Request) {
     const azureResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
-        "Ocp-Apim-Subscription-Key": azureKey,
+        "Ocp-Apim-Subscription-Key": azureKey as string,
         "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
         "Accept": "application/json",
         "User-Agent": "facewall-next-app"

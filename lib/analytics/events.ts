@@ -12,6 +12,7 @@ export type ServerEventName =
   | "report_generated"
   | "session_completed"
   | "feedback_submitted"
+  | "questionnaire_submitted"
   | "dependency_failed";
 
 export type ClientEventName =
@@ -20,7 +21,9 @@ export type ClientEventName =
   | "report_viewed"
   | "copy_succeeded"
   | "copy_failed"
-  | "feedback_skipped";
+  | "feedback_skipped"
+  | "questionnaire_invite_viewed"
+  | "questionnaire_started";
 
 const clientSchemas: Record<ClientEventName, Set<string>> = {
   page_viewed: new Set(["step", "theme"]),
@@ -28,7 +31,9 @@ const clientSchemas: Record<ClientEventName, Set<string>> = {
   report_viewed: new Set(["theme"]),
   copy_succeeded: new Set(["target", "theme"]),
   copy_failed: new Set(["target", "theme"]),
-  feedback_skipped: new Set(["theme"])
+  feedback_skipped: new Set(["theme"]),
+  questionnaire_invite_viewed: new Set(["theme"]),
+  questionnaire_started: new Set(["theme"])
 };
 
 const clientEvents = new Set(Object.keys(clientSchemas));

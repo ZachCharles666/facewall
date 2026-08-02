@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ApiClientError,
   completePersistedInterviewSession,
   createPersistedInterviewSession,
   generateQuestions,
@@ -41,7 +42,9 @@ import { cloneDefaultPromptOverrides, PromptDebugPanel } from "@/components/dev/
 import { JujuOrb } from "@/components/JujuOrb";
 import { ReportPanel } from "@/components/report/ReportPanel";
 import { FeedbackPanel } from "@/components/feedback/FeedbackPanel";
+import { QuestionnaireConfigPanel } from "@/components/questionnaire/QuestionnaireConfigPanel";
 import { SetupPanel } from "@/components/setup/SetupPanel";
+import { ProviderStatusPanel } from "@/components/ProviderStatusPanel";
 
 const stepLabels: Record<SessionStep, string> = {
   setup: "Setup",
@@ -92,7 +95,7 @@ function StatusBarClock() {
 }
 
 export function InterviewCoachApp({
-  initialVisualTheme = "figma",
+  initialVisualTheme = "juju",
   initialPersistenceMode = "off"
 }: {
   initialVisualTheme?: VisualTheme;
@@ -115,6 +118,10 @@ export function InterviewCoachApp({
   const [persistedVersion, setPersistedVersion] = useState(0);
   const [persistedStatus, setPersistedStatus] =
     useState<InterviewSessionSnapshot["status"] | null>(null);
+  const [persistedSessionNumber, setPersistedSessionNumber] = useState<number | null>(null);
+  const [profileGenerationPending, setProfileGenerationPending] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [quotaExhaustedDialogOpen, setQuotaExhaustedDialogOpen] = useState(false);
   const [streamedQuestionReports, setStreamedQuestionReports] = useState<QuestionReport[]>([]);
   const [reportState, setReportState] = useState<{
     kind: "idle" | "loading" | "streaming" | "ready" | "error";
@@ -188,7 +195,12 @@ export function InterviewCoachApp({
         if (storedId) {
           snapshot = await getPersistedInterviewSession(storedId).catch(() => null);
         }
-        snapshot ??= await getCurrentPersistedInterviewSession();
+        // Completed sessions are restored only while the first-session
+        // questionnaire is still required. This prevents a stale localStorage
+        // id from reopening an already-unlocked report after submission.
+        if (!snapshot || snapshot.status === "completed") {
+          snapshot = await getCurrentPersistedInterviewSession();
+        }
         if (cancelled || !snapshot) return;
         applyPersistedSnapshot(snapshot);
         setStatus({
@@ -345,6 +357,7 @@ export function InterviewCoachApp({
     setPersistedSessionId(null);
     setPersistedVersion(0);
     setPersistedStatus(null);
+    setPersistedSessionNumber(null);
     persistedSessionIdRef.current = null;
     persistedVersionRef.current = 0;
     createIdempotencyKeyRef.current = crypto.randomUUID();
@@ -369,6 +382,7 @@ export function InterviewCoachApp({
       setPersistedSessionId(created.sessionId);
       setPersistedVersion(created.version);
       setPersistedStatus(created.status);
+      setPersistedSessionNumber(created.quota.used);
       persistedSessionIdRef.current = created.sessionId;
       persistedVersionRef.current = created.version;
       if (typeof window !== "undefined") {
@@ -472,6 +486,8 @@ export function InterviewCoachApp({
     setStreamedQuestionReports([]);
     setReportState({ kind: "idle", message: "", usedFallback: false });
     setFigmaProfileStage("profile");
+    setSetupError("");
+    setQuotaExhaustedDialogOpen(false);
     setStep("setup");
     setStatus({ kind: "idle", message: "已切换输入，后续画像、题目和报告会重新生成。" });
   }
@@ -513,14 +529,27 @@ export function InterviewCoachApp({
       return;
     }
 
+    setSetupError("");
+    setStep("setup");
+    setProfileGenerationPending(true);
+    setStatus({ kind: "loading", message: "正在检查面试额度并生成候选人画像..." });
     try {
-      setStatus({ kind: "loading", message: "正在创建面试 Session 并占用 1 次额度..." });
       await ensurePersistedSession(nextForm);
     } catch (error) {
+      if (error instanceof ApiClientError && error.code === "SESSION_QUOTA_EXHAUSTED") {
+        setStatus({ kind: "idle", message: "等待输入简历和 JD。" });
+        setSetupError("");
+        setQuotaExhaustedDialogOpen(true);
+        setProfileGenerationPending(false);
+        return;
+      }
+      const message = error instanceof Error ? error.message : "创建面试 Session 失败，输入已保留。";
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : "创建面试 Session 失败，输入已保留。"
+        message
       });
+      setSetupError(message);
+      setProfileGenerationPending(false);
       return;
     }
 
@@ -562,6 +591,7 @@ export function InterviewCoachApp({
             ? "画像已生成并保存，点击 Next 选择面试官。"
             : "画像已生成并保存，下一步生成 3 道面试题。")
       });
+      setProfileGenerationPending(false);
     } catch (error) {
       setFigmaProfileStage("profile");
       setStep("profile");
@@ -569,7 +599,17 @@ export function InterviewCoachApp({
         kind: "error",
         message: `${error instanceof Error ? error.message : "画像保存失败"} 画像草稿仍保留，可再次点击下一步重试保存。`
       });
+      setProfileGenerationPending(false);
     }
+  }
+
+  function returnToFreshSetup() {
+    setFigmaSetupInitialStep("home");
+    resetDownstream({
+      resumeText: "",
+      jdText: "",
+      interviewerStyleId: form.interviewerStyleId
+    });
   }
 
   async function handleGenerateQuestions() {
@@ -655,9 +695,20 @@ export function InterviewCoachApp({
       promptOverrides: activePromptOverrides
     };
 
+    setStep("report");
+    setReport(null);
+    setStreamedQuestionReports([]);
+    setReportState({ kind: "streaming", message: "正在保存答案并启动真实复盘报告...", usedFallback: false });
+    setStatus({ kind: "loading", message: "正在保存答案并启动真实复盘报告..." });
+
     try {
       await persistAnswersNow(nextAnswers);
     } catch (error) {
+      setReportState({
+        kind: "error",
+        message: "答案保存失败，真实复盘报告尚未开始。当前答案草稿仍保留，请重新生成。",
+        usedFallback: false
+      });
       setStatus({
         kind: "error",
         message: `${error instanceof Error ? error.message : "答案保存失败"} 当前答案草稿仍保留，请重试。`
@@ -665,9 +716,6 @@ export function InterviewCoachApp({
       return;
     }
 
-    setStep("report");
-    setReport(null);
-    setStreamedQuestionReports([]);
     setReportState({ kind: "streaming", message: "正在启动流式复盘报告...", usedFallback: false });
     setStatus({ kind: "loading", message: "正在流式生成复盘报告..." });
     let nextReport: InterviewReport;
@@ -686,6 +734,19 @@ export function InterviewCoachApp({
       measurement = generated.measurement;
     } catch (error) {
       const message = error instanceof Error ? error.message : "流式报告生成失败";
+      if (initialVisualTheme === "juju") {
+        setReport(null);
+        setReportState({
+          kind: "error",
+          message: "真实复盘报告生成超时或服务暂时不可用。你的题目和答案已经保存，请重新生成。",
+          usedFallback: false
+        });
+        setStatus({
+          kind: "error",
+          message: "真实复盘报告尚未生成；题目和答案已经保存。"
+        });
+        return;
+      }
       setReportState({ kind: "loading", message: `${message} 正在切换到非流式保底...`, usedFallback: false });
       setStatus({ kind: "loading", message: `${message} 正在切换到非流式保底...` });
       await handleGenerateReportNonStreaming(reportPayload, "流式报告失败，已使用非流式保底生成报告。");
@@ -765,6 +826,19 @@ export function InterviewCoachApp({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "报告生成失败";
+      if (initialVisualTheme === "juju") {
+        setReport(null);
+        setReportState({
+          kind: "error",
+          message: "真实复盘报告生成失败。你的题目和答案已经保存，请重新生成。",
+          usedFallback: false
+        });
+        setStatus({
+          kind: "error",
+          message: "真实复盘报告尚未生成；题目和答案已经保存。"
+        });
+        return;
+      }
       setReport(null);
       setReportState({
         kind: "error",
@@ -820,11 +894,14 @@ export function InterviewCoachApp({
     }, 0);
   }
 
-  async function handleUseFallbackReport() {
+  async function handleUseFallbackReport(
+    sourceAnswers = answers,
+    successMessage = "已使用演示兜底报告。"
+  ) {
     const sourceQuestions = questions.length === 3 ? questions : demoScenario.questions;
-    const fallbackReport = buildFallbackReport(sourceQuestions, answers);
+    const fallbackReport = buildFallbackReport(sourceQuestions, sourceAnswers);
     try {
-      await persistAnswersNow(answers);
+      await persistAnswersNow(sourceAnswers);
       const saved = await persistReportSnapshot(
         fallbackReport,
         "demo_fallback",
@@ -839,8 +916,8 @@ export function InterviewCoachApp({
     }
     setReport(fallbackReport);
     setStreamedQuestionReports([]);
-    setReportState({ kind: "ready", message: "已使用演示兜底报告。", usedFallback: true });
-    setStatus({ kind: "success", message: "已使用演示兜底报告，可复制优化答案和复盘报告。" });
+    setReportState({ kind: "ready", message: successMessage, usedFallback: true });
+    setStatus({ kind: "success", message: `${successMessage} 可复制优化答案和复盘报告。` });
   }
 
   async function handleRegenerateQuestion(questionId: string) {
@@ -873,7 +950,9 @@ export function InterviewCoachApp({
   }
 
   const statusClass = status.kind === "error" ? "status error" : status.kind === "success" ? "status success" : "status";
-  const showJujuThinking = initialVisualTheme === "juju" && status.kind === "loading";
+  const showJujuThinking =
+    initialVisualTheme === "juju" &&
+    (status.kind === "loading" || profileGenerationPending);
   const shellClassName = ["app-shell", `theme-${initialVisualTheme}`, isFigmaLikeTheme && initialVisualTheme !== "figma" ? "theme-figma" : ""]
     .filter(Boolean)
     .join(" ");
@@ -931,24 +1010,29 @@ export function InterviewCoachApp({
       <DevOpsPanel />
 
       {!isFigmaLikeTheme && (
-        <PromptDebugPanel
-          value={promptOverrides}
-          saveState={promptSaveState}
-          updatedAt={promptStoreUpdatedAt}
-          onChange={setPromptOverrides}
-          onReload={handleReloadGlobalPrompt}
-          onReset={() => {
-            setPromptOverrides(cloneDefaultPromptOverrides());
-            setPromptSaveState({ kind: "idle", message: "已恢复为产品默认 Prompt 草稿；点击保存后才会覆盖全局 Prompt。" });
-          }}
-          onSave={handleSaveGlobalPrompt}
-        />
+        <>
+          <ProviderStatusPanel />
+          <PromptDebugPanel
+            value={promptOverrides}
+            saveState={promptSaveState}
+            updatedAt={promptStoreUpdatedAt}
+            onChange={setPromptOverrides}
+            onReload={handleReloadGlobalPrompt}
+            onReset={() => {
+              setPromptOverrides(cloneDefaultPromptOverrides());
+              setPromptSaveState({ kind: "idle", message: "已恢复为产品默认 Prompt 草稿；点击保存后才会覆盖全局 Prompt。" });
+            }}
+            onSave={handleSaveGlobalPrompt}
+          />
+          <QuestionnaireConfigPanel />
+        </>
       )}
 
       {showJujuThinking && <JujuThinkingScreen />}
 
       {!showJujuThinking && step === "setup" && (
         <SetupPanel
+          externalError={setupError}
           form={form}
           initialFigmaStep={figmaSetupInitialStep}
           visualTheme={initialVisualTheme}
@@ -957,6 +1041,10 @@ export function InterviewCoachApp({
           onFillDemoAndStart={fillDemoAndStart}
           onStart={() => handleParseProfile()}
         />
+      )}
+
+      {initialVisualTheme === "juju" && quotaExhaustedDialogOpen && (
+        <JujuQuotaExhaustedDialog onClose={() => setQuotaExhaustedDialogOpen(false)} />
       )}
 
       {!showJujuThinking && (isFigmaLikeTheme && step === "profile" && figmaProfileStage !== "profile" ? (
@@ -1000,6 +1088,13 @@ export function InterviewCoachApp({
           visualTheme={initialVisualTheme}
           onAnswersChange={handleAnswersChange}
           onGenerateReport={handleGenerateReport}
+          onExitInterview={() =>
+            resetDownstream({
+              resumeText: "",
+              jdText: "",
+              interviewerStyleId: form.interviewerStyleId
+            })
+          }
         />
       )}
 
@@ -1015,11 +1110,15 @@ export function InterviewCoachApp({
             visualTheme={initialVisualTheme}
             onRetry={() => handleGenerateReport()}
             onUseNonStreamingFallback={() => handleGenerateReportNonStreaming()}
-            onUseFallback={handleUseFallbackReport}
+            onUseFallback={() => handleUseFallbackReport()}
             onRegenerateQuestion={handleRegenerateQuestion}
             sessionId={persistedSessionId}
+            questionnaireAlreadyCompleted={
+              persistedSessionNumber !== null && persistedSessionNumber > 1
+            }
+            onReturnHome={returnToFreshSetup}
           />
-          {report && (
+          {report && initialVisualTheme !== "juju" && (
             <FeedbackPanel
               sessionId={persistedSessionId}
               visualTheme={initialVisualTheme}
@@ -1028,6 +1127,30 @@ export function InterviewCoachApp({
         </>
       )}
     </main>
+  );
+}
+
+function JujuQuotaExhaustedDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="juju-quota-dialog-overlay" role="presentation" onClick={onClose}>
+      <section
+        aria-labelledby="juju-quota-dialog-title"
+        aria-modal="true"
+        className="juju-quota-dialog"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="juju-quota-dialog-badge" aria-hidden="true">
+          3/3
+        </div>
+        <h2 id="juju-quota-dialog-title">模拟面试额度已用完</h2>
+        <p>你已完成 3/3 次模拟面试，当前无法再创建新的面试。</p>
+        <p className="juju-quota-dialog-hint">已完成的面试报告仍可正常查看。</p>
+        <button autoFocus type="button" onClick={onClose}>
+          我知道了
+        </button>
+      </section>
+    </div>
   );
 }
 
@@ -1209,7 +1332,7 @@ function JujuProfilePanel({
       <div className="figma-phone-card figma-home-card figma-profile-card juju-profile-card">
         <div className="figma-statusbar">
           <StatusBarClock />
-          <span>Facewall</span>
+          <span>PassBuddy</span>
         </div>
         <button className="figma-jd-back-button figma-profile-back-button" aria-label="返回 JD 输入" onClick={onBack}>
           <span aria-hidden="true" />
@@ -1256,7 +1379,7 @@ function JujuProfilePanel({
 
         <div className="juju-profile-tabs">
           <button className="figma-profile-next-button juju-profile-next-button" aria-label="确认画像，选择面试官" onClick={onNext}>
-            准备面试
+            开始面试
           </button>
         </div>
       </div>
@@ -1335,7 +1458,7 @@ function FigmaProfilePanel({
       <div className="figma-phone-card figma-home-card figma-profile-card">
         <div className="figma-statusbar">
           <StatusBarClock />
-          <span>Facewall</span>
+          <span>PassBuddy</span>
         </div>
         <button className="figma-jd-back-button figma-profile-back-button" aria-label="返回 JD 输入" onClick={onBack}>
           <span aria-hidden="true" />
@@ -1417,7 +1540,7 @@ function JujuThinkingScreen() {
       <div className="figma-phone-card figma-home-card juju-thinking-card">
         <div className="figma-statusbar">
           <StatusBarClock />
-          <span>Facewall</span>
+          <span>PassBuddy</span>
         </div>
         <JujuOrb className="juju-thinking-orb" />
         <p className="juju-thinking-text">面壁者正在思考...</p>
@@ -1531,7 +1654,7 @@ function FigmaInterviewerPanel({
         <div className="figma-phone-card figma-home-card figma-interviewer-card figma-confirm-card">
           <div className="figma-statusbar">
             <StatusBarClock />
-            <span>Facewall</span>
+            <span>PassBuddy</span>
           </div>
           <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="重新选择面试官" onClick={onBack}>
             <span aria-hidden="true" />
@@ -1565,8 +1688,11 @@ function FigmaInterviewerPanel({
         <div className="figma-phone-card figma-home-card figma-interviewer-card juju-interviewer-select-card">
           <div className="figma-statusbar">
             <StatusBarClock />
-            <span>Facewall</span>
+            <span>PassBuddy</span>
           </div>
+          <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="返回候选人画像" onClick={onBack}>
+            <span aria-hidden="true" />
+          </button>
           <JujuOrb className="juju-interviewer-select-hero-orb" />
           <div className="juju-interviewer-select-overlay" aria-hidden="true" />
           <section className="juju-interviewer-select-copy">
@@ -1604,7 +1730,7 @@ function FigmaInterviewerPanel({
       <div className="figma-phone-card figma-home-card figma-interviewer-card figma-select-card">
         <div className="figma-statusbar">
           <StatusBarClock />
-          <span>Facewall</span>
+          <span>PassBuddy</span>
         </div>
         <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="返回候选人画像" onClick={onBack}>
           <span aria-hidden="true" />

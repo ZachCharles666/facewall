@@ -28,6 +28,7 @@
 - [ ] LLM/TTS/STT/DB 故障提示和 fallback 已复验。
 - [ ] 数据删除 staging 演练已完成。
 - [ ] 暂停邀请、应用回滚和用户通知文本已准备。
+- [ ] 临时预览 Basic Auth 已启用并通过匿名 401/合法凭据 200；凭据不在仓库、构建产物、日志或截图中，移除负责人和日期已记录。
 
 ## 3. Invite Operations
 
@@ -171,3 +172,10 @@
 4. 产品/法务决定 90 天后删除、延长或重新授权。
 5. 关闭不再需要的 secret、管理员和告警。
 6. 输出内测 Acceptance Record、Known Risks 和下一阶段决策。
+
+## 12. Questionnaire Operations
+
+- `questionnaire_responses` 保留期沿用内测 + 90 天，运营默认只看聚合，不看答案正文。
+- 删除请求必须清除该用户问卷回答；审计仅记表名和删除数量。
+- Classic 配置写入口在生产默认关闭；临时开启须记录窗口和版本，保存后关闭。
+- staging 前应用 migration `0012`，验证 RLS、唯一约束、删除覆盖和事件正文 allowlist。

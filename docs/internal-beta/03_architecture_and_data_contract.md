@@ -282,3 +282,12 @@ draft/profile_ready/questions_ready/in_progress -> abandoned
 - 每次迁移提供 apply 验证；若平台不支持可靠 downgrade，提供前向修复方案和备份点。
 - 管理操作记录 admin ID、requestId、目标 ID、结果和时间。
 - 数据库、监控和日志样例不得包含真实用户正文。
+
+## 9. Questionnaire Data Addendum
+
+| Name | Scope | Rule |
+| --- | --- | --- |
+| `FACEWALL_QUESTIONNAIRE_STORE_PATH` | Server only | Classic 全局配置 JSON 路径，不得指向公开静态目录 |
+| `QUESTIONNAIRE_CONFIG_WRITE_ENABLED` | Server only | 生产写入口显式开关，缺失时 fail-closed |
+
+`questionnaire_responses` 保存 `user_id`、`school_id`、`interview_session_id`、配置版本和结构化 answers；`user_id` 与 session 分别唯一。表启用 FORCE RLS，用户只读写自己的行，删除事务必须覆盖该表。迁移 `0012` 只前向添加，不删除或覆盖 IB-02 以来的数据。配置保存生成新版本，历史回答按提交时版本保留。

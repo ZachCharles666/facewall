@@ -11,12 +11,17 @@ type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 export default async function Home({ searchParams }: { searchParams?: PageSearchParams }) {
   const params = searchParams ? await searchParams : {};
   const rawTheme = Array.isArray(params.theme) ? params.theme[0] : params.theme;
-  const visualTheme: VisualTheme = rawTheme === "classic" ? "classic" : rawTheme === "juju" ? "juju" : "figma";
+  const visualTheme: VisualTheme =
+    rawTheme === "classic" ? "classic" : rawTheme === "figma" ? "figma" : "juju";
+  const jujuAuthEnabled =
+    visualTheme === "juju" && isInternalBetaAuthEnabled();
+  const persistenceMode =
+    visualTheme === "juju" ? readInterviewPersistenceMode() : "off";
 
   return (
-    <AuthGate enabled={isInternalBetaAuthEnabled()} visualTheme={visualTheme}>
+    <AuthGate enabled={jujuAuthEnabled} visualTheme={visualTheme}>
       <InterviewCoachApp
-        initialPersistenceMode={readInterviewPersistenceMode()}
+        initialPersistenceMode={persistenceMode}
         initialVisualTheme={visualTheme}
       />
     </AuthGate>

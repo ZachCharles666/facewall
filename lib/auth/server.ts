@@ -3,7 +3,12 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
 
-import { readAuthConfig, readOtpExpiresInSec } from "@/lib/config/internalBeta";
+import {
+  isLocalDevOtpEnabled,
+  readAuthConfig,
+  readLocalDevOtpCode,
+  readOtpExpiresInSec
+} from "@/lib/config/internalBeta";
 import { getRuntimePool } from "@/lib/db/pool";
 import { sendOtpEmail } from "@/lib/email/tencentSes";
 
@@ -15,6 +20,7 @@ declare global {
 
 function createAuth() {
   const authConfig = readAuthConfig();
+  const localDevOtpEnabled = isLocalDevOtpEnabled();
   return betterAuth({
     appName: "PassBuddy",
     baseURL: authConfig.baseUrl,
@@ -29,6 +35,9 @@ function createAuth() {
     plugins: [
       emailOTP({
         otpLength: 6,
+        ...(localDevOtpEnabled
+          ? { generateOTP: () => readLocalDevOtpCode() }
+          : {}),
         expiresIn: readOtpExpiresInSec(),
         allowedAttempts: 3,
         storeOTP: "hashed",
@@ -41,6 +50,7 @@ function createAuth() {
           if (type !== "sign-in") {
             throw new Error("OTP_EMAIL_TYPE_UNSUPPORTED");
           }
+          if (localDevOtpEnabled) return;
           await sendOtpEmail({ to: email, code: otp });
         }
       })

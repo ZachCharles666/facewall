@@ -9,6 +9,8 @@ import {
 } from "@/lib/auth/challenge";
 import {
   readAuthConfig,
+  isLocalDevOtpEnabled,
+  readLocalDevOtpCode,
   isInternalBetaAuthEnabled,
   readOtpExpiresInSec,
   readOtpBudgetConfig
@@ -45,25 +47,28 @@ async function handlePost(request: Request) {
 
     const { secret } = readAuthConfig();
     const email = normalizeEmail(payload.email);
-    const budget = await reserveOtpSendBudget(
-      hashOtpRateKey("email", email, secret),
-      hashOtpRateKey("ip", sourceIp(request), secret),
-      readOtpBudgetConfig()
-    );
-    if (budget.status === "email_limited" || budget.status === "ip_limited") {
-      return NextResponse.json(
-        errorResponse("OTP_RATE_LIMITED", "请求过于频繁，请稍后再试", true),
-        { status: 429, headers: { "retry-after": "60" } }
+    const localOtpEnabled = isLocalDevOtpEnabled();
+    if (!localOtpEnabled) {
+      const budget = await reserveOtpSendBudget(
+        hashOtpRateKey("email", email, secret),
+        hashOtpRateKey("ip", sourceIp(request), secret),
+        readOtpBudgetConfig()
       );
-    }
-    if (budget.status === "budget_exhausted") {
-      return NextResponse.json(
-        errorResponse("EMAIL_BUDGET_EXHAUSTED", "验证码服务繁忙，请稍后再试", true),
-        { status: 503 }
-      );
-    }
-    if (budget.status === "allowed_warn") {
-      console.warn("AUTH_OTP_BUDGET_WARNING", { globalCount: budget.globalCount });
+      if (budget.status === "email_limited" || budget.status === "ip_limited") {
+        return NextResponse.json(
+          errorResponse("OTP_RATE_LIMITED", "请求过于频繁，请稍后再试", true),
+          { status: 429, headers: { "retry-after": "60" } }
+        );
+      }
+      if (budget.status === "budget_exhausted") {
+        return NextResponse.json(
+          errorResponse("EMAIL_BUDGET_EXHAUSTED", "验证码服务繁忙，请稍后再试", true),
+          { status: 503 }
+        );
+      }
+      if (budget.status === "allowed_warn") {
+        console.warn("AUTH_OTP_BUDGET_WARNING", { globalCount: budget.globalCount });
+      }
     }
 
     const authResponse = await callBetterAuth(
@@ -83,7 +88,9 @@ async function handlePost(request: Request) {
       okResponse({
         challengeId: createAuthChallenge(email, secret, Date.now(), expiresInSec),
         resendAfterSec: 60,
-        expiresInSec
+        expiresInSec,
+        deliveryMode: localOtpEnabled ? "local" : "email",
+        localOtpCode: localOtpEnabled ? readLocalDevOtpCode() : undefined
       })
     );
   } catch (error) {

@@ -3,51 +3,46 @@ import { inflateRawSync, inflateSync } from "node:zlib";
 export interface ParsedFileText {
   text: string;
   fileName: string;
-  fileType: "txt" | "pdf" | "docx";
+  fileType: "txt" | "docx";
   warnings: string[];
 }
 
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
+export const MAX_FILE_BYTES = 1024 * 1024;
 
 export function validateFileSize(size: number) {
   if (size <= 0) {
     throw new Error("文件为空。");
   }
   if (size > MAX_FILE_BYTES) {
-    throw new Error("文件超过 8MB，请压缩或复制主要内容后再上传。");
+    throw new Error("文件超过 1MB，请压缩或复制主要内容后再上传。");
   }
 }
 
 export function detectSupportedFileType(fileName: string, mimeType: string) {
   const normalizedName = fileName.toLowerCase();
-  const normalizedMime = mimeType.toLowerCase();
+  void mimeType;
 
-  if (normalizedName.endsWith(".txt") || normalizedMime.startsWith("text/")) return "txt" as const;
-  if (normalizedName.endsWith(".pdf") || normalizedMime === "application/pdf") return "pdf" as const;
-  if (
-    normalizedName.endsWith(".docx") ||
-    normalizedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    return "docx" as const;
-  }
+  // The extension is authoritative because multipart MIME values are supplied
+  // by the client and can be empty or forged.
+  if (normalizedName.endsWith(".txt")) return "txt" as const;
+  if (normalizedName.endsWith(".docx")) return "docx" as const;
 
   if (normalizedName.endsWith(".doc")) {
-    throw new Error("暂不支持旧版 .doc 二进制文档，请另存为 .docx、.pdf 或 .txt 后上传。");
+    throw new Error("暂不支持旧版 .doc 二进制文档，请另存为 .docx 或 .txt 后上传。");
   }
 
-  throw new Error("仅支持 .txt、.pdf 和 .docx 文件。");
+  throw new Error("仅支持 .txt 和 .docx 文件。");
 }
 
 export function extractTextFromFile(buffer: Buffer, fileName: string, mimeType: string): ParsedFileText {
   validateFileSize(buffer.byteLength);
   const fileType = detectSupportedFileType(fileName, mimeType);
   const warnings: string[] = [];
-  const text =
-    fileType === "txt" ? parseTxt(buffer) : fileType === "docx" ? parseDocx(buffer) : parsePdf(buffer, warnings);
+  const text = fileType === "txt" ? parseTxt(buffer) : parseDocx(buffer);
   const normalizedText = normalizeExtractedText(text);
 
   if (normalizedText.length < 10) {
-    throw new Error("未能从文件中提取到有效文本。若是扫描件 PDF，请先 OCR 或复制文本后再上传。");
+    throw new Error("未能从文件中提取到有效文本，请复制主要内容后粘贴。");
   }
 
   return {

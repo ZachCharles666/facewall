@@ -1,5 +1,30 @@
 # 面试嘴替教练开发 TODO
 
+## Juju 额度耗尽提示优化 - 2026-08-02
+
+- [x] 第 4 次创建面试被服务端以 `SESSION_QUOTA_EXHAUSTED` 拒绝时，Juju 显示独立的“3/3 次额度已用完”弹窗。
+- [x] 额度校验完成前保留 CV/JD 输入页面，不提前进入画像 loading；额度耗尽时不生成画像、不创建新 Session。
+- 验证：`npm run typecheck`、`npm run test:internal-beta`、`git diff --check`。
+- 风险：当前内测产品额度固定为 3 次；若未来允许不同用户拥有不同额度，弹窗数字需改为读取服务端结构化 quota。
+
+## Juju 答题响应与外网兜底优化 - 2026-08-02
+
+- [x] TTS 首次进入前增加无副作用路由预热；云端合成超过 6 秒时切换浏览器语音，避免长时间无响应。
+- [x] 每次换题或跳题都会取消在途 TTS 请求并使旧播放 token 失效，防止上一题延迟返回后与新题重叠播放。
+- [x] 跳题/完成流程增加单次状态锁；第三题确认后保持“正在进入下一步”且按钮禁用，避免重复提交和返回当前页的错觉。
+- [x] Juju 的真实报告生成失败时不再自动展示或伪装演示报告；保留题目和答案，只提供“重新生成真实报告”入口。Classic/Figma 的显式开发兜底保持不变。
+- [x] NVIDIA 对照实测：同一 Hosted API/模型的极小 JSON 请求约 2.3 秒；当前完整三题报告请求约 61.5 秒触发服务端超时；关闭 thinking 并限制输出后仍在约 45 秒无响应。根因指向单次大结构化报告负载与托管端稳定性组合，而非模型所有请求固定缓慢。
+- [x] 报告生成拆为受控并发 2 的三次单题复盘 + 一次精简总评；每道真实单题完成即通过 SSE 推送，最终 `InterviewReport` 与持久化字段保持不变。总评不重复要求模型输出优化答案，复制文本由已校验单题结果本地拼装。
+- [x] NVIDIA DeepSeek 请求关闭 thinking，并分别限制单题与总评输出 token；只对 429/5xx/网络错误做一次 700ms 有界退避，400 类输入/参数错误不重试。8 秒内没有首份单题结果时推送真实慢响应提示，不展示假报告。
+- [x] 拆分后首次真实单题诊断在约 1.37 秒收到 NVIDIA HTTP 529，确认当前失败包含 Hosted 端临时过载，而非大 prompt 或 schema 校验；免费 Hosted 端仍需主/备 provider 才能达到真实内测可用性。
+- [x] Juju JD 提交后先立即进入统一 Loading，再检查/占用额度并生成画像；额度耗尽也从 Loading 转入 3/3 提示弹窗，不再停留在 JD 页面等待网络结果。
+- [x] 第三题完成后先立即进入报告 Loading，再保存答案、启动渐进报告；答案保存或 NVIDIA 请求最终失败后才进入真实失败页，不再在答题页等待完成后直接闪到失败态。
+- [x] 新增临时外网预览 HTTP Basic Auth：生产环境变量显式开启，缺凭据 fail-closed；覆盖整站并保留 `/api/health` 匿名 readiness。共享凭据不写仓库且不授予 Juju/admin 权限，外网验收结束后移除。
+- [x] 发布前验证：Basic Auth 进程内生产行为取得匿名/错误凭据 401、合法凭据 200、health 200、缺配置 503；typecheck、internal-beta 96/96、production build、source security 208 files、bundle security 73 files、diff check 均 Pass。现网域名切换和管理员创建尚未执行。
+- 验证：`npm run typecheck`、`npm run test:internal-beta`、`git diff --check`。
+- 风险：浏览器语音音色取决于系统；当前完整报告仍可能触发 60 秒超时。内测前需拆分逐题报告并完成主/备 LLM 故障切换，不能依赖演示报告掩盖真实失败。
+- [x] TTS 正常播放结束时移除字幕滚动位移并将题目视口复位到顶部，重新展示题目开头。
+
 ## Phase 0 - 规划和契约
 
 - [x] 创建项目规划 `docs/00_project_plan.md`
@@ -2318,3 +2343,266 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 构造后 runtime endpoint 修正 `f57a26d` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-f57a26d`，`facewall-rum-runtime-candidate` 在 3004 通过 build、隔离 smoke、公网切换和 readiness；Nginx/readiness 新回滚副本与 3000～3003 旧运行时保留。
 - [x] 官方大陆 whitelist 修正 `c4f20d8` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-c4f20d8`，`facewall-rum-whitelist-candidate` 在 3005 通过 build、隔离 smoke、公网切换和 readiness；新回滚副本与 3000～3004 旧运行时保留。
 - [x] 严格 `whiteList/null` 放行修正已以 `843386d` 部署 3006；response requestId 修正已以 `d963d65` 部署并公开切到 3007。真实 control-plane、receiver privacy、当前 release 和 response/RUM/PM2/腾讯云 API Monitor requestId 对账均 Pass；OBS-002/003 关闭。OBS-001/004、告警触发/恢复和真实灰度仍未开始。
+
+## IB-10 Theme Gate、问卷调研与 Juju 问答回看 - 2026-07-31
+
+- [x] 新增 D-15/D-16/D-17、IB-10 instruction、API/Data/Acceptance/Runbook 条目；后续未单独说明的需求默认在 Juju 开发。
+- [x] Classic/Figma 无验证码门禁且不启用用户持久化；Juju 保留 OTP。浏览器只读验证未发送 OTP，未重复 IB-09 探针。
+- [x] Classic 新增四题型全局问卷配置；生产保存默认 fail-closed。
+- [x] Juju 第一场完成后由报告确认动作触发邀请并进入动态问卷。
+- [x] 新增 migration `0012`、owner/首次完成/版本/唯一提交、RLS、删除覆盖和脱敏事件。
+- [x] Juju 右侧工具按钮进入当前会话问答回看。
+- [x] typecheck Pass；internal-beta 80/80 Pass。
+- [x] production build 34/34、source security 206 files、bundle security 63 files、`git diff --check` Pass。
+- [ ] PostgreSQL integration 与 staging 合法 Juju Session E2E 待授权；SURVEY-005/006 Partial，SURVEY-007 Pending。
+- [ ] 本轮不 stage/commit/push，不改公网 3007；OBS-001/004 和其他灰度门禁保持原状态。
+
+### IB-10 follow-up · 2026-07-31
+
+- [x] 新增非生产固定 OTP：默认 `999999`，保留发送/输入/验证步骤，不调用 SES、不预留邮件预算；production 强制关闭。
+- [x] 用户协议、隐私政策和同意勾选移入验证码登录表单；登录或邀请码激活后自动保存同意记录。
+- [x] Juju 语音不可用时移除文字输入框，按录制失败、语音过短、网络异常三选一提示；网络异常 5 秒返回首页。
+- [x] 报告问卷入口移到手机卡片固定底部并为报告滚动区预留空间。
+- [x] 首轮 typecheck Pass；新增验收项后 internal-beta 最终基线见下条。
+- [x] 本地 PostgreSQL 已应用 `0012`；固定 OTP HTTP 验证取得 `deliveryMode=local`、`999999` 验证成功、Session Cookie 建立和 `needsInvite=true`，未调用 SES。
+- [x] 收口验证：internal-beta 82/82、typecheck、production build 34/34、source security 206、bundle security 63、diff check 均 Pass。
+- [x] 登录页已按 `Log in_email` 导出节点 JSON 做首轮像素级调整：375×812 画板；标题 `(32,210,210×34)`、副标题 `(32,244,210×20)`、输入卡 `(24,288,327×138)`、登录按钮 `(24,458,327×48)`、协议行 `(32,522,319×17)`、光球 `(220,147,200×232)` 均经浏览器 `getBoundingClientRect` 对账；邮箱/验证码/登录/协议业务逻辑未改，浏览器检查未发送 OTP。
+- [x] 登录默认态移除“使用受邀邮箱进入 PassBuddy 内测。”提示；异常、OTP 和本地验证码状态提示继续保留。
+- [x] 邮箱与验证码图标直接静态导入用户提供的 `email__350-986@2x.png`、`Verification_code__350-992@2x.png`，页面固定渲染为 16×16；已删除对应 CSS 拼图。
+- [x] 登录页《用户协议》《隐私政策》分别打开可滚动、可关闭的页面内 WebView；内容从服务端当前 policy 按章节拆分，支持关闭按钮与 Escape。
+- [x] OTP/登录按钮改为可反馈校验：空或非法邮箱、重发倒计时、未发送 challenge、验证码不足 6 位、未勾选协议均显示明确状态；倒计时点击不会重复请求，本地成功后显示通用码与剩余秒数。
+- [x] 本地 HTTP 复验：request 返回 `deliveryMode=local`、60 秒重发间隔和固定码匹配；随后 999999 验证成功、Session Cookie 建立并进入 `needsInvite=true`，真实邮件发送为 false。全量 internal-beta 83/83、typecheck、diff check Pass。
+- [x] OTP 成功态收口：移除本地固定码说明、重复成功状态和“修改邮箱”按钮；页面只保留发送按钮倒计时，错误与登录前置校验提示按需出现。
+- [x] 本地固定 OTP 验收强制保留邀请码页面：新账号继续走真实 `needsInvite` 兑换；已激活账号只在 local OTP 模式进入邀请码 UI 验收检查点，填写后返回已授权产品，不重复消费邀请码；production 不受影响。
+- [x] 邀请码页严格按 `Log in_invite` 导出节点 JSON 收口：375×812 画板；`Hey！` `(32,243)`、副标题 `(32,277)`、输入卡 `(24,321,327×70)`、主按钮 `(24,423,327×48)`、光球 `(220,180,200×232)`；默认态仅保留 JSON 中的“请输入邀请码”和“确 定”，移除先前自行加入的长说明与“换一个邮箱登录”。导出文件未包含邀请码图标图片资源，当前继续使用既有占位图标，待提供独立图片后直接替换。
+- [x] 刷新/Session 检查态按 `Log in` 导出节点 JSON 改为纯启动画面：光球 `(87.5,149,200.5×200)`、`Hey！` `(150,385,76×34)`、副标题 `(100,435,176×22)`；隐藏 JSON 中不存在的 Session、恢复状态和验证码脚注。
+- [x] 刷新启动、邮箱验证码登录、邀请码三个认证页面的顶部区域恢复为项目其他 Juju 页面共用样式：动态时间 + `Facewall`，移除认证页独有的“首页”、系统状态图标和小程序胶囊；其余 Figma 内容坐标不变。
+- [x] 邀请码输入框图标改为直接静态导入用户提供的 `Invitation_code__350-1090@2x.png`，按 Figma 节点固定渲染为 16×16，并移除 CSS 占位符。
+- [x] Juju 面试评分页移除右上角“复制整份报告”入口；题目内优化答案复制能力继续保留。
+- [x] 问卷邀请弹窗按 `Frame 71` 节点调整为 279×325、16px 圆角及对应标题/说明/按钮/关闭按钮坐标；顶部 `IMAGE_FILL` 仍待单独导出的原始 PNG。
+- [x] Juju 内测问卷按 `Navigation Bar`、打分、单选、多选、开放式节点统一 375px 画板状态栏与 343px 题卡尺寸，保留动态问卷数据、必答校验和提交逻辑。
+- [x] 问卷页像素对账修正：移除 `<fieldset>/<legend>` 特殊排版，题目稳定落在卡片 `(25,25)`；补齐 `(276,54,87×32)` 小程序胶囊，标题区下移到 y=82，首张题卡从 y=129 开始。
+- [x] 问卷邀请弹窗顶部 `IMAGE_FILL` 改为直接导入用户提供的 `Gemini_Generated_Image_eiqufreiqufreiqu_1__388-1104@2x.png`，按节点 `(12,-50,247.2×194.9)` 渲染，并删除 CSS 模拟便签。
+- [x] 调查问卷顶部恢复为其他 Juju 页面共用样式：左侧动态时间 + 右侧 `Facewall`；移除系统信号/电池图标和小程序胶囊，题卡与标题坐标保持不变。
+- [x] 调查问卷标题与副标题统一为 18px/700，所有题面改为 14px/700；选项字体保持原样。题卡之间继续使用 12px 间距，副标题与首题之间继续使用 7px 间距。
+- [x] 调查问卷纵向间距更新：题卡之间改为 18px，副标题底部到第一题顶部改为 24px；第一题顶部相应移动到 y=156。
+- [ ] AUTH-009/CONSENT-007/VOICE-006/SURVEY-008 浏览器 E2E 完成前保持 Partial。
+- [x] Juju 登录主题回归修复：`auth-shell` 自带与 Juju 页面一致的浅紫/粉/绿色渐变变量，不再依赖 hydration 后的 body token；登录和邀请码共用半透明输入卡、粉色主按钮和底部指示条。localhost:3000 浏览器复核背景、文字对比度和表单可见性通过；internal-beta 82/82、typecheck、diff check Pass。
+## Juju 用户画像 TabBar 像素级还原 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 以 `figma_TabBar_2026-07-31T16-47-47-293Z.json` 为唯一视觉基准，读取 `TabBar / Tabs / button_half-width / Indicator` 全部 6 个节点。 |
+| TabBar | Done | 用户画像底栏调整为 `375×90`，使用透明白到纯白线性渐变及 `16px` 背景模糊；滚动内容延伸到底栏下方，使毛玻璃可透出页面内容。 |
+| CTA | Done | 按钮调整为 `180×48`、顶部 `4px`、圆角 `24px`、`#FF0080`；文案恢复为“开始面试”，使用 `14px / 500 / 20px`，保留原 `onNext` 流转。 |
+| Home Indicator | Removed | 根据验收反馈，用户画像 TabBar 不显示底部 Indicator。 |
+| Scope | Pass | 仅调整 `theme=juju` 用户画像页底部视觉和文案；未改登录、OTP、画像数据、面试状态机、接口契约或公网 staging。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 选择面试官首屏卡片和返回按钮 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 完整读取 `figma_Frame_3_2026-07-31T16-59-10-749Z.json` 的 6 个节点；单卡基准为 `180×222`，头像区 `180×180`，姓名 `18px Medium`，角色 `12px Regular`。 |
+| Portrait layer | Done | 面试官卡片保留 `180×222` 结构，并按节点新增独立 `#D9D9D9` 圆形底层与 `8px` layer blur；人物图片继续使用现有正式资源。 |
+| Back action | Done | Juju 首个选择面试官页面新增统一的 `figma-jd-back-button figma-interviewer-back-button`，点击返回候选人画像。 |
+| Scope | Pass | 仅调整 `theme=juju` 选择面试官第一页；详情确认页、面试状态机和接口契约保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 登录后工具栏移除 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Session toolbar | Done | `theme=juju` 登录后不再渲染“PassBuddy 受控内测 / 隐私与数据 / 退出登录”顶部工具栏。 |
+| Scope | Pass | 仅移除 Juju 的工具栏入口；会话恢复、退出登录及隐私数据处理函数未删除，其他主题行为保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 画像 TabBar 透明度与面试官卡片底层修正 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Profile TabBar transparency | Done | 保留 `375×90`、`16px` backdrop blur、`180×48` CTA 和现有 `onNext`；渐变改为顶部更透明、向下逐级增加白色 alpha，底部最高 alpha 收敛到 `0.68`，滚动内容在底栏下方仍可见。 |
+| Interviewer backplate stacking | Done | 三个 `180×180`、`#D9D9D9`、`8px` blur 圆从按钮内部伪元素移到独立装饰层：底层圆 `z-index:0`、白色渐变内容层 `z-index:1`、人物卡片与点击区 `z-index:3`；头像不参与模糊，点击范围与人物资源不变。 |
+| Windows test portability | Done | internal-beta 两个源码读取 helper 统一将 CRLF 归一化为 LF，避免 Windows checkout 让固定换行断言误报；未改变业务断言或产品行为。 |
+| Scope | Pass | 仅调整 `theme=juju` 画像底栏、选择面试官首屏装饰层和测试读取兼容；未改状态机、接口契约、OTP、告警或公网 3007。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 选择面试官毛玻璃与头像效果对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Visual reference | Done | 对比当前实现截图与设计师效果图，重点校准选择页白色毛玻璃透明度、顶部圆角和三位面试官抠像层次。 |
+| Glass surface | Done | 白色内容层上移到 `top:138px`，增加 `24px` 顶部圆角和 `20px` backdrop blur；白色 alpha 从 `0.76` 平缓过渡到 `0.56`，避免原实现越往下完全透明、底部彩色背景过强。 |
+| Portrait effect | Done | 删除额外的三个 `#D9D9D9 + 8px blur` 灰色圆，不再制造头像周围独立灰雾；头像取消圆形裁切，并用底部轻渐隐让透明 PNG 自然融入毛玻璃背景。 |
+| Scope | Pass | 仅调整 `theme=juju` 选择面试官首屏视觉；人物资源、姓名/角色、卡片点击区、返回按钮、状态机和接口契约保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 听题文字滚动像素级对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Interview_Responses_2026-07-31T17-44-07-267Z.json`，以 `Frame 52 (18,425,343×118)` 和问题文本 `(28,435,323×132)` 为视觉基准。 |
+| Question viewport | Done | Juju 听题态问题视口固定为 `(28,435,323×98)`，使用 `PingFang SC 16px / 22px / 400` 居中排版；不改变题目内容和 TTS 状态机。 |
+| Overflow motion | Done | 根据问题文本实际 `scrollHeight` 动态计算溢出距离，只滚动超出视口的内容；末尾停在最后一行，不再整段淡出或滚离画面。 |
+| Scope | Pass | 仅调整 `theme=juju` 听面试官读题时的问题文字展示；现有题目、TTS、答题切换和接口保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 语音答题态像素级对齐 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Interview_Responses_2_2026-07-31T17-47-42-164Z.json`，以中央文案、四层监听波纹和 `Frame 11` 控件节点为视觉基准。 |
+| Listening label | Done | 录音态只显示“面试官正在聆听...”，固定于 `(28,432,319×22)`，使用 `PingFang SC 16px / 22px / 400` 居中排版及 `#4D4D4D → #B2B2B2 → #808080` 文字渐变。 |
+| Recording control | Done | 点击中央麦克风进入录音态后，`80×80 / #FF0080` 主按钮切换为居中的 `24×24 / 2px` 白色停止方块；点击行为继续调用现有结束回答逻辑。 |
+| Listening rings | Done | 四层监听波纹以 `(188,682)` 为共同圆心，尺寸严格调整为 `320 / 226 / 158 / 104`，不阻挡三个按钮的点击。 |
+| Scope | Pass | 仅调整 `theme=juju` 录音态视觉；录音计时仍在状态层持续维护，STT 失败分支、题目推进和接口契约未改。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 语音失败提示与恢复逻辑 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Frame_52_2026-07-31T17-49-18-768Z.json` 全部 4 个节点；三种提示共用 `Frame 52`，单条文本基准为 `(10,10,323×28)`。 |
+| Text style | Done | 页面内失败提示固定于 `(28,435,323×28)`，使用 `PingFang SC 20px / 28px / 400`、零字距、居中显示；每次只显示录制失败、语音过短或网络异常之一。 |
+| Retry behavior | Done | 录制/识别失败和不足 2 秒且无文本的回答均返回待录制状态，不推进下一题；中央按钮恢复为麦克风，可重新作答。 |
+| Network exit | Done | 网络类错误独立归类并启动 5 秒定时器，到时调用现有 `onExitInterview` 返回首页；重试、切题或错误状态解除时清理定时器。 |
+| Scope | Pass | 仅补齐 `theme=juju` 失败态视觉与分支行为；Classic/Figma 的文字兜底保持不变，正常录音、STT 和报告接口不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Codex worktree 本地认证环境恢复 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Root cause | Done | Codex worktree 未自动继承 Git 忽略的 `.env.local`，导致数据库健康检查为 down，Session 与当前协议接口返回 500；协议为空进一步禁用了同意勾选框。 |
+| Local config | Done | 从本机原项目目录复制现有 `.env.local` 到当前 worktree；仅核对键名和数量，未输出任何配置值，且确认文件继续由 Git 忽略。 |
+| Runtime | Done | 重新从 worktree 物理路径启动 3000；`/api/health`、`/api/auth/session`、`/api/consent/current` 均返回 200。 |
+| UI check | Pass | 浏览器确认协议勾选框 enabled 且可切换为 checked；安全校验错误消失。验证码输入框按既有状态机在发送 challenge 前保持 disabled，本次未调用发送验证码接口。 |
+| Scope | Pass | 仅恢复本地开发配置与运行时；未修改敏感配置值、未发送 OTP、未改公网 3007，也未 stage/commit/push。 |
+
+## Juju 录音初始态与桌面预览修正 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Initial state | Done | 失败提示只接受当前题已经点击过麦克风的录音尝试；答案初始化使用的 `manual` 状态不再误触发“录制失败”。 |
+| Desktop preview | Done | 桌面端 STT 不可用或权限失败时先保留录音视觉态、监听波纹和停止按钮；点击停止后才显示非网络错误，确保可检查主按钮图标切换。 |
+| Network behavior | Done | 网络异常仍立即结束录音视觉态、显示错误，并保持 5 秒退出逻辑。 |
+| Error color | Done | 仅“录制失败”“语音过短”“网络异常”三个关键词使用 `#CC0000`；“抱歉”、后续说明和省略号保持 `#4D4D4D`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## Juju 新版题目内容框与短录音语义 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整读取 `figma_Frame_52_2026-08-01T03-46-58-714Z.json` 全部 2 个节点；新版 `Frame 52` 为 `343×142`，正文为 `(10,10,323×132)`。 |
+| Question frame | Done | 未开始答题时显示正常问题正文；内容框固定于 `(18,425,343×142)`，正文视口 `(28,435,323×132)`，使用 PingFang SC Regular 16px、居中、零字距。 |
+| Short recording | Done | 每次点击开始时清零本题录音时长；点击结束时以本次开始到结束的实际时长判断，`≤2 秒` 无条件归为“语音过短”，不依赖是否识别出文本。 |
+| Error emphasis | Done | 错误句整体保持正常色，仅三个错误关键词单独包裹并使用 `#CC0000`。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；`git diff --check` 通过。 |
+
+## 本地完整流程入口与 Git worktree 说明 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Repository topology | Done | `D:/hackthon/facewall` 与 `E:/codex-data/.codex/worktrees/6a49/facewall` 均由同一个 Git common dir `D:/hackthon/facewall/.git` 管理，基线 HEAD 均为 `ce883e3`。 |
+| Worktree isolation | Confirmed | 原目录位于 `release/preview`；Codex worktree 为 detached HEAD。两个目录的未提交/未跟踪文件相互独立，因此当前 Juju 最新调整只在 Codex worktree 中完整存在。 |
+| Fresh flow | Ready | 当前 3000 从 Codex worktree 运行且 `/api/health` 为 200；无 Cookie 请求 `/api/auth/session` 返回 `401 AUTH_REQUIRED`，无痕窗口会从登录页开始完整流程。 |
+| Safety | Pass | 本轮未清空账号或业务数据、未发送 OTP、未 stage/commit/push，也未修改公网 3007。 |
+| Next decision | Pending | 若要让 `D:/hackthon/facewall` 成为唯一日常目录，需要用户另行授权一次明确的提交与整合方案；在授权前继续保留两个 working tree 的全部用户修改。 |
+
+## Juju 本地完整流程测试邀请码 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Local invite | Ready | 经用户明确授权，在本地数据库创建 1 个单次使用、24 小时有效的邀请码，激活后含 3 次完整面试额度；明文仅写入系统剪贴板，未进入终端输出、文档或日志。 |
+| Audit | Pass | 创建动作写入本地 admin audit；数据库仍只保存邀请码 hash。 |
+| Clipboard | Pass | 仅校验剪贴板内容存在、格式合法且长度符合预期，未读取或输出邀请码正文。 |
+| Safety | Pass | 未发送 OTP、邮件或微信，未修改公网 staging 3007，未 stage/commit/push。 |
+| Replacement invite | Ready | 原单次邀请码被首个账号消费后，经用户切换新账号的请求再次创建 1 个相同约束的本地单次邀请码；明文仅写入系统剪贴板，未进入终端、文档或日志。 |
+| Fresh full-flow invite | Ready | 2026-08-01 再次从登录页完整回归前，创建 1 个仅本地使用的 `example.test` fixture 邀请码；24 小时有效、单次使用、激活后 3 次面试额度。明文仅进入系统剪贴板，格式校验通过，未发送 OTP 或邮件。 |
+
+## Juju CV 首页侧边菜单 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| JSON source | Done | 完整解析 `figma_home_2026-08-01T05-46-27-579Z.json` 的 82 个节点与 `figma_side_2026-08-01T05-47-21-369Z.json` 的 121 个节点，以首页菜单实例和 `Frame 61` 侧栏为视觉基准。 |
+| Menu entry | Done | 仅在 Juju CV 录入首页增加 `(16,58,32×32)` 橙色双横线入口；原简历输入、上传和继续到 JD 的状态机不变。 |
+| Side drawer | Done | 左侧抽屉按 `315×812` 实现；账号行 `y=48`、脱敏邮箱、毛玻璃区 `(0,128,315×300)`、菜单卡 `(24,152,267×127)` 和退出入口 `(65.5,720,184×44)` 与 JSON 对齐，并支持侧向动画、右侧空白点击和 Escape 关闭。 |
+| Placeholder actions | Done | “简历管理”“面试记录管理”均不导航、不调用业务接口，只显示 2.4 秒“下个版本开放”提示；退出入口复用现有本地 logout API。 |
+| Browser verification | Pass | 使用隔离的本地 browser fixture 在 375×812 视口对账；侧栏、菜单坐标、脱敏邮箱、Escape 关闭和原 CV 内容保留通过，浏览器控制台无应用错误；未发送 OTP。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 85/85 通过；`git diff --check` 通过。 |
+| Scope | Pass | 仅修改 Juju 首页视觉与客户端侧栏交互；Classic/Figma、认证契约、持久化接口和公网 staging 3007 未改，未 stage/commit/push。 |
+
+## Juju 启动页与侧边菜单视觉复核 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Auth launch indicator | Done | Juju `checking` 启动页不再渲染底部 Indicator；登录、邀请码等既有认证状态机和输入流程不变。 |
+| Menu asset | Done | 将用户提供的 `menue__343-906@2x.png` 从原项目目录原样复制到当前 worktree，SHA-256 一致；首页静态导入并固定渲染为 `(16,58,32×32)`，删除 CSS 模拟双横线。 |
+| Side overlay | Done | 抽屉层打开时使用 `rgba(0,0,0,0.5)` 黑色蒙层；315px 亮色侧栏覆盖其上，右侧 60px 显示半透明暗化的原 CV 页面。 |
+| Logout outline | Done | 退出登录保持 `(65.5,720,184×44)`，补充 `1px solid #FF0080` 描边、24px 圆角和透明底。 |
+| Browser verification | Pass | 375×812 浏览器对账：启动页 Indicator 数量 0；菜单图片来源为静态构建资源且尺寸 32×32；蒙层计算色 `rgba(0,0,0,0.5)`；退出按钮计算边框 `1px solid rgb(255,0,128)`；控制台无应用错误。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 86/86 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## Juju 六行听题滚动与 interview response 资源复刻 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Design sources | Done | 完整读取 `figma_Component_1_2026-08-01T08-08-34-922Z.json` 全部 17 个节点，并以用户截图作为答题页整体基准；五张 PNG 从 `D:/hackthon/facewall/面壁者` 原样复制，源/目标 SHA-256 逐一一致。 |
+| Six-line viewport | Done | 题目视窗保持 `(28,435,323×132)`，正文为 `PingFang SC 16px / 22px / 400`，最多可见 6 行；顶部遮罩在 `0 / 22 / 44px` 分别使用 `0.18 / 0.52 / 1` alpha，形成由下向上逐步变淡的前两行。 |
+| Speech-linked scroll | Done | TTS 开始后按固定 `22px` 整行向上平滑推进，并按 Azure 实际音频时长或 Web Speech 估算时长覆盖全部溢出行；播放结束、停止、失败或切题均清理定时器并复位第一行。非播放态保留无滚动条的纵向触摸/鼠标滚动。 |
+| Control assets | Done | 答题页右侧按钮改用 `message__295-1277@2x.png`，打开现有答题记录/response 页面；该页右下返回按钮改用 `voice_S__379-1437@2x.png`，点击仍返回当前答题。两枚原始 64×64 PNG 均按设计以 32×32 显示在 52/54px 半透明圆形按钮内。 |
+| Response avatars | Done | 左侧头像严格按 JSON 在 48×48 容器内叠放 `B_01__326-805@2x.png` `(6.2,8.6,35.5×35.5)` 与 `B_01__326-806@2x.png` `(6.2,6.2,35.5×35.5)`；右侧和 CV side 页均直接复用 48×48 `avatar__342-897@2x.png`。 |
+| Browser verification | Pass | 375×812 本地 Juju fixture 对账：视窗实际为 `323×132`、`overflow-y:auto`、`touch-action:pan-y`、遮罩 stop 为 `0/22/44px`；消息图标 32×32。response 页双层坐标、用户头像 48×48、返回语音图标 32×32 均与预期一致；未发送 OTP，验收后恢复视口并关闭页面。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 87/87 通过；`git diff --check` 通过。 |
+| Scope | Pass | 仅调整 `theme=juju` 的听题文字视觉/滚动和既有 answer-history/side 资源；题目、TTS/STT、录音、回答、会话及接口状态机保持不变。公网 3007 未动，未 stage/commit/push。 |
+
+## PassBuddy 顶栏品牌与 Juju 跳题确认 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Response navigation | Done | interview response/答题记录页移除左上角返回按钮；右下 `voice_S` 按钮继续作为唯一返回当前答题入口。 |
+| Header brand | Done | Auth、CV/JD、画像、面试官、答题、response、报告和问卷等产品状态栏右上角统一由 `Facewall` 改为 `PassBuddy`；桌面画布标签同步改为 `PASSBUDDY INTERVIEW`。源码扫描确认 `app/` 与 `components/` 不再残留 `Facewall/FACEWALL` UI 文案。 |
+| Skip confirmation | Done | Juju 答题页左侧 X 不再直接清空并推进；先显示 303px 半透明毛玻璃确认框，文案为“是否跳过当前题目？”，提供同风格“取消/确认跳过”按钮，并支持 Escape 取消。 |
+| Final-question path | Done | 前两题确认跳过后进入下一题；第三题显示“跳过后将结束本轮面试”和“跳过并完成”，确认后以空回答集合中的当前题更新状态并调用现有 `onGenerateReport` 进入报告流程，不再停留在第 3/3 题。录音态确认跳过会先停止 STT/TTS。 |
+| Browser check | Partial | 本地 375×812 已确认实际 CV 顶栏显示 `PassBuddy`；现有 fixture 已回到 CV 首页，浏览器控制通道受外部统计网络超时影响，未重复创建新的答题 fixture。跳题三段路径由新增契约测试覆盖。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 89/89 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## Juju 默认入口、上传约束与首次问卷解锁 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Default theme | Done | 根路径和非法/缺省 `theme` 默认进入 Juju；显式 `?theme=figma`、`?theme=classic` 仍保持匿名 Demo，只有 Juju 启用 AuthGate 与 source persistence。 |
+| Development loading | Improved / provider latency remains | 开发路由的无副作用 `OPTIONS` 预热从“登录完成后”提前到 AuthGate 挂载时执行，不调用 LLM/TTS/STT、不消耗额度。既有实测表明 dev 首次路由编译可达 4.2s，而 staging 真实 LLM 单次曾为 17.171s；后者需备用 provider、prompt/token 优化和 P50/P95 对比，不以缩短超时掩盖。 |
+| CV/JD upload | Done | CV 提示改为“您可粘贴至输入框或点击“+”上传word 文档 最大不超过1M。”；浏览器与 `/api/files/parse` 双重限制为 `.txt/.docx` 且 `<=1MB`，PDF、旧 `.doc`、空文件和超限文件均在解析前拒绝。 |
+| Icon reliability | Done | Juju CV 的展开/收起按钮和 JD 返回按钮改为 CSS 实体线条，不再依赖偶发未绘制的 URL 图片；现有 menu PNG 保留并补充独立合成层、显式可见性与 z-index。无需用户补图。 |
+| Questionnaire entry | Done | 首场评分页问卷快照加载中会禁用确认，失败可重试，不再把空 snapshot 当作“无需问卷”并误回 CV；关闭邀请只回评分报告，草稿提交失败仍保留。 |
+| Questionnaire unlock gate | Implemented / E2E pending | 首场完成但未提交问卷时，current-session 恢复首场报告，`POST /api/interview-sessions` 返回稳定 `409 QUESTIONNAIRE_REQUIRED`；相同创建 key 幂等重放不重复扣额度。提交问卷后才恢复剩余 2 次会话创建。SURVEY-009 在真实 DB + 刷新/重登浏览器矩阵前保持 Partial。 |
+| Admin acceptance | Existing scope Pass / release gate remains | `ADMIN-001–005`（学校、邀请码创建/停用、聚合指标、权限、隐私、审计、错误回滚）已有浏览器/DB 证据并为 Pass；G0 仍需两个真实 user + 一个 admin 的整体验收，新增问卷解锁/聚合也需相邻复验。 |
+| Backup providers | Pending product inputs | 现有 Classic 可保存 Prompt、问卷配置和语音参数，但没有 LLM/TTS/STT 主备 provider 顺序、健康状态和非敏感 endpoint/model 配置契约。待确认厂商、地域、接口、模型/音色、超时、配额和隐私后实现；凭据仅由 server secret 引用，不进入 Classic 客户端或配置文件明文。 |
+| Automated verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 91/91 通过；`git diff --check` 通过。 |
+| Safety | Pass | 未发送 OTP、邮件或告警，未修改公网 staging 3007，未 stage/commit/push。 |
+
+## 2026-08-02：Juju 验收流程修复与 Classic Provider 备案
+
+- [x] 画像生成前增加独立 pending 状态：Session/额度前置检查期间不再短暂露出旧答题页；`SESSION_QUOTA_EXHAUSTED` 在 JD 页原位提示且不会调用画像生成。
+- [x] Juju 题目改为随语音时长连续上移：长题按溢出距离移动，少于 6 行仍至少移动 1.5 行，不再因 `maxScrollTop === 0` 静止。
+- [x] 首次报告的问卷状态加载期间固定显示灰色禁用“确认并返回首页”；加载成功后恢复可点击，第二/三次报告跳过重复问卷加载直接返回 CV 首页。
+- [x] 首次问卷提交后返回 CV 输入页；问卷邀请弹窗保持 279×325 与 128px 图片可视区，将图片内容下移并按设计框裁切，未把图片扩成整窗背景。
+- [x] LLM 增加 NVIDIA NIM 默认配置：`NVIDIA_API_KEY` 对应官方 OpenAI-compatible 端点与 `deepseek-ai/deepseek-v4-flash`，既有 OpenAI/LLM 显式配置仍优先。
+- [x] TTS/STT 增加腾讯云服务端 SDK：腾讯云优先、Azure 次级、Web Speech/手动文本继续兜底；Classic 增加不含密钥的 provider/model/region 状态卡。
+
+验证：
+
+- `npx tsc --noEmit --incremental false`：Pass（默认增量模式因 6a49 worktree 的 `tsconfig.tsbuildinfo` 写权限被环境拒绝，非类型错误）。
+- `npm run test:internal-beta`：92/92 Pass。
+- `git diff --check`：Pass（仅换行格式提示，无 whitespace error）。
+- `http://localhost:3000/?theme=classic`：HTTP/UI 编译 Pass，Classic provider 状态卡可见，控制台无应用 error/warn。
+- `http://localhost:3000/?theme=juju`：登录入口编译 Pass；未发送 OTP，未运行真实 LLM/TTS/ASR，也未重复 IB-09 浏览器探针。
+
+风险与后续：
+
+- 当前 3000 对应 6a49 worktree 的 `.env.local` 尚不含 D 盘新增变量；本轮重启时已只在进程内安全加载 D 盘配置，状态页确认 NVIDIA 与腾讯语音均 configured，未复制密钥文件。
+- 先由用户在现有登录态验收 Juju 答题滚动、问卷弹窗和三次额度；通过后再做 6a49 → D 主工作树的逐文件冲突审计与同步，禁止直接覆盖 D 盘 dirty working tree。
+- 外网发布至少需完成本轮用户验收、真实 provider 的单次受控 smoke、全量回归和发布/回滚快照；本轮未触碰公网 3007。

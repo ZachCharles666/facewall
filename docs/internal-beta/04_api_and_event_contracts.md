@@ -366,3 +366,23 @@ provider 未返回 usage 时 token 字段写 `null`，不得估算或用 `0` 冒
 - API 返回 `requestId`，日志用同一 ID。
 - 限流 key 使用 IP + 邮箱哈希/用户 ID，不把邮箱明文写入普通日志。
 - 管理和删除操作必须产生审计日志。
+
+## 10. Questionnaire APIs And Events
+
+- `GET /api/questionnaire/config`：匿名返回规范化配置和 `writable`，不返回路径或配置值。
+- `POST /api/questionnaire/config`：校验四种题型、选项和长度；生产显式开关后才可写，保存生成新版本。
+- `GET /api/interview-sessions/:id/questionnaire`：仅 Juju 已登录 owner，返回资格、配置和既有提交摘要。
+- `POST /api/interview-sessions/:id/questionnaire`：服务端验证 owner、首次完成、配置版本与答案，每用户/会话唯一。
+- `POST /api/interview-sessions`：首场已完成但问卷尚未提交时返回 `409 QUESTIONNAIRE_REQUIRED`；幂等重放既有创建不受影响。
+- `GET /api/interview-sessions/current`：存在首场问卷门禁时返回对应已完成报告；提交问卷后恢复普通 active-session 语义。
+
+服务端事件新增 `questionnaire_submitted`；客户端 allowlist 新增 `questionnaire_invite_viewed`、`questionnaire_started`。properties 不得包含答案正文或客户端提供的用户/学校 ID。Auth API 只用于 Juju。
+
+### Local OTP Development Mode
+
+当且仅当非 production 且 `INTERNAL_BETA_LOCAL_OTP_ENABLED=true`：
+
+- `request-otp` 仍创建 Better Auth challenge，但生成 `INTERNAL_BETA_LOCAL_OTP_CODE`（默认 `999999`）。
+- 不调用 SES，不执行 `reserveOtpSendBudget`。
+- 响应可返回 `deliveryMode=local` 和固定码供本地 UI 提示。
+- production 无条件忽略该开关，并继续使用随机 OTP、SES 和预算控制。

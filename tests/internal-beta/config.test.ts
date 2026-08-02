@@ -5,13 +5,40 @@ import {
   InternalBetaConfigError,
   isConsentGateEnabled,
   isInternalBetaAuthEnabled,
+  isLocalDevOtpEnabled,
   readAuthConfig,
   readDatabaseConfig,
+  readLocalDevOtpCode,
   readOtpExpiresInSec,
   readOtpBudgetConfig,
   readInterviewPersistenceMode,
   readTencentSesConfig
 } from "../../lib/config/internalBeta";
+
+test("local OTP is explicit, development-only, and fixed to six digits", () => {
+  assert.equal(
+    isLocalDevOtpEnabled({
+      NODE_ENV: "development",
+      INTERNAL_BETA_LOCAL_OTP_ENABLED: "true"
+    }),
+    true
+  );
+  assert.equal(
+    isLocalDevOtpEnabled({
+      NODE_ENV: "production",
+      INTERNAL_BETA_LOCAL_OTP_ENABLED: "true"
+    }),
+    false
+  );
+  assert.equal(readLocalDevOtpCode({}), "999999");
+  assert.equal(
+    readLocalDevOtpCode({ INTERNAL_BETA_LOCAL_OTP_CODE: "123456" }),
+    "123456"
+  );
+  assert.throws(() =>
+    readLocalDevOtpCode({ INTERNAL_BETA_LOCAL_OTP_CODE: "999" })
+  );
+});
 
 test("database config rejects missing values without echoing secrets", () => {
   assert.throws(
