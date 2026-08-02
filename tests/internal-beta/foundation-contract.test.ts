@@ -18,6 +18,18 @@ test("auth foundation is passwordless and stores OTP hashes", async () => {
   assert.match(config, /sendOtpEmail\(\{ to: email, code: otp \}\)/);
 });
 
+test("local OTP keeps Better Auth verification while skipping SES and send budget", async () => {
+  const requestRoute = await read("app/api/auth/request-otp/route.ts");
+  const authServer = await read("lib/auth/server.ts");
+  const config = await read("lib/config/internalBeta.ts");
+
+  assert.match(requestRoute, /if \(!localOtpEnabled\)[\s\S]*reserveOtpSendBudget/);
+  assert.match(requestRoute, /deliveryMode: localOtpEnabled \? "local" : "email"/);
+  assert.match(authServer, /generateOTP: \(\) => readLocalDevOtpCode\(\)/);
+  assert.match(authServer, /if \(localDevOtpEnabled\) return/);
+  assert.match(config, /if \(env\.NODE_ENV === "production"\) return false/);
+});
+
 test("runtime auth uses the least-privilege pool and exposes the Better Auth handler", async () => {
   const server = await read("lib/auth/server.ts");
   const pool = await read("lib/db/pool.ts");
@@ -52,6 +64,25 @@ test("OTP form accepts exactly six ASCII digits without escaped-pattern ambiguit
   assert.match(gate, /minLength=\{6\}/);
   assert.match(gate, /maxLength=\{6\}/);
   assert.doesNotMatch(gate, /pattern="\\\\d/);
+});
+
+test("OTP and login controls provide feedback instead of silently disabling prerequisites", async () => {
+  const gate = await read("components/auth/AuthGate.tsx");
+  assert.match(gate, /请先输入有效的邮箱地址/);
+  assert.match(gate, /请等待 \$\{resendAfter\} 秒后再重新发送验证码/);
+  assert.match(gate, /请先点击“发送验证码”/);
+  assert.match(gate, /请输入完整的 6 位验证码/);
+  assert.match(gate, /disabled=\{busy\}[\s\S]*\$\{resendAfter\}秒后重发/);
+});
+
+test("local OTP acceptance always preserves the invite-page checkpoint", async () => {
+  const gate = await read("components/auth/AuthGate.tsx");
+  assert.match(gate, /setLocalOtpFlow\(body\.data\.deliveryMode === "local"\)/);
+  assert.match(gate, /body\.data\.privacyOnly[\s\S]*body\.data\.needsConsent[\s\S]*else if \(localOtpFlow\)/);
+  assert.match(gate, /else if \(localOtpFlow\)[\s\S]*setInvitePreviewOnly\(true\)[\s\S]*setStep\("invite"\)/);
+  assert.match(gate, /if \(invitePreviewOnly\)[\s\S]*setStep\("authenticated"\)/);
+  assert.match(gate, /invitePreviewOnly[\s\S]*setStep\("authenticated"\)/);
+  assert.match(gate, /placeholder="请输入邀请码"[\s\S]*"确 定"/);
 });
 
 test("admin APIs require a database-backed admin profile", async () => {

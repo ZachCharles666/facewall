@@ -171,3 +171,10 @@
 4. 产品/法务决定 90 天后删除、延长或重新授权。
 5. 关闭不再需要的 secret、管理员和告警。
 6. 输出内测 Acceptance Record、Known Risks 和下一阶段决策。
+
+## 12. Questionnaire Operations
+
+- `questionnaire_responses` 保留期沿用内测 + 90 天，运营默认只看聚合，不看答案正文。
+- 删除请求必须清除该用户问卷回答；审计仅记表名和删除数量。
+- Classic 配置写入口在生产默认关闭；临时开启须记录窗口和版本，保存后关闭。
+- staging 前应用 migration `0012`，验证 RLS、唯一约束、删除覆盖和事件正文 allowlist。

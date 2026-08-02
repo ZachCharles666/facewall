@@ -33,6 +33,15 @@ test("auth UI and session creation both enforce current consent", async () => {
   const persistence = await read("lib/persistence/interviewSessions.ts");
   assert.match(gate, /needsConsent/);
   assert.match(gate, /\/api\/consent\/accept/);
+  assert.match(gate, /step !== "credentials"/);
+  assert.match(gate, /aria-label="同意用户协议与隐私政策"/);
+  assert.match(gate, /setPolicyView\("terms"\)/);
+  assert.match(gate, /setPolicyView\("privacy"\)/);
+  assert.match(gate, /className="juju-auth-webview"/);
+  assert.match(gate, /aria-label="关闭协议页面"/);
+  assert.match(gate, /step !== "otp" \|\| !challengeId/);
+  assert.match(gate, /token\.length !== 6/);
+  assert.match(gate, /!policy \|\| !policyChecked/);
   assert.match(gate, /我已阅读并同意当前版本《用户服务协议》和《隐私政策》/);
   assert.match(gate, /emphasizedPolicyParagraphPrefixes/);
   assert.match(gate, /key=\{`\$\{index\}-\$\{paragraph\.slice\(0, 24\)\}`\}/);

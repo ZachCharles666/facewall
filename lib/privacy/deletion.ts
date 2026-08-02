@@ -228,6 +228,12 @@ export async function executeDeletionRequest(
         userId,
         testOptions.faultAfterTable
       );
+      counts.questionnaire_responses = await deleteRows(
+        client,
+        "public.questionnaire_responses",
+        userId,
+        testOptions.faultAfterTable
+      );
       counts.product_events = await deleteRows(
         client,
         "public.product_events",

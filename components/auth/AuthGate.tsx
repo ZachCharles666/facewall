@@ -4,6 +4,10 @@ import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 
 import { prewarmDevRoutes } from "@/lib/dev/prewarm";
 import type { VisualTheme } from "@/lib/types";
+import { JujuOrb } from "@/components/JujuOrb";
+import emailIcon from "@/面壁者/email__350-986@2x.png";
+import invitationCodeIcon from "@/面壁者/Invitation_code__350-1090@2x.png";
+import verificationCodeIcon from "@/面壁者/Verification_code__350-992@2x.png";
 
 type GateStep =
   | "checking"
@@ -13,6 +17,8 @@ type GateStep =
   | "consent"
   | "privacy"
   | "authenticated";
+
+type PolicyView = "terms" | "privacy";
 
 interface CurrentPolicy {
   policyVersion: string;
@@ -70,6 +76,34 @@ function renderPolicyContent(content: string) {
   });
 }
 
+function getPolicyViewContent(content: string, view: PolicyView) {
+  const termsMarker = "一、 用户服务协议";
+  const privacyMarker = "二、 隐私政策";
+  const termsStart = content.indexOf(termsMarker);
+  const privacyStart = content.indexOf(privacyMarker);
+
+  if (view === "terms") {
+    if (termsStart < 0) return content;
+    return content.slice(termsStart, privacyStart > termsStart ? privacyStart : undefined).trim();
+  }
+
+  return privacyStart >= 0 ? content.slice(privacyStart).trim() : content;
+}
+
+function AuthClock() {
+  const [time, setTime] = useState("9:41");
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setTime(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`);
+    };
+    update();
+    const timer = window.setInterval(update, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <span>{time}</span>;
+}
+
 async function readFailure(response: Response) {
   const body = (await response.json().catch(() => ({}))) as ApiFailure;
   const code = body.error?.code || "UNKNOWN";
@@ -90,11 +124,14 @@ export function AuthGate({
   const [inviteCode, setInviteCode] = useState("");
   const [token, setToken] = useState("");
   const [challengeId, setChallengeId] = useState("");
+  const [localOtpFlow, setLocalOtpFlow] = useState(false);
+  const [invitePreviewOnly, setInvitePreviewOnly] = useState(false);
   const [message, setMessage] = useState("正在恢复登录状态…");
   const [busy, setBusy] = useState(false);
   const [resendAfter, setResendAfter] = useState(0);
   const [policy, setPolicy] = useState<CurrentPolicy | null>(null);
   const [policyChecked, setPolicyChecked] = useState(false);
+  const [policyView, setPolicyView] = useState<PolicyView | null>(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [deletionRequest, setDeletionRequest] = useState<DeletionRequest | null>(null);
 
@@ -121,7 +158,7 @@ export function AuthGate({
           };
           if (body.data?.needsInvite) {
             setStep("invite");
-            setMessage("邮箱验证已完成，请输入邀请码开通内测体验资格。");
+            setMessage("");
           } else if (body.data?.privacyOnly) {
             setStep("privacy");
             setMessage("删除申请正在处理，当前账号不能开始新的训练。");
@@ -134,7 +171,7 @@ export function AuthGate({
           }
         } else {
           setStep("credentials");
-          setMessage("使用受邀邮箱进入 PassBuddy 内测。");
+          setMessage("");
         }
       })
       .catch(() => {
@@ -163,7 +200,22 @@ export function AuthGate({
   }, [resendAfter]);
 
   useEffect(() => {
-    if (step !== "consent" && step !== "privacy" && !showPrivacy) return;
+    if (!policyView) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPolicyView(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [policyView]);
+
+  useEffect(() => {
+    if (
+      step !== "credentials" &&
+      step !== "otp" &&
+      step !== "consent" &&
+      step !== "privacy" &&
+      !showPrivacy
+    ) return;
     let cancelled = false;
     Promise.all([
       fetch("/api/consent/current", { cache: "no-store" }).then((response) =>
@@ -189,26 +241,43 @@ export function AuthGate({
 
   async function requestOtp(event?: FormEvent) {
     event?.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (busy) return;
+    if (resendAfter > 0) {
+      setMessage(`请等待 ${resendAfter} 秒后再重新发送验证码。`);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setMessage("请先输入有效的邮箱地址。");
+      return;
+    }
     setBusy(true);
     setMessage("正在发送验证码…");
     try {
       const response = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email: normalizedEmail })
       });
       if (!response.ok) {
         setMessage(await readFailure(response));
         return;
       }
       const body = (await response.json()) as {
-        data: { challengeId: string; resendAfterSec: number };
+        data: {
+          challengeId: string;
+          resendAfterSec: number;
+          deliveryMode?: "email" | "local";
+          localOtpCode?: string;
+        };
       };
       setChallengeId(body.data.challengeId);
       setResendAfter(body.data.resendAfterSec);
+      setLocalOtpFlow(body.data.deliveryMode === "local");
+      setInvitePreviewOnly(false);
       setToken("");
       setStep("otp");
-      setMessage("验证码已发送，请检查收件箱和垃圾邮件。");
+      setMessage("");
     } catch {
       setMessage("网络请求失败，请稍后重试。");
     } finally {
@@ -218,6 +287,18 @@ export function AuthGate({
 
   async function verifyOtp(event: FormEvent) {
     event.preventDefault();
+    if (step !== "otp" || !challengeId) {
+      setMessage("请先点击“发送验证码”，再输入收到的 6 位验证码。");
+      return;
+    }
+    if (token.length !== 6) {
+      setMessage("请输入完整的 6 位验证码。本地验收请使用页面提示的通用验证码。");
+      return;
+    }
+    if (!policy || !policyChecked) {
+      setMessage("请先阅读并同意《用户服务协议》和《隐私政策》。");
+      return;
+    }
     setBusy(true);
     setMessage("正在验证…");
     try {
@@ -238,14 +319,22 @@ export function AuthGate({
         };
       };
       if (body.data.needsInvite) {
+        setInvitePreviewOnly(false);
         setStep("invite");
-        setMessage("邮箱验证成功，请输入邀请码开通产品体验资格。");
+        setMessage("");
       } else if (body.data.privacyOnly) {
         setStep("privacy");
         setMessage("删除申请正在处理，当前账号不能开始新的训练。");
       } else if (body.data.needsConsent) {
-        setStep("consent");
-        setMessage("登录成功。开始新训练前，请阅读并同意当前版本用户服务协议与隐私政策。");
+        if (await persistConsent()) {
+          setInvitePreviewOnly(localOtpFlow);
+          setStep(localOtpFlow ? "invite" : "authenticated");
+          setMessage("");
+        }
+      } else if (localOtpFlow) {
+        setInvitePreviewOnly(true);
+        setStep("invite");
+        setMessage("");
       } else {
         setStep("authenticated");
         setMessage("");
@@ -259,6 +348,15 @@ export function AuthGate({
 
   async function redeemInvite(event: FormEvent) {
     event.preventDefault();
+    if (invitePreviewOnly) {
+      if (!inviteCode.trim()) {
+        setMessage("请输入邀请码。");
+        return;
+      }
+      setStep("authenticated");
+      setMessage("");
+      return;
+    }
     setBusy(true);
     setMessage("正在激活内测资格…");
     try {
@@ -273,8 +371,10 @@ export function AuthGate({
       }
       const body = (await response.json()) as { data: { needsConsent: boolean } };
       if (body.data.needsConsent) {
-        setStep("consent");
-        setMessage("内测资格已激活。开始新训练前，请阅读并同意用户服务协议与隐私政策。");
+        if (await persistConsent()) {
+          setStep("authenticated");
+          setMessage("");
+        }
       } else {
         setStep("authenticated");
         setMessage("");
@@ -286,10 +386,8 @@ export function AuthGate({
     }
   }
 
-  async function acceptConsent(event: FormEvent) {
-    event.preventDefault();
-    if (!policy || !policyChecked) return;
-    setBusy(true);
+  async function persistConsent() {
+    if (!policy || !policyChecked) return false;
     setMessage("正在保存同意记录…");
     try {
       const response = await fetch("/api/consent/accept", {
@@ -304,15 +402,24 @@ export function AuthGate({
       if (!response.ok) {
         setMessage(await readFailure(response));
         if (response.status === 409) setPolicy(null);
-        return;
+        return false;
       }
-      setStep("authenticated");
-      setMessage("");
+      return true;
     } catch {
       setMessage("网络请求失败，请稍后重试。");
-    } finally {
-      setBusy(false);
+      return false;
     }
+  }
+
+  async function acceptConsent(event: FormEvent) {
+    event.preventDefault();
+    if (!policy || !policyChecked) return;
+    setBusy(true);
+    if (await persistConsent()) {
+      setStep("authenticated");
+      setMessage("");
+    }
+    setBusy(false);
   }
 
   async function requestDeletion() {
@@ -350,6 +457,8 @@ export function AuthGate({
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     setToken("");
     setChallengeId("");
+    setLocalOtpFlow(false);
+    setInvitePreviewOnly(false);
     setStep("credentials");
     setMessage("已退出登录。");
     setBusy(false);
@@ -358,7 +467,7 @@ export function AuthGate({
   if (step === "authenticated") {
     return (
       <>
-        {enabled && (
+        {enabled && visualTheme !== "juju" && (
           <div className="auth-session-bar">
             <span>PassBuddy 受控内测</span>
             <div className="auth-session-actions">
@@ -424,108 +533,148 @@ export function AuthGate({
 
   return (
     <main className={`auth-shell theme-${visualTheme}`}>
-      <section className="auth-card" aria-busy={busy}>
+      <section className={`auth-card auth-card-${step}`} aria-busy={busy}>
+        {visualTheme === "juju" && (
+          <>
+            <div className="figma-statusbar juju-auth-statusbar">
+              <AuthClock />
+              <span>Facewall</span>
+            </div>
+            <JujuOrb className="juju-auth-orb" />
+          </>
+        )}
         <p className="auth-eyebrow">PASSBUDDY INTERNAL BETA</p>
         <h1>
-          {step === "otp"
-            ? "输入邮箱验证码"
-            : step === "invite"
-              ? "开通内测体验"
-              : step === "consent"
+          {step === "checking" || step === "credentials" || step === "otp" || step === "invite"
+            ? "Hey ！"
+            : step === "consent"
                 ? policy?.title || "阅读用户服务协议与隐私政策"
                 : step === "privacy"
                   ? "删除申请处理中"
               : "欢迎登录 PassBuddy"}
         </h1>
         <p className="auth-lead">
-          {step === "otp"
-            ? `验证码已发送至 ${email.trim().toLowerCase()}，30 分钟内有效。`
-            : step === "invite"
-              ? "账号注册/登录已完成。输入邀请码后，可获得 3 次完整面试体验。"
-              : step === "consent"
+          {step === "checking" || step === "credentials" || step === "otp" || step === "invite"
+            ? "面试助力，就找面壁者。"
+            : step === "consent"
                 ? "同意当前版本后才能开始新的面试训练；你仍可退出或提交数据删除申请。"
                 : step === "privacy"
                   ? "你仍可查看用户服务协议、隐私政策和申请状态，或退出登录。"
               : "使用邮箱验证码注册或登录，无需设置密码。"}
         </p>
 
-        {step === "checking" ? (
-          <div className="auth-loading">正在检查 Session…</div>
-        ) : step === "credentials" ? (
-          <form className="auth-form" onSubmit={requestOtp}>
+        {step === "checking" ? null : step === "credentials" || step === "otp" ? (
+          <form
+            className="auth-form juju-auth-login-form"
+            onSubmit={verifyOtp}
+          >
             <label>
               邮箱
+              <img
+                alt=""
+                className="juju-auth-field-icon"
+                height={16}
+                src={emailIcon.src}
+                width={16}
+              />
               <input
                 autoComplete="email"
+                disabled={step === "otp" || busy}
                 inputMode="email"
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@example.com"
+                placeholder="请输入邮箱"
                 required
                 type="email"
                 value={email}
               />
             </label>
-            <button className="auth-primary" disabled={busy} type="submit">
-              {busy ? "发送中…" : "发送验证码"}
-            </button>
-          </form>
-        ) : step === "otp" ? (
-          <form className="auth-form" onSubmit={verifyOtp}>
-            <label>
-              6 位验证码
-              <input
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                maxLength={6}
-                minLength={6}
-                onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))}
-                pattern="[0-9]{6}"
-                placeholder="000000"
-                required
-                value={token}
-              />
-            </label>
-            <button className="auth-primary" disabled={busy || token.length !== 6} type="submit">
-              {busy ? "验证中…" : "验证并进入"}
-            </button>
-            <div className="auth-secondary-actions">
+            <div className="juju-auth-code-row">
+              <label>
+                验证码
+                <img
+                  alt=""
+                  className="juju-auth-field-icon"
+                  height={16}
+                  src={verificationCodeIcon.src}
+                  width={16}
+                />
+                <input
+                  autoComplete="one-time-code"
+                  disabled={step !== "otp" || busy}
+                  inputMode="numeric"
+                  maxLength={6}
+                  minLength={6}
+                  onChange={(event) =>
+                    setToken(event.target.value.replace(/\D/g, ""))
+                  }
+                  pattern="[0-9]{6}"
+                  placeholder="请输入验证码"
+                  required={step === "otp"}
+                  value={token}
+                />
+              </label>
               <button
-                disabled={busy || resendAfter > 0}
+                className="juju-auth-send-code"
+                disabled={busy}
                 onClick={() => void requestOtp()}
                 type="button"
               >
-                {resendAfter > 0 ? `${resendAfter} 秒后可重发` : "重新发送"}
+                {busy
+                  ? "发送中…"
+                  : step === "otp" && resendAfter > 0
+                    ? `${resendAfter}秒后重发`
+                    : "发送验证码"}
               </button>
-              <button
-                disabled={busy}
-                onClick={() => {
-                  setStep("credentials");
-                  setToken("");
-                  setMessage("可修改邮箱或邀请码后重新发送。");
-                }}
-                type="button"
-              >
-                修改邮箱
-              </button>
+            </div>
+            <button
+              className="auth-primary"
+              disabled={busy}
+              type="submit"
+            >
+              {busy ? "登录中…" : "登录"}
+            </button>
+            <div className="juju-auth-policy">
+              <div className="juju-auth-consent-row">
+                <input
+                  aria-label="同意用户协议与隐私政策"
+                  checked={policyChecked}
+                  disabled={!policy || busy}
+                  id="juju-auth-policy-consent"
+                  onChange={(event) => setPolicyChecked(event.target.checked)}
+                  type="checkbox"
+                />
+                <label htmlFor="juju-auth-policy-consent">已阅读并同意</label>
+                <button onClick={() => setPolicyView("terms")} type="button">
+                  《用户协议》
+                </button>
+                <span>与</span>
+                <button onClick={() => setPolicyView("privacy")} type="button">
+                  《隐私政策》
+                </button>
+              </div>
             </div>
           </form>
         ) : step === "invite" ? (
-          <form className="auth-form" onSubmit={redeemInvite}>
+          <form className="auth-form juju-auth-invite-form" onSubmit={redeemInvite}>
             <label>
               内测邀请码
+              <img
+                alt=""
+                className="juju-auth-invite-icon"
+                height={16}
+                src={invitationCodeIcon.src}
+                width={16}
+              />
               <input
                 autoComplete="off"
                 onChange={(event) => setInviteCode(event.target.value)}
-                placeholder="请输入内测邀请码"
+                placeholder="请输入邀请码"
                 required
                 value={inviteCode}
               />
             </label>
             <button className="auth-primary" disabled={busy} type="submit">
-              {busy ? "激活中…" : "激活并进入产品"}
-            </button>
-            <button disabled={busy} onClick={logout} type="button">
-              换一个邮箱登录
+              {busy ? "确认中…" : "确 定"}
             </button>
           </form>
         ) : step === "consent" ? (
@@ -586,12 +735,47 @@ export function AuthGate({
             </button>
           </div>
         )}
-        <p className="auth-message" role="status">
-          {message}
-        </p>
-        <p className="auth-footnote">
-          内测期间验证码暂设 30 分钟有效；重发后旧验证码立即失效，最多尝试 3 次。
-        </p>
+        {policyView && (
+          <div className="juju-auth-webview-overlay" role="presentation">
+            <section
+              aria-label={policyView === "terms" ? "用户协议" : "隐私政策"}
+              aria-modal="true"
+              className="juju-auth-webview"
+              role="dialog"
+            >
+              <header>
+                <h2>{policyView === "terms" ? "用户协议" : "隐私政策"}</h2>
+                <button
+                  aria-label="关闭协议页面"
+                  onClick={() => setPolicyView(null)}
+                  type="button"
+                >
+                  关闭
+                </button>
+              </header>
+              <div className="juju-auth-webview-content">
+                {policy ? (
+                  renderPolicyContent(getPolicyViewContent(policy.content, policyView))
+                ) : (
+                  <p>正在加载…</p>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+        {step !== "checking" && message && (
+          <p className="auth-message" role="status">
+            {message}
+          </p>
+        )}
+        {(step === "credentials" || step === "otp") && (
+          <p className="auth-footnote">
+            内测期间验证码暂设 30 分钟有效；重发后旧验证码立即失效，最多尝试 3 次。
+          </p>
+        )}
+        {visualTheme === "juju" && (
+          <div className="figma-home-indicator juju-auth-home-indicator" aria-hidden="true" />
+        )}
       </section>
     </main>
   );

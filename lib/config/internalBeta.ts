@@ -120,6 +120,19 @@ export function readOtpExpiresInSec(env: EnvSource = process.env) {
   return value;
 }
 
+export function isLocalDevOtpEnabled(env: EnvSource = process.env) {
+  if (env.NODE_ENV === "production") return false;
+  return env.INTERNAL_BETA_LOCAL_OTP_ENABLED?.trim().toLowerCase() === "true";
+}
+
+export function readLocalDevOtpCode(env: EnvSource = process.env) {
+  const code = env.INTERNAL_BETA_LOCAL_OTP_CODE?.trim() || "999999";
+  if (!/^\d{6}$/.test(code)) {
+    throw new InternalBetaConfigError("INTERNAL_BETA_LOCAL_OTP_CODE");
+  }
+  return code;
+}
+
 export function readTencentSesConfig(env: EnvSource = process.env): TencentSesConfig {
   const region = required("TENCENT_SES_REGION", env);
   if (!TENCENT_SES_REGIONS.has(region)) {

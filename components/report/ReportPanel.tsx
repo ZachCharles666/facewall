@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { JujuOrb } from "@/components/JujuOrb";
+import { JujuQuestionnaireFlow } from "@/components/questionnaire/JujuQuestionnaireFlow";
 import type {
   DimensionScores,
   InterviewAnswer,
@@ -115,7 +116,8 @@ export function ReportPanel({
   onUseNonStreamingFallback,
   onUseFallback,
   onRegenerateQuestion,
-  sessionId
+  sessionId,
+  onReturnHome
 }: {
   report: InterviewReport | null;
   questions: InterviewQuestion[];
@@ -133,6 +135,7 @@ export function ReportPanel({
   onUseFallback: () => void;
   onRegenerateQuestion: (questionId: string) => void;
   sessionId: string | null;
+  onReturnHome: () => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "failed">("idle");
   const [copyMessage, setCopyMessage] = useState("");
@@ -413,6 +416,8 @@ export function ReportPanel({
           copyTextRef={copyTextRef}
           state={state}
           interviewerStyleId={interviewerStyleId}
+          sessionId={sessionId}
+          onReturnHome={onReturnHome}
         />
       );
     }
@@ -791,7 +796,9 @@ function JujuReportPanel({
   manualCopyText,
   copyTextRef,
   state,
-  interviewerStyleId
+  interviewerStyleId,
+  sessionId,
+  onReturnHome
 }: {
   report: InterviewReport;
   questions: InterviewQuestion[];
@@ -814,6 +821,8 @@ function JujuReportPanel({
     usedFallback: boolean;
   };
   interviewerStyleId: InterviewerStyleId;
+  sessionId: string | null;
+  onReturnHome: () => void;
 }) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
@@ -851,20 +860,6 @@ function JujuReportPanel({
         </div>
 
         <div className="juju-report-scroll">
-          <button
-            aria-label="复制整份报告"
-            className="juju-report-copy-all"
-            onClick={() =>
-              copyText(
-                report.finalReport.copyText,
-                "已复制优化答案和复盘报告。",
-                "full_report"
-              )
-            }
-            type="button"
-          >
-            复制整份报告
-          </button>
           <section className="juju-report-hero">
             <div className={`juju-report-person hero-${interviewerStyleId}`} aria-hidden="true" />
             <div className="juju-report-hero-score">
@@ -1025,6 +1020,11 @@ function JujuReportPanel({
             </label>
           )}
         </div>
+
+        <JujuQuestionnaireFlow
+          onReturnHome={onReturnHome}
+          sessionId={sessionId}
+        />
 
         {sheet && (
           <JujuReportSheet

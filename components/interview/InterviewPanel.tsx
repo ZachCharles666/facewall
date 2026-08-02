@@ -56,6 +56,67 @@ function formatDuration(seconds: number) {
   return `${minutes}:${remainingSeconds}`;
 }
 
+function JujuAnswerHistory({
+  answers,
+  currentIndex,
+  interviewerStyleId,
+  onClose,
+  questions
+}: {
+  answers: InterviewAnswer[];
+  currentIndex: number;
+  interviewerStyleId: InterviewerStyleId;
+  onClose: () => void;
+  questions: InterviewQuestion[];
+}) {
+  const visibleQuestions = questions.slice(0, currentIndex + 1);
+  return (
+    <section className="figma-phone-stage juju-interview-stage" aria-label="答题记录">
+      <div className="figma-phone-card figma-home-card juju-history-card">
+        <div className="figma-statusbar">
+          <FigmaInterviewClock />
+          <span>Facewall</span>
+        </div>
+        <header className="juju-history-header">
+          <button aria-label="返回答题" onClick={onClose} type="button">
+            ‹
+          </button>
+          <h2>答题记录</h2>
+        </header>
+        <div className="juju-history-scroll">
+          {visibleQuestions.map((question) => {
+            const answer = answers.find((item) => item.questionId === question.id);
+            return (
+              <div className="juju-history-pair" key={question.id}>
+                <article className="juju-history-message interviewer">
+                  <span className="juju-history-orb" aria-hidden="true" />
+                  <p>{question.questionText}</p>
+                </article>
+                <article className="juju-history-message candidate">
+                  <p>{answer?.answerText.trim() || "这道题还没有提交回答。"}</p>
+                  <span
+                    className={`juju-history-avatar hero-${interviewerStyleId}`}
+                    aria-hidden="true"
+                  />
+                </article>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          aria-label="返回当前答题"
+          className="juju-history-return"
+          onClick={onClose}
+          type="button"
+        >
+          <img src="/juju/interview-controls/frame-9.svg?v=202607102345" alt="" />
+        </button>
+        <div className="figma-home-indicator" aria-hidden="true" />
+      </div>
+    </section>
+  );
+}
+
 function readCachedClassicSpeechTunings() {
   if (typeof window === "undefined") return null;
   try {
@@ -88,7 +149,8 @@ export function InterviewPanel({
   candidateName = "朋友",
   visualTheme = "classic",
   onAnswersChange,
-  onGenerateReport
+  onGenerateReport,
+  onExitInterview
 }: {
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
@@ -97,6 +159,7 @@ export function InterviewPanel({
   visualTheme?: VisualTheme;
   onAnswersChange: (answers: InterviewAnswer[]) => void;
   onGenerateReport: (answers: InterviewAnswer[]) => void;
+  onExitInterview?: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [ttsEngine, setTtsEngine] = useState<TtsEngine>("azure");
@@ -113,6 +176,7 @@ export function InterviewPanel({
   const [questionTextMotionRun, setQuestionTextMotionRun] = useState(0);
   const [questionTextMotionDurationSec, setQuestionTextMotionDurationSec] = useState(6);
   const [jujuToast, setJujuToast] = useState("");
+  const [showJujuHistory, setShowJujuHistory] = useState(false);
   const jujuToastTimerRef = useRef<number | null>(null);
   const [azureStatusReady, setAzureStatusReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -132,6 +196,18 @@ export function InterviewPanel({
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  useEffect(() => {
+    if (
+      visualTheme !== "juju" ||
+      currentAnswer?.sttStatus !== "failed" ||
+      !/网络|network|fetch|连接|服务暂时不可用|request failed/i.test(voiceMessage)
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => onExitInterview?.(), 5000);
+    return () => window.clearTimeout(timer);
+  }, [currentAnswer?.sttStatus, onExitInterview, visualTheme, voiceMessage]);
 
   useEffect(() => {
     if (visualTheme !== "classic") return;
@@ -577,10 +653,18 @@ export function InterviewPanel({
 
   if (visualTheme === "juju") {
     const isRecording = figmaAnswerPhase === "recording";
-    const showManualAnswer =
+    const showVoiceFailure =
       currentAnswer.sttStatus === "failed" ||
       currentAnswer.sttStatus === "unsupported" ||
-      (isRecording && currentAnswer.sttStatus === "manual");
+      currentAnswer.sttStatus === "manual";
+    const jujuVoiceFailureMessage =
+      currentAnswer.sttStatus === "failed" &&
+      /网络|network|fetch|连接|服务暂时不可用|request failed/i.test(voiceMessage)
+        ? "抱歉 网络异常 5S后退出面试 ..."
+        : currentAnswer.sttStatus === "manual" ||
+            (!currentAnswer.answerText.trim() && currentAnswer.durationSec > 0 && currentAnswer.durationSec < 2)
+          ? "抱歉 语音过短 请重新作答 ..."
+          : "抱歉 录制失败 请重新作答 ...";
     const answerSeconds = isRecording ? figmaElapsedSec : currentAnswer.durationSec;
     const interviewerName =
       interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
@@ -588,6 +672,18 @@ export function InterviewPanel({
     const questionMotionStyle = {
       "--juju-question-scroll-duration": `${questionTextMotionDurationSec}s`
     } as CSSProperties;
+
+    if (showJujuHistory) {
+      return (
+        <JujuAnswerHistory
+          answers={answers}
+          currentIndex={currentIndex}
+          interviewerStyleId={interviewerStyleId}
+          onClose={() => setShowJujuHistory(false)}
+          questions={questions}
+        />
+      );
+    }
 
     return (
       <section className="figma-phone-stage juju-interview-stage" aria-label="Interview response">
@@ -607,7 +703,7 @@ export function InterviewPanel({
             </section>
           )}
 
-          {isRecording && !showManualAnswer && (
+          {isRecording && !showVoiceFailure && (
             <>
               <p className="juju-interview-listening-label">{interviewerName}正在聆听...</p>
               <p className="juju-interview-recording-timer">{formatDuration(answerSeconds)}</p>
@@ -620,28 +716,10 @@ export function InterviewPanel({
             </>
           )}
 
-          {showManualAnswer && (
-            <>
-              <label className="figma-interview-answer juju-interview-manual-answer">
-                <span>改用文字回答</span>
-                <textarea
-                  aria-label="文字回答"
-                  value={currentAnswer.answerText}
-                  onChange={(event) =>
-                    updateCurrentAnswer({
-                      answerText: event.target.value,
-                      inputMode: "text",
-                      sttStatus: "manual",
-                      durationSec: Math.max(currentAnswer.durationSec, 30)
-                    })
-                  }
-                  placeholder="当前设备无法录音，可直接输入回答。"
-                />
-              </label>
-              <div className="figma-interview-error juju-interview-error manual-answer-visible" role="alert">
-                语音不可用，回答内容仍会保留；输入后点击中间按钮继续。
-              </div>
-            </>
+          {showVoiceFailure && (
+            <div className="juju-interview-voice-notice" role="alert">
+              {jujuVoiceFailureMessage}
+            </div>
           )}
 
           <div className={isRecording ? "figma-interview-orb-controls juju-interview-controls recording" : "figma-interview-orb-controls juju-interview-controls"} aria-label="回答控制">
@@ -668,8 +746,14 @@ export function InterviewPanel({
             </button>
             <button
               className="juju-interview-control juju-interview-control-frame9"
-              onClick={() => showJujuToast("下个版本开放")}
-              aria-label="下个版本开放"
+              onClick={() => {
+                if (isRecording) {
+                  showJujuToast("请先结束当前回答");
+                  return;
+                }
+                setShowJujuHistory(true);
+              }}
+              aria-label="查看答题记录"
             >
               <img src="/juju/interview-controls/frame-9.svg?v=202607102345" alt="" />
             </button>

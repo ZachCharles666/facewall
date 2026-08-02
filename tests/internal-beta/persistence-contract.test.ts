@@ -71,16 +71,19 @@ test("client restores a database snapshot while keeping React answers as editabl
   assert.match(app, /initialPersistenceMode/);
 });
 
-test("figma and juju preserve a manual answer path when speech input is unavailable", async () => {
+test("Juju replaces unavailable speech input with one bounded notice while Figma keeps fallback editing", async () => {
   const interview = await source("components/interview/InterviewPanel.tsx");
 
   assert.match(interview, /currentAnswer\.sttStatus === "unsupported"/);
-  assert.match(interview, /figma-interview-answer juju-interview-manual-answer/);
+  assert.doesNotMatch(interview, /figma-interview-answer juju-interview-manual-answer/);
   assert.match(interview, /aria-label="文字回答"/);
   assert.match(interview, /当前设备无法录音，可直接输入回答/);
   assert.match(interview, /answerText: event\.target\.value/);
   assert.match(interview, /inputMode: "text"/);
-  assert.match(interview, /输入后点击中间按钮继续/);
+  assert.match(interview, /抱歉 录制失败 请重新作答/);
+  assert.match(interview, /抱歉 语音过短 请重新作答/);
+  assert.match(interview, /抱歉 网络异常 5S后退出面试/);
+  assert.match(interview, /setTimeout\(\(\) => onExitInterview\?\.\(\), 5000\)/);
 });
 
 test("TTS and STT development faults are independently injectable", async () => {

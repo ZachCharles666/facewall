@@ -41,6 +41,7 @@ import { cloneDefaultPromptOverrides, PromptDebugPanel } from "@/components/dev/
 import { JujuOrb } from "@/components/JujuOrb";
 import { ReportPanel } from "@/components/report/ReportPanel";
 import { FeedbackPanel } from "@/components/feedback/FeedbackPanel";
+import { QuestionnaireConfigPanel } from "@/components/questionnaire/QuestionnaireConfigPanel";
 import { SetupPanel } from "@/components/setup/SetupPanel";
 
 const stepLabels: Record<SessionStep, string> = {
@@ -931,18 +932,21 @@ export function InterviewCoachApp({
       <DevOpsPanel />
 
       {!isFigmaLikeTheme && (
-        <PromptDebugPanel
-          value={promptOverrides}
-          saveState={promptSaveState}
-          updatedAt={promptStoreUpdatedAt}
-          onChange={setPromptOverrides}
-          onReload={handleReloadGlobalPrompt}
-          onReset={() => {
-            setPromptOverrides(cloneDefaultPromptOverrides());
-            setPromptSaveState({ kind: "idle", message: "已恢复为产品默认 Prompt 草稿；点击保存后才会覆盖全局 Prompt。" });
-          }}
-          onSave={handleSaveGlobalPrompt}
-        />
+        <>
+          <PromptDebugPanel
+            value={promptOverrides}
+            saveState={promptSaveState}
+            updatedAt={promptStoreUpdatedAt}
+            onChange={setPromptOverrides}
+            onReload={handleReloadGlobalPrompt}
+            onReset={() => {
+              setPromptOverrides(cloneDefaultPromptOverrides());
+              setPromptSaveState({ kind: "idle", message: "已恢复为产品默认 Prompt 草稿；点击保存后才会覆盖全局 Prompt。" });
+            }}
+            onSave={handleSaveGlobalPrompt}
+          />
+          <QuestionnaireConfigPanel />
+        </>
       )}
 
       {showJujuThinking && <JujuThinkingScreen />}
@@ -1000,6 +1004,13 @@ export function InterviewCoachApp({
           visualTheme={initialVisualTheme}
           onAnswersChange={handleAnswersChange}
           onGenerateReport={handleGenerateReport}
+          onExitInterview={() =>
+            resetDownstream({
+              resumeText: "",
+              jdText: "",
+              interviewerStyleId: form.interviewerStyleId
+            })
+          }
         />
       )}
 
@@ -1018,8 +1029,15 @@ export function InterviewCoachApp({
             onUseFallback={handleUseFallbackReport}
             onRegenerateQuestion={handleRegenerateQuestion}
             sessionId={persistedSessionId}
+            onReturnHome={() =>
+              resetDownstream({
+                resumeText: "",
+                jdText: "",
+                interviewerStyleId: form.interviewerStyleId
+              })
+            }
           />
-          {report && (
+          {report && initialVisualTheme !== "juju" && (
             <FeedbackPanel
               sessionId={persistedSessionId}
               visualTheme={initialVisualTheme}
@@ -1256,7 +1274,7 @@ function JujuProfilePanel({
 
         <div className="juju-profile-tabs">
           <button className="figma-profile-next-button juju-profile-next-button" aria-label="确认画像，选择面试官" onClick={onNext}>
-            准备面试
+            开始面试
           </button>
         </div>
       </div>
@@ -1567,6 +1585,9 @@ function FigmaInterviewerPanel({
             <StatusBarClock />
             <span>Facewall</span>
           </div>
+          <button className="figma-jd-back-button figma-interviewer-back-button" aria-label="返回候选人画像" onClick={onBack}>
+            <span aria-hidden="true" />
+          </button>
           <JujuOrb className="juju-interviewer-select-hero-orb" />
           <div className="juju-interviewer-select-overlay" aria-hidden="true" />
           <section className="juju-interviewer-select-copy">

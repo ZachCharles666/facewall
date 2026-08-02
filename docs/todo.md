@@ -2318,3 +2318,76 @@ IB-03 的核心交付已经完成：原子额度、幂等创建、全流程落�
 - [x] 构造后 runtime endpoint 修正 `f57a26d` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-f57a26d`，`facewall-rum-runtime-candidate` 在 3004 通过 build、隔离 smoke、公网切换和 readiness；Nginx/readiness 新回滚副本与 3000～3003 旧运行时保留。
 - [x] 官方大陆 whitelist 修正 `c4f20d8` 已部署为 `/home/ubuntu/releases/passbuddy-20260730-c4f20d8`，`facewall-rum-whitelist-candidate` 在 3005 通过 build、隔离 smoke、公网切换和 readiness；新回滚副本与 3000～3004 旧运行时保留。
 - [x] 严格 `whiteList/null` 放行修正已以 `843386d` 部署 3006；response requestId 修正已以 `d963d65` 部署并公开切到 3007。真实 control-plane、receiver privacy、当前 release 和 response/RUM/PM2/腾讯云 API Monitor requestId 对账均 Pass；OBS-002/003 关闭。OBS-001/004、告警触发/恢复和真实灰度仍未开始。
+
+## IB-10 Theme Gate、问卷调研与 Juju 问答回看 - 2026-07-31
+
+- [x] 新增 D-15/D-16/D-17、IB-10 instruction、API/Data/Acceptance/Runbook 条目；后续未单独说明的需求默认在 Juju 开发。
+- [x] Classic/Figma 无验证码门禁且不启用用户持久化；Juju 保留 OTP。浏览器只读验证未发送 OTP，未重复 IB-09 探针。
+- [x] Classic 新增四题型全局问卷配置；生产保存默认 fail-closed。
+- [x] Juju 第一场完成后由报告确认动作触发邀请并进入动态问卷。
+- [x] 新增 migration `0012`、owner/首次完成/版本/唯一提交、RLS、删除覆盖和脱敏事件。
+- [x] Juju 右侧工具按钮进入当前会话问答回看。
+- [x] typecheck Pass；internal-beta 80/80 Pass。
+- [x] production build 34/34、source security 206 files、bundle security 63 files、`git diff --check` Pass。
+- [ ] PostgreSQL integration 与 staging 合法 Juju Session E2E 待授权；SURVEY-005/006 Partial，SURVEY-007 Pending。
+- [ ] 本轮不 stage/commit/push，不改公网 3007；OBS-001/004 和其他灰度门禁保持原状态。
+
+### IB-10 follow-up · 2026-07-31
+
+- [x] 新增非生产固定 OTP：默认 `999999`，保留发送/输入/验证步骤，不调用 SES、不预留邮件预算；production 强制关闭。
+- [x] 用户协议、隐私政策和同意勾选移入验证码登录表单；登录或邀请码激活后自动保存同意记录。
+- [x] Juju 语音不可用时移除文字输入框，按录制失败、语音过短、网络异常三选一提示；网络异常 5 秒返回首页。
+- [x] 报告问卷入口移到手机卡片固定底部并为报告滚动区预留空间。
+- [x] 首轮 typecheck Pass；新增验收项后 internal-beta 最终基线见下条。
+- [x] 本地 PostgreSQL 已应用 `0012`；固定 OTP HTTP 验证取得 `deliveryMode=local`、`999999` 验证成功、Session Cookie 建立和 `needsInvite=true`，未调用 SES。
+- [x] 收口验证：internal-beta 82/82、typecheck、production build 34/34、source security 206、bundle security 63、diff check 均 Pass。
+- [x] 登录页已按 `Log in_email` 导出节点 JSON 做首轮像素级调整：375×812 画板；标题 `(32,210,210×34)`、副标题 `(32,244,210×20)`、输入卡 `(24,288,327×138)`、登录按钮 `(24,458,327×48)`、协议行 `(32,522,319×17)`、光球 `(220,147,200×232)` 均经浏览器 `getBoundingClientRect` 对账；邮箱/验证码/登录/协议业务逻辑未改，浏览器检查未发送 OTP。
+- [x] 登录默认态移除“使用受邀邮箱进入 PassBuddy 内测。”提示；异常、OTP 和本地验证码状态提示继续保留。
+- [x] 邮箱与验证码图标直接静态导入用户提供的 `email__350-986@2x.png`、`Verification_code__350-992@2x.png`，页面固定渲染为 16×16；已删除对应 CSS 拼图。
+- [x] 登录页《用户协议》《隐私政策》分别打开可滚动、可关闭的页面内 WebView；内容从服务端当前 policy 按章节拆分，支持关闭按钮与 Escape。
+- [x] OTP/登录按钮改为可反馈校验：空或非法邮箱、重发倒计时、未发送 challenge、验证码不足 6 位、未勾选协议均显示明确状态；倒计时点击不会重复请求，本地成功后显示通用码与剩余秒数。
+- [x] 本地 HTTP 复验：request 返回 `deliveryMode=local`、60 秒重发间隔和固定码匹配；随后 999999 验证成功、Session Cookie 建立并进入 `needsInvite=true`，真实邮件发送为 false。全量 internal-beta 83/83、typecheck、diff check Pass。
+- [x] OTP 成功态收口：移除本地固定码说明、重复成功状态和“修改邮箱”按钮；页面只保留发送按钮倒计时，错误与登录前置校验提示按需出现。
+- [x] 本地固定 OTP 验收强制保留邀请码页面：新账号继续走真实 `needsInvite` 兑换；已激活账号只在 local OTP 模式进入邀请码 UI 验收检查点，填写后返回已授权产品，不重复消费邀请码；production 不受影响。
+- [x] 邀请码页严格按 `Log in_invite` 导出节点 JSON 收口：375×812 画板；`Hey！` `(32,243)`、副标题 `(32,277)`、输入卡 `(24,321,327×70)`、主按钮 `(24,423,327×48)`、光球 `(220,180,200×232)`；默认态仅保留 JSON 中的“请输入邀请码”和“确 定”，移除先前自行加入的长说明与“换一个邮箱登录”。导出文件未包含邀请码图标图片资源，当前继续使用既有占位图标，待提供独立图片后直接替换。
+- [x] 刷新/Session 检查态按 `Log in` 导出节点 JSON 改为纯启动画面：光球 `(87.5,149,200.5×200)`、`Hey！` `(150,385,76×34)`、副标题 `(100,435,176×22)`；隐藏 JSON 中不存在的 Session、恢复状态和验证码脚注。
+- [x] 刷新启动、邮箱验证码登录、邀请码三个认证页面的顶部区域恢复为项目其他 Juju 页面共用样式：动态时间 + `Facewall`，移除认证页独有的“首页”、系统状态图标和小程序胶囊；其余 Figma 内容坐标不变。
+- [x] 邀请码输入框图标改为直接静态导入用户提供的 `Invitation_code__350-1090@2x.png`，按 Figma 节点固定渲染为 16×16，并移除 CSS 占位符。
+- [x] Juju 面试评分页移除右上角“复制整份报告”入口；题目内优化答案复制能力继续保留。
+- [x] 问卷邀请弹窗按 `Frame 71` 节点调整为 279×325、16px 圆角及对应标题/说明/按钮/关闭按钮坐标；顶部 `IMAGE_FILL` 仍待单独导出的原始 PNG。
+- [x] Juju 内测问卷按 `Navigation Bar`、打分、单选、多选、开放式节点统一 375px 画板状态栏与 343px 题卡尺寸，保留动态问卷数据、必答校验和提交逻辑。
+- [x] 问卷页像素对账修正：移除 `<fieldset>/<legend>` 特殊排版，题目稳定落在卡片 `(25,25)`；补齐 `(276,54,87×32)` 小程序胶囊，标题区下移到 y=82，首张题卡从 y=129 开始。
+- [x] 问卷邀请弹窗顶部 `IMAGE_FILL` 改为直接导入用户提供的 `Gemini_Generated_Image_eiqufreiqufreiqu_1__388-1104@2x.png`，按节点 `(12,-50,247.2×194.9)` 渲染，并删除 CSS 模拟便签。
+- [x] 调查问卷顶部恢复为其他 Juju 页面共用样式：左侧动态时间 + 右侧 `Facewall`；移除系统信号/电池图标和小程序胶囊，题卡与标题坐标保持不变。
+- [x] 调查问卷标题与副标题统一为 18px/700，所有题面改为 14px/700；选项字体保持原样。题卡之间继续使用 12px 间距，副标题与首题之间继续使用 7px 间距。
+- [x] 调查问卷纵向间距更新：题卡之间改为 18px，副标题底部到第一题顶部改为 24px；第一题顶部相应移动到 y=156。
+- [ ] AUTH-009/CONSENT-007/VOICE-006/SURVEY-008 浏览器 E2E 完成前保持 Partial。
+- [x] Juju 登录主题回归修复：`auth-shell` 自带与 Juju 页面一致的浅紫/粉/绿色渐变变量，不再依赖 hydration 后的 body token；登录和邀请码共用半透明输入卡、粉色主按钮和底部指示条。localhost:3000 浏览器复核背景、文字对比度和表单可见性通过；internal-beta 82/82、typecheck、diff check Pass。
+## Juju 用户画像 TabBar 像素级还原 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 以 `figma_TabBar_2026-07-31T16-47-47-293Z.json` 为唯一视觉基准，读取 `TabBar / Tabs / button_half-width / Indicator` 全部 6 个节点。 |
+| TabBar | Done | 用户画像底栏调整为 `375×90`，使用透明白到纯白线性渐变及 `16px` 背景模糊；滚动内容延伸到底栏下方，使毛玻璃可透出页面内容。 |
+| CTA | Done | 按钮调整为 `180×48`、顶部 `4px`、圆角 `24px`、`#FF0080`；文案恢复为“开始面试”，使用 `14px / 500 / 20px`，保留原 `onNext` 流转。 |
+| Home Indicator | Removed | 根据验收反馈，用户画像 TabBar 不显示底部 Indicator。 |
+| Scope | Pass | 仅调整 `theme=juju` 用户画像页底部视觉和文案；未改登录、OTP、画像数据、面试状态机、接口契约或公网 staging。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 选择面试官首屏卡片和返回按钮 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Figma source | Done | 完整读取 `figma_Frame_3_2026-07-31T16-59-10-749Z.json` 的 6 个节点；单卡基准为 `180×222`，头像区 `180×180`，姓名 `18px Medium`，角色 `12px Regular`。 |
+| Portrait layer | Done | 面试官卡片保留 `180×222` 结构，并按节点新增独立 `#D9D9D9` 圆形底层与 `8px` layer blur；人物图片继续使用现有正式资源。 |
+| Back action | Done | Juju 首个选择面试官页面新增统一的 `figma-jd-back-button figma-interviewer-back-button`，点击返回候选人画像。 |
+| Scope | Pass | 仅调整 `theme=juju` 选择面试官第一页；详情确认页、面试状态机和接口契约保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |
+
+## Juju 登录后工具栏移除 - 2026-08-01
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Session toolbar | Done | `theme=juju` 登录后不再渲染“PassBuddy 受控内测 / 隐私与数据 / 退出登录”顶部工具栏。 |
+| Scope | Pass | 仅移除 Juju 的工具栏入口；会话恢复、退出登录及隐私数据处理函数未删除，其他主题行为保持不变。 |
+| Verification | Pass | `npm run typecheck` 通过；`npm run test:internal-beta` 84/84 通过；目标文件 `git diff --check` 通过。 |

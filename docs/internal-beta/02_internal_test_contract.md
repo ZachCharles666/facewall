@@ -150,3 +150,16 @@
 - 契约缺口先登记到 `docs/todo.md` 和相关 `internal-beta` 文档，再改 instruction 和代码。
 - 不可逆迁移、角色扩张、正文对管理端开放、保存原始音频、强制反馈等变更必须由用户/产品确认。
 - 风险无法在当前模块关闭时，必须写明 owner、退出条件和灰度影响。
+
+## 14. IB-10 Theme And Questionnaire Contract
+
+- Juju 是内测认证与持久化产品面；Classic/Figma 无验证码即可进入原 Demo 闭环。
+- Classic 配置问卷，题型限定为 `rating|single|multiple|text`；生产写入仅在 `QUESTIONNAIRE_CONFIG_WRITE_ENABLED=true` 时开放。
+- 资格要求已登录 owner、第一条已生成报告的会话、用户尚未提交问卷。
+- 邀请只在报告页确认动作后出现；关闭、跳过或返回不影响报告。
+- 每用户、每会话最多一条 `questionnaire_responses`；失败保留客户端草稿。
+- 回看页限定当前会话，不提供跨会话搜索或管理端正文读取。
+- IB-10 验收 `THEME-001–003`、`SURVEY-001–007`、`HISTORY-001`。
+- 用户协议与隐私政策及同意勾选位于验证码登录表单；常规登录/邀请码激活后直接保存同意记录，不再要求重复确认。
+- 本地固定 OTP 必须保留真实 Better Auth 验证步骤，但跳过 SES hook 和 OTP budget；只允许非生产显式启用。
+- Juju 语音失败提示三选一，不能同时显示文字输入框；网络异常 5 秒后返回首页。
