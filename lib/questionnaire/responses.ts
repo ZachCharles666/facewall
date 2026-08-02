@@ -23,7 +23,6 @@ export class QuestionnaireError extends Error {
     super(code);
   }
 }
-
 function isUuid(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -219,4 +218,3 @@ export async function submitSessionQuestionnaire(input: {
     return mapResponse(inserted.rows[0]);
   });
 }
-

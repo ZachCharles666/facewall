@@ -51,6 +51,7 @@
 - 邀请码在已登录账号首次开通产品体验时原子消费并创建/关联 user profile；重复登录不得要求或重复消费邀请码。
 - 邀请码无效或落库失败时保留受限 Auth Session，允许重试其他有效邀请码，但不得进入业务页。
 - 激活时将邀请码的 `session_limit_per_user` 快照到 profile，当前默认 3；新建第 4 个会话返回稳定额度错误，恢复/重试既有会话不重复占用。
+- 第一场会话完成后、首次问卷提交前，新建第 2/3 场返回 `QUESTIONNAIRE_REQUIRED`；相同创建 key 的幂等重放和既有会话恢复不重复占用额度。
 - Session 使用 Better Auth HttpOnly Cookie；生产启用 Secure 和合适的 SameSite 属性。
 - admin 角色来自服务端可信数据库字段，不允许客户端自报。
 - 请求 OTP、验证 OTP、邀请码尝试必须限流并使用不泄露账号存在性的错误文案。
@@ -95,6 +96,7 @@
 - 现有非流式报告接口继续作为流式失败保底。
 - 现有 Demo fallback 继续可用于开发与明确的失败兜底，但生产 UI 必须能区分。
 - 未登录的开发演示行为如需保留，只能在非生产环境或显式受保护的 Demo 模式中存在。
+- 临时外网预览门禁启用时必须 fail-closed：缺少用户名或密码不得放行；`/api/health` 可匿名用于 readiness。共享预览凭据不产生应用用户、学校、邀请码或 admin 权限。
 
 ## 9. State And Consistency
 
@@ -119,6 +121,7 @@
 | `CONSENT_REQUIRED` | 未同意当前版本协议 | 403 | Yes, after consent |
 | `RESOURCE_NOT_FOUND` | 资源不存在或不可见 | 404 | No |
 | `SESSION_CONFLICT` | 乐观锁冲突 | 409 | Yes, reload |
+| `QUESTIONNAIRE_REQUIRED` | 首场调研尚未完成 | 409 | Yes, after questionnaire |
 | `PERSISTENCE_FAILED` | 数据库写入失败 | 503 | Yes |
 | `FEEDBACK_ALREADY_SUBMITTED` | 重复反馈 | 409 | Return existing |
 | `RATE_LIMITED` | 通用限流 | 429 | Yes |
@@ -156,8 +159,9 @@
 - Juju 是内测认证与持久化产品面；Classic/Figma 无验证码即可进入原 Demo 闭环。
 - Classic 配置问卷，题型限定为 `rating|single|multiple|text`；生产写入仅在 `QUESTIONNAIRE_CONFIG_WRITE_ENABLED=true` 时开放。
 - 资格要求已登录 owner、第一条已生成报告的会话、用户尚未提交问卷。
-- 邀请只在报告页确认动作后出现；关闭、跳过或返回不影响报告。
+- 邀请只在报告页确认动作后出现；关闭邀请返回报告，不清空报告或进入 CV 首页。
 - 每用户、每会话最多一条 `questionnaire_responses`；失败保留客户端草稿。
+- 首场问卷提交前持续恢复首场评分报告并拒绝创建剩余 2 场；提交后才解锁既有剩余额度。
 - 回看页限定当前会话，不提供跨会话搜索或管理端正文读取。
 - IB-10 验收 `THEME-001–003`、`SURVEY-001–007`、`HISTORY-001`。
 - 用户协议与隐私政策及同意勾选位于验证码登录表单；常规登录/邀请码激活后直接保存同意记录，不再要求重复确认。

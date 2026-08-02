@@ -29,20 +29,31 @@ async function handlePost(request: Request) {
 
       try {
         send("progress", { stage: "queued", message: "正在准备报告生成任务" });
-        send("progress", { stage: "scoring", message: "正在评估 3 道题的回答质量" });
+        send("progress", { stage: "scoring", message: "正在并行评估前两道题" });
+        const slowResponseTimer = setTimeout(() => {
+          send("progress", { stage: "scoring", message: "真实报告仍在生成，题目和答案已经安全保存" });
+        }, 8000);
 
-        const result = await generateInterviewReportWithMeasurement(payload, request);
+        let result;
+        try {
+          result = await generateInterviewReportWithMeasurement(payload, request, (questionReport, completed) => {
+            if (completed === 1) clearTimeout(slowResponseTimer);
+            send("questionReport", {
+              ...questionReport,
+              partial: true,
+              message: `已完成 ${completed}/3 道真实单题复盘`
+            });
+            if (completed < 3) {
+              send("progress", { stage: "scoring", message: `已完成 ${completed}/3，道题复盘继续生成中` });
+            } else {
+              send("progress", { stage: "finalizing", message: "三道题已完成，正在生成精简总评" });
+            }
+          });
+        } finally {
+          clearTimeout(slowResponseTimer);
+        }
         const report = result.data;
 
-        report.questionReports.forEach((questionReport, index) => {
-          send("questionReport", {
-            ...questionReport,
-            partial: false,
-            message: `第 ${index + 1} 题报告已生成`
-          });
-        });
-
-        send("progress", { stage: "finalizing", message: "正在汇总最终复盘报告" });
         send("measurement", result.measurement);
         send("final", report);
       } catch (error) {

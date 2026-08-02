@@ -25,7 +25,6 @@ async function handleGet(request: Request, context: RouteContext) {
     return questionnaireErrorResponse(error);
   }
 }
-
 async function handlePost(request: Request, context: RouteContext) {
   try {
     const profile = await requireActiveUser(request);
@@ -73,4 +72,3 @@ export async function POST(request: Request, context: RouteContext) {
     () => handlePost(request, context)
   );
 }
-

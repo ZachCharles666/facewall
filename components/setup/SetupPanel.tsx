@@ -3,6 +3,8 @@ import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES } from "@/lib/state/constants";
 import type { CommonResponse, SetupForm, VisualTheme } from "@/lib/types";
 import { JujuOrb } from "@/components/JujuOrb";
+import accountAvatar from "@/面壁者/avatar__342-897@2x.png";
+import menuIcon from "@/面壁者/menue__343-906@2x.png";
 
 interface ParsedUploadResponse {
   text: string;
@@ -16,6 +18,9 @@ type UploadTarget = "resumeText" | "jdText";
 
 const MIN_RESUME_CHAR_COUNT = 100;
 const MIN_JD_CHAR_COUNT = 100;
+const MAX_UPLOAD_BYTES = 1024 * 1024;
+const SUPPORTED_UPLOAD_ACCEPT =
+  ".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 function formatSystemTime(date: Date) {
   const minutes = date.getMinutes().toString().padStart(2, "0");
@@ -24,6 +29,13 @@ function formatSystemTime(date: Date) {
 
 function countResumeChars(text: string) {
   return text.replace(/\s/g, "").length;
+}
+
+function maskSessionEmail(email: string) {
+  const [localPart = "", domain = ""] = email.trim().split("@");
+  if (!localPart || !domain) return "用户 *** ***已登录";
+  const visibleLocal = localPart.slice(0, 3);
+  return `${visibleLocal} *** ***${domain}`;
 }
 
 function getResumeValidationMessage(text: string) {
@@ -50,6 +62,7 @@ function getJdValidationMessage(text: string) {
 
 export function SetupPanel({
   form,
+  externalError = "",
   initialFigmaStep = "home",
   visualTheme = "classic",
   onChange,
@@ -58,6 +71,7 @@ export function SetupPanel({
   onStart
 }: {
   form: SetupForm;
+  externalError?: string;
   initialFigmaStep?: "home" | "jd";
   visualTheme?: VisualTheme;
   onChange: (form: SetupForm) => void;
@@ -76,6 +90,10 @@ export function SetupPanel({
   const [figmaJdSelection, setFigmaJdSelection] = useState(0);
   const [figmaJdRows, setFigmaJdRows] = useState(2);
   const [figmaJdError, setFigmaJdError] = useState("");
+  const [jujuSideOpen, setJujuSideOpen] = useState(false);
+  const [jujuSideNotice, setJujuSideNotice] = useState("");
+  const [jujuSessionEmail, setJujuSessionEmail] = useState("");
+  const [jujuLogoutBusy, setJujuLogoutBusy] = useState(false);
   const [currentSystemTime, setCurrentSystemTime] = useState("9:41");
   const figmaResumeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const figmaJdTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -114,6 +132,38 @@ export function SetupPanel({
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!isJujuTheme) return;
+    let cancelled = false;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const payload = (await response.json()) as {
+          data?: { user?: { email?: string } };
+        };
+        if (!cancelled) setJujuSessionEmail(payload.data?.user?.email || "");
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isJujuTheme]);
+
+  useEffect(() => {
+    if (!jujuSideOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setJujuSideOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [jujuSideOpen]);
+
+  useEffect(() => {
+    if (!jujuSideNotice) return;
+    const timer = window.setTimeout(() => setJujuSideNotice(""), 2400);
+    return () => window.clearTimeout(timer);
+  }, [jujuSideNotice]);
+
   useLayoutEffect(() => {
     if ((visualTheme !== "figma" && visualTheme !== "juju") || figmaStep !== "home") return;
 
@@ -146,6 +196,27 @@ export function SetupPanel({
 
   async function handleFileUpload(target: UploadTarget, file: File | undefined) {
     if (!file) return;
+
+    const normalizedName = file.name.toLowerCase();
+    if (!normalizedName.endsWith(".txt") && !normalizedName.endsWith(".docx")) {
+      setUploadState({
+        target,
+        kind: "error",
+        message: "仅支持 TXT 和 Word（.docx）文档。"
+      });
+      return;
+    }
+    if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
+      setUploadState({
+        target,
+        kind: "error",
+        message:
+          file.size <= 0
+            ? "文件为空。"
+            : "文件超过 1MB，请压缩或复制主要内容后再上传。"
+      });
+      return;
+    }
 
     setUploadState({ target, kind: "loading", message: `正在解析 ${file.name}...` });
     const formData = new FormData();
@@ -231,6 +302,27 @@ export function SetupPanel({
     onStart();
   }
 
+  function showNextVersionNotice() {
+    setJujuSideNotice("下个版本开放");
+  }
+
+  async function logoutFromJujuSide() {
+    if (jujuLogoutBusy) return;
+    setJujuLogoutBusy(true);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        setJujuSideNotice("退出失败，请稍后重试");
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setJujuSideNotice("退出失败，请稍后重试");
+    } finally {
+      setJujuLogoutBusy(false);
+    }
+  }
+
   if (visualTheme === "figma" || visualTheme === "juju") {
     return (
       <section className="figma-phone-stage" aria-label="Figma setup flow">
@@ -238,8 +330,20 @@ export function SetupPanel({
           <div className="figma-phone-card figma-home-card">
             <div className="figma-statusbar">
               <span>{currentSystemTime}</span>
-              <span>Facewall</span>
+              <span>PassBuddy</span>
             </div>
+            {isJujuTheme && (
+              <button
+                aria-controls="juju-home-side-panel"
+                aria-expanded={jujuSideOpen}
+                aria-label="打开侧边菜单"
+                className="juju-home-menu-button"
+                onClick={() => setJujuSideOpen(true)}
+                type="button"
+              >
+                <img alt="" aria-hidden="true" height={32} src={menuIcon.src} width={32} />
+              </button>
+            )}
             {isJujuTheme ? (
               <JujuOrb className="juju-home-orb" />
             ) : (
@@ -258,7 +362,7 @@ export function SetupPanel({
             <div className="figma-copy">
               <h2>{homeTitle}</h2>
               <p>{homeIntro}</p>
-              <p className="figma-home-help">您可粘贴至输入框或点击“+”上传 PDF 、word 文档 最大不超过20m。</p>
+              <p className="figma-home-help">您可粘贴至输入框或点击“+”上传word 文档 最大不超过1M。</p>
             </div>
             <div
               className="figma-home-toolbar"
@@ -327,7 +431,7 @@ export function SetupPanel({
                       id="figmaResumeFile"
                       className="file-input"
                       type="file"
-                      accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      accept={SUPPORTED_UPLOAD_ACCEPT}
                       onChange={(event) => {
                         handleFileUpload("resumeText", event.target.files?.[0]);
                         event.target.value = "";
@@ -369,12 +473,71 @@ export function SetupPanel({
                 </span>
               )}
             </div>
+            {isJujuTheme && (
+              <div
+                aria-hidden={!jujuSideOpen}
+                className="juju-home-side-layer"
+                data-open={jujuSideOpen}
+              >
+                <button
+                  aria-label="关闭侧边菜单"
+                  className="juju-home-side-dismiss"
+                  onClick={() => setJujuSideOpen(false)}
+                  tabIndex={jujuSideOpen ? 0 : -1}
+                  type="button"
+                />
+                <aside
+                  aria-label="账户与记录"
+                  className="juju-home-side-panel"
+                  id="juju-home-side-panel"
+                >
+                  <div className="juju-home-side-account">
+                    <img className="juju-home-side-avatar" src={accountAvatar.src} alt="" />
+                    <span>{maskSessionEmail(jujuSessionEmail)}</span>
+                  </div>
+                  <div className="juju-home-side-glass">
+                    <div className="juju-home-side-menu">
+                      <button
+                        onClick={showNextVersionNotice}
+                        tabIndex={jujuSideOpen ? 0 : -1}
+                        type="button"
+                      >
+                        <span>简历管理</span>
+                        <i aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={showNextVersionNotice}
+                        tabIndex={jujuSideOpen ? 0 : -1}
+                        type="button"
+                      >
+                        <span>面试记录管理</span>
+                        <i aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  {jujuSideNotice && (
+                    <p className="juju-home-side-notice" role="status">
+                      {jujuSideNotice}
+                    </p>
+                  )}
+                  <button
+                    className="juju-home-side-logout"
+                    disabled={jujuLogoutBusy}
+                    onClick={() => void logoutFromJujuSide()}
+                    tabIndex={jujuSideOpen ? 0 : -1}
+                    type="button"
+                  >
+                    {jujuLogoutBusy ? "退出中..." : "退出登陆"}
+                  </button>
+                </aside>
+              </div>
+            )}
           </div>
         ) : (
           <div className="figma-phone-card figma-home-card figma-jd-card">
             <div className="figma-statusbar">
               <span>{currentSystemTime}</span>
-              <span>Facewall</span>
+              <span>PassBuddy</span>
             </div>
             <button className="figma-jd-back-button" aria-label="Back" onClick={() => setFigmaStep("home")}>
               <span aria-hidden="true" />
@@ -409,8 +572,8 @@ export function SetupPanel({
                   ref={figmaJdTextareaRef}
                   id="figmaJdText"
                   value={form.jdText}
-                  aria-invalid={Boolean(figmaJdError)}
-                  aria-describedby={figmaJdError ? "figmaJdError" : undefined}
+                  aria-invalid={Boolean(figmaJdError || externalError)}
+                  aria-describedby={figmaJdError || externalError ? "figmaJdError" : undefined}
                   onBlur={() => setFigmaJdFocused(false)}
                   onChange={(event) => {
                     const nextJdText = event.target.value;
@@ -465,7 +628,7 @@ export function SetupPanel({
                       id="figmaJdFile"
                       className="file-input"
                       type="file"
-                      accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      accept={SUPPORTED_UPLOAD_ACCEPT}
                       onChange={(event) => {
                         handleFileUpload("jdText", event.target.files?.[0]);
                         event.target.value = "";
@@ -485,9 +648,9 @@ export function SetupPanel({
                   <img src={continueButtonImageSrc} alt="" aria-hidden="true" />
                 </button>
               </div>
-              {figmaJdError ? (
+              {figmaJdError || externalError ? (
                 <span id="figmaJdError" className="figma-home-validation-error" role="alert">
-                  {figmaJdError}
+                  {figmaJdError || externalError}
                 </span>
               ) : uploadState.target === "jdText" && uploadState.kind !== "idle" && (
                 <span
@@ -611,13 +774,13 @@ function FileUploadControl({
         id={inputId}
         className="file-input"
         type="file"
-        accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept={SUPPORTED_UPLOAD_ACCEPT}
         onChange={(event) => {
           onUpload(target, event.target.files?.[0]);
           event.target.value = "";
         }}
       />
-      {!isFigmaHomeUpload && <span className="helper">支持 TXT / PDF / Word(.docx)</span>}
+      {!isFigmaHomeUpload && <span className="helper">支持 TXT / Word(.docx)，最大 1MB</span>}
       {isCurrent && <span className={statusClass}>{state.message}</span>}
     </div>
   );

@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   RESOURCE_NOT_FOUND: "会话不存在",
   SESSION_CONFLICT: "会话已在其他页面更新，请刷新后重试",
   INVALID_STATE_TRANSITION: "当前会话状态不允许执行此操作",
+  QUESTIONNAIRE_REQUIRED: "请先完成首次面试调研问卷，再开始剩余面试",
   SESSION_QUOTA_EXHAUSTED: "3 次完整面试额度已用完，已有会话仍可继续",
   PERSISTENCE_DISABLED: "面试持久化当前未启用",
   PERSISTENCE_FAILED: "保存失败，页面草稿已保留，请重试"

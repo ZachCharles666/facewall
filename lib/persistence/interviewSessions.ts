@@ -94,6 +94,7 @@ export class InterviewPersistenceError extends Error {
       | "RESOURCE_NOT_FOUND"
       | "SESSION_CONFLICT"
       | "INVALID_STATE_TRANSITION"
+      | "QUESTIONNAIRE_REQUIRED"
       | "SESSION_QUOTA_EXHAUSTED"
       | "PERSISTENCE_DISABLED"
       | "PERSISTENCE_FAILED",
@@ -110,6 +111,9 @@ function asPersistenceError(error: unknown): InterviewPersistenceError {
   const message = error instanceof Error ? error.message : "";
   if (message.includes("SESSION_QUOTA_EXHAUSTED")) {
     return new InterviewPersistenceError("SESSION_QUOTA_EXHAUSTED", 409);
+  }
+  if (message.includes("QUESTIONNAIRE_REQUIRED")) {
+    return new InterviewPersistenceError("QUESTIONNAIRE_REQUIRED", 409);
   }
   if (message.includes("CONSENT_REQUIRED")) {
     return new InterviewPersistenceError("CONSENT_REQUIRED", 403);
@@ -151,7 +155,20 @@ async function loadSnapshot(
   const where =
     "sessionId" in selector
       ? "s.id = $2"
-      : "s.status not in ('completed', 'abandoned')";
+      : `(s.status not in ('completed', 'abandoned') or (
+           s.status = 'completed'
+           and not exists (
+             select 1 from public.questionnaire_responses qr
+              where qr.user_id = s.user_id
+           )
+           and not exists (
+             select 1 from public.interview_sessions earlier
+              where earlier.user_id = s.user_id
+                and earlier.id <> s.id
+                and earlier.status = 'completed'
+                and earlier.completed_at <= s.completed_at
+           )
+         ))`;
   const params = "sessionId" in selector ? [userId, selector.sessionId] : [userId];
   const result = await client.query(
     `select s.*
@@ -222,6 +239,29 @@ export async function createInterviewSession(input: {
   }
   try {
     return await withUserTransaction(input.userId, async (client) => {
+      const questionnaireGate = await client.query(
+        `select exists (
+                  select 1 from public.interview_sessions
+                   where user_id = $1 and idempotency_key = $2
+                ) as idempotent_replay,
+                exists (
+                  select 1 from public.interview_sessions
+                   where user_id = $1 and status = 'completed'
+                ) as has_completed_session,
+                exists (
+                  select 1 from public.questionnaire_responses
+                   where user_id = $1
+                ) as questionnaire_submitted`,
+        [input.userId, input.idempotencyKey]
+      );
+      const gate = questionnaireGate.rows[0] as Record<string, unknown>;
+      if (
+        !Boolean(gate.idempotent_replay) &&
+        Boolean(gate.has_completed_session) &&
+        !Boolean(gate.questionnaire_submitted)
+      ) {
+        throw new InterviewPersistenceError("QUESTIONNAIRE_REQUIRED", 409);
+      }
       const result = await client.query(
         `select *
            from public.create_interview_session($1, $2, $3, $4, $5, $6, $7)`,

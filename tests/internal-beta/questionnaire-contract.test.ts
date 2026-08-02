@@ -12,6 +12,7 @@ const read = (path: string) => readFile(path, "utf8");
 
 test("only Juju keeps the OTP gate and source persistence", async () => {
   const page = await read("app/page.tsx");
+  assert.match(page, /rawTheme === "figma" \? "figma" : "juju"/);
   assert.match(
     page,
     /visualTheme === "juju" && isInternalBetaAuthEnabled\(\)/
@@ -88,6 +89,7 @@ test("questionnaire config writes are explicit and fail closed in production", a
 
 test("questionnaire response is owner-bound, first-completion-only and RLS protected", async () => {
   const service = await read("lib/questionnaire/responses.ts");
+  const persistence = await read("lib/persistence/interviewSessions.ts");
   const migration = await read("db/migrations/0012_questionnaire_responses.sql");
   const route = await read(
     "app/api/interview-sessions/[sessionId]/questionnaire/route.ts"
@@ -96,6 +98,14 @@ test("questionnaire response is owner-bound, first-completion-only and RLS prote
   assert.match(service, /earlier\.status = 'completed'/);
   assert.match(service, /on conflict \(user_id\) do nothing/);
   assert.match(service, /validateQuestionnaireAnswers/);
+  assert.match(persistence, /QUESTIONNAIRE_REQUIRED/);
+  assert.match(persistence, /has_completed_session/);
+  assert.match(persistence, /questionnaire_submitted/);
+  assert.match(persistence, /idempotent_replay/);
+  assert.match(
+    persistence,
+    /s\.status = 'completed'[\s\S]*questionnaire_responses[\s\S]*earlier\.status = 'completed'/
+  );
   assert.match(route, /requireActiveUser\(request\)/);
   assert.match(migration, /create table public\.questionnaire_responses/);
   assert.match(migration, /force row level security/);
@@ -155,15 +165,23 @@ test("Juju report invitation and answer-history entry preserve the main flow", a
     /\.juju-questionnaire-list \{[\s\S]*gap: 18px;/
   );
   assert.match(flow, /确认并返回首页/);
+  assert.doesNotMatch(flow, /正在准备问卷/);
+  assert.match(flow, /disabled=\{snapshotLoading\}/);
+  assert.match(flow, /questionnaireAlreadyCompleted/);
   assert.match(flow, /立即参与/);
+  assert.match(flow, /暂不参与并返回报告/);
+  assert.match(flow, /setStage\("report"\)/);
+  assert.match(flow, /snapshotLoading/);
   assert.match(flow, /question\.type === "rating"/);
   assert.match(flow, /question\.type === "single"/);
   assert.match(flow, /question\.type === "multiple"/);
   assert.match(flow, /question\.type === "text"/);
   assert.match(flow, /figma-statusbar juju-questionnaire-statusbar/);
-  assert.match(flow, /<span>Facewall<\/span>/);
+  assert.match(flow, /<span>PassBuddy<\/span>/);
   assert.doesNotMatch(flow, /juju-questionnaire-status-symbols|juju-questionnaire-capsule/);
   assert.match(flow, /Gemini_Generated_Image_eiqufreiqufreiqu_1__388-1104@2x\.png/);
+  assert.match(styles, /\.juju-questionnaire-invite-image \{[\s\S]*top: -28px;[\s\S]*object-fit: cover;/);
+  assert.match(styles, /\.juju-report-confirm-home:disabled \{[\s\S]*background: #c9c9cc;/);
   assert.match(flow, /className="juju-questionnaire-prompt"/);
   assert.doesNotMatch(flow, /<fieldset|<legend/);
   assert.match(interview, /setShowJujuHistory\(true\)/);

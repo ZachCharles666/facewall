@@ -252,6 +252,7 @@ export interface ReportStreamProgress {
 export interface ReportStreamHandlers {
   onProgress?: (progress: ReportStreamProgress) => void;
   onQuestionReport?: (questionReport: QuestionReport & { partial?: boolean; message?: string }) => void;
+  signal?: AbortSignal;
 }
 
 export async function generateReportStream(
@@ -270,7 +271,8 @@ export async function generateReportStream(
       "Content-Type": "application/json",
       ...getDevRequestHeaders("llm")
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: handlers.signal
   });
 
   if (!response.ok) {
@@ -409,18 +411,19 @@ export async function requestTtsAudio(payload: {
   rate?: number | string;
   pitch?: number | string;
   volume?: number | string;
-}) {
+}, options?: { signal?: AbortSignal }) {
   const response = await fetch("/api/tts", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...getDevRequestHeaders("tts")
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: options?.signal
   });
 
   if (!response.ok) {
-    throw new Error("Azure TTS 不可用，已切换到浏览器语音兜底。");
+    throw new Error("服务端 TTS 不可用，已切换到浏览器语音兜底。");
   }
 
   return response.blob();
@@ -438,7 +441,7 @@ export async function requestSttTranscript(audio: Blob) {
 
   const payload = (await response.json().catch(() => null)) as { text?: string; error?: string } | null;
   if (!response.ok || !payload?.text) {
-    throw new Error(payload?.error || "Azure STT 识别失败，已保留当前文本，可重试或手动编辑。");
+    throw new Error(payload?.error || "服务端语音识别失败，已保留当前文本，可重试或手动编辑。");
   }
 
   return payload.text;
@@ -452,11 +455,12 @@ export async function getAzureSpeechStatus() {
   });
 
   if (!response.ok) {
-    throw new Error("Azure TTS 状态查询失败。");
+    throw new Error("语音服务状态查询失败。");
   }
 
   return (await response.json()) as {
     configured: boolean;
+    provider: "tencent" | "azure" | "web-speech";
     region: string;
     voices: VoiceOption[];
   };

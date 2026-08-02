@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { extractTextFromFile } from "@/lib/files/textExtraction";
+import {
+  extractTextFromFile,
+  validateFileSize
+} from "@/lib/files/textExtraction";
 import { errorResponse, okResponse } from "@/lib/schemas/contracts";
 import { observeRoute } from "@/lib/observability/route";
 
@@ -31,6 +34,7 @@ async function handlePost(request: Request) {
   }
 
   try {
+    validateFileSize(file.size);
     const buffer = Buffer.from(await file.arrayBuffer());
     const parsed = extractTextFromFile(buffer, file.name, file.type);
     return NextResponse.json(

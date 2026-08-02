@@ -117,6 +117,7 @@ export function ReportPanel({
   onUseFallback,
   onRegenerateQuestion,
   sessionId,
+  questionnaireAlreadyCompleted = false,
   onReturnHome
 }: {
   report: InterviewReport | null;
@@ -135,6 +136,7 @@ export function ReportPanel({
   onUseFallback: () => void;
   onRegenerateQuestion: (questionId: string) => void;
   sessionId: string | null;
+  questionnaireAlreadyCompleted?: boolean;
   onReturnHome: () => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "failed">("idle");
@@ -365,7 +367,7 @@ export function ReportPanel({
           <div className="figma-phone-card figma-home-card figma-report-card figma-report-loading-card">
             <div className="figma-statusbar">
               <FigmaReportClock />
-              <span>Facewall</span>
+              <span>PassBuddy</span>
             </div>
             {visualTheme === "juju" ? (
               <JujuOrb className="juju-report-loading-orb" />
@@ -373,7 +375,7 @@ export function ReportPanel({
               <div className="figma-report-loading-orb" aria-hidden="true" />
             )}
             <section className="figma-report-loading-copy">
-              <h2>正在生成复盘报告</h2>
+              <h2>{state.kind === "error" ? "复盘报告生成失败" : "正在生成复盘报告"}</h2>
               <p>{state.message || "正在整理 3 道题的回答、风险和优化答案。"}</p>
             </section>
             {streamedQuestionReports.length > 0 && (
@@ -386,13 +388,20 @@ export function ReportPanel({
                 ))}
               </div>
             )}
-            {state.kind === "error" && (
+            {state.kind === "error" && visualTheme !== "juju" && (
               <div className="figma-report-loading-actions">
                 <button className="primary" onClick={onRetry}>
                   重试
                 </button>
                 <button onClick={onUseNonStreamingFallback}>非流式</button>
                 <button onClick={onUseFallback}>演示报告</button>
+              </div>
+            )}
+            {state.kind === "error" && visualTheme === "juju" && (
+              <div className="figma-report-loading-actions">
+                <button className="primary" onClick={onRetry}>
+                  重新生成真实报告
+                </button>
               </div>
             )}
           </div>
@@ -417,6 +426,7 @@ export function ReportPanel({
           state={state}
           interviewerStyleId={interviewerStyleId}
           sessionId={sessionId}
+          questionnaireAlreadyCompleted={questionnaireAlreadyCompleted}
           onReturnHome={onReturnHome}
         />
       );
@@ -798,6 +808,7 @@ function JujuReportPanel({
   state,
   interviewerStyleId,
   sessionId,
+  questionnaireAlreadyCompleted,
   onReturnHome
 }: {
   report: InterviewReport;
@@ -822,6 +833,7 @@ function JujuReportPanel({
   };
   interviewerStyleId: InterviewerStyleId;
   sessionId: string | null;
+  questionnaireAlreadyCompleted: boolean;
   onReturnHome: () => void;
 }) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -856,7 +868,7 @@ function JujuReportPanel({
       <div className="figma-phone-card figma-home-card figma-report-card juju-report-card">
         <div className="figma-statusbar">
           <FigmaReportClock />
-          <span>Facewall</span>
+          <span>PassBuddy</span>
         </div>
 
         <div className="juju-report-scroll">
@@ -1023,6 +1035,7 @@ function JujuReportPanel({
 
         <JujuQuestionnaireFlow
           onReturnHome={onReturnHome}
+          questionnaireAlreadyCompleted={questionnaireAlreadyCompleted}
           sessionId={sessionId}
         />
 

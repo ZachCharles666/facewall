@@ -2,7 +2,9 @@ const DEV_PREWARM_ROUTES = [
   "/api/profile/parse",
   "/api/questions/generate",
   "/api/report/generate-stream",
-  "/api/report/generate"
+  "/api/report/generate",
+  "/api/azure-status",
+  "/api/tts"
 ] as const;
 
 let prewarmStarted = false;

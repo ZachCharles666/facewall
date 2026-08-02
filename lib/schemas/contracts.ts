@@ -224,7 +224,7 @@ export function validateReport(value: unknown): value is InterviewReport {
   );
 }
 
-function validateQuestionReport(value: unknown): value is QuestionReport {
+export function validateQuestionReport(value: unknown): value is QuestionReport {
   if (!isRecord(value)) return false;
   return (
     isNonEmptyString(value.questionId) &&
@@ -235,6 +235,19 @@ function validateQuestionReport(value: unknown): value is QuestionReport {
     isNonEmptyString(value.diagnosis) &&
     isNonEmptyString(value.optimizedAnswer) &&
     isNonEmptyString(value.oralVersion60s)
+  );
+}
+
+export function validateFinalReportSummary(value: unknown): value is {
+  summary: string;
+  topRisks: string[];
+  actionItems: string[];
+} {
+  if (!isRecord(value)) return false;
+  return (
+    isNonEmptyString(value.summary) &&
+    isStringArray(value.topRisks) &&
+    isStringArray(value.actionItems)
   );
 }
 

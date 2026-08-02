@@ -47,9 +47,11 @@ async function emitQuestionnaireEvent(
 
 export function JujuQuestionnaireFlow({
   sessionId,
+  questionnaireAlreadyCompleted = false,
   onReturnHome
 }: {
   sessionId: string | null;
+  questionnaireAlreadyCompleted?: boolean;
   onReturnHome: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<QuestionnaireSnapshot | null>(null);
@@ -59,10 +61,25 @@ export function JujuQuestionnaireFlow({
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [snapshotLoading, setSnapshotLoading] = useState(
+    Boolean(sessionId) && !questionnaireAlreadyCompleted
+  );
+  const [snapshotFailed, setSnapshotFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (questionnaireAlreadyCompleted) {
+      setSnapshotLoading(false);
+      setSnapshotFailed(false);
+      return;
+    }
+    if (!sessionId) {
+      setSnapshotLoading(false);
+      return;
+    }
     let cancelled = false;
+    setSnapshotLoading(true);
+    setSnapshotFailed(false);
     fetch(`/api/interview-sessions/${sessionId}/questionnaire`, {
       cache: "no-store"
     })
@@ -74,12 +91,18 @@ export function JujuQuestionnaireFlow({
         if (!cancelled) setSnapshot(body.data as QuestionnaireSnapshot);
       })
       .catch(() => {
-        if (!cancelled) setSnapshot(null);
+        if (!cancelled) {
+          setSnapshot(null);
+          setSnapshotFailed(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [questionnaireAlreadyCompleted, reloadToken, sessionId]);
 
   const missingRequired = useMemo(() => {
     if (!snapshot) return [];
@@ -94,7 +117,24 @@ export function JujuQuestionnaireFlow({
   }, [answers, snapshot]);
 
   function confirmAndReturn() {
-    if (!sessionId || !snapshot?.eligible || snapshot.response) {
+    if (questionnaireAlreadyCompleted) {
+      onReturnHome();
+      return;
+    }
+    if (!sessionId) {
+      setMessage("当前报告尚未关联面试记录，请刷新后重试。");
+      return;
+    }
+    if (!snapshot) {
+      setMessage(
+        snapshotFailed
+          ? "问卷状态加载失败，正在重试…"
+          : "问卷状态仍在加载，请稍候。"
+      );
+      if (snapshotFailed) setReloadToken((current) => current + 1);
+      return;
+    }
+    if (snapshot.response || !snapshot.eligible) {
       onReturnHome();
       return;
     }
@@ -155,10 +195,11 @@ export function JujuQuestionnaireFlow({
     <>
       <button
         className="juju-report-confirm-home"
+        disabled={snapshotLoading}
         onClick={confirmAndReturn}
         type="button"
       >
-        确认并返回首页
+        {snapshotFailed ? "重试加载问卷" : "确认并返回首页"}
       </button>
 
       {stage === "invite" && snapshot && (
@@ -170,9 +211,9 @@ export function JujuQuestionnaireFlow({
             role="dialog"
           >
             <button
-              aria-label="暂不参与并返回首页"
+              aria-label="暂不参与并返回报告"
               className="juju-questionnaire-invite-close"
-              onClick={onReturnHome}
+              onClick={() => setStage("report")}
               type="button"
             >
               ×
@@ -206,7 +247,7 @@ export function JujuQuestionnaireFlow({
         >
           <div className="figma-statusbar juju-questionnaire-statusbar">
             <QuestionnaireClock />
-            <span>Facewall</span>
+            <span>PassBuddy</span>
           </div>
           {stage === "submitted" ? (
             <div className="juju-questionnaire-complete">

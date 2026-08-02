@@ -36,4 +36,3 @@ export function questionnaireErrorResponse(error: unknown) {
     { status: 500 }
   );
 }
-

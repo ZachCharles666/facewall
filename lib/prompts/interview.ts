@@ -1,6 +1,6 @@
 import { INTERVIEWER_STYLES } from "@/lib/state/constants";
 import { defaultPromptOverrides, normalizePromptOverrides } from "@/lib/prompts/productPromptSuite";
-import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewerStyleId, PromptOverrides } from "@/lib/types";
+import type { CandidateProfile, InterviewAnswer, InterviewQuestion, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
 
 function styleLabel(styleId: InterviewerStyleId) {
   return INTERVIEWER_STYLES.find((style) => style.id === styleId)?.label ?? styleId;
@@ -186,6 +186,111 @@ export function buildReportPrompt(input: {
         null,
         2
       )
+    }
+  ];
+}
+
+export function buildQuestionReportPrompt(
+  input: {
+    candidateProfile: CandidateProfile;
+    question: InterviewQuestion;
+    answer: InterviewAnswer;
+    interviewerStyleId?: InterviewerStyleId;
+  },
+  promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides
+) {
+  const overrides = normalizePromptOverrides(promptOverrides);
+  const interviewerPrompt = input.interviewerStyleId ? overrides.interviewers[input.interviewerStyleId] : undefined;
+  return [
+    { role: "system" as const, content: buildSystemContent(overrides) },
+    {
+      role: "user" as const,
+      content: JSON.stringify({
+        task: "只评估这一道面试题，返回一个 questionReport JSON 对象。",
+        productPrompt: overrides.report,
+        interviewerStyle: input.interviewerStyleId ? styleLabel(input.interviewerStyleId) : undefined,
+        interviewerPersona: interviewerPrompt?.persona,
+        interviewerReportGuide: interviewerPrompt?.report,
+        scoringWeights: {
+          jobRelevance: "25%",
+          structure: "20%",
+          evidence: "20%",
+          professionalExpression: "15%",
+          truthBoundary: "10%",
+          completeness: "10%"
+        },
+        rules: [
+          "questionId 必须与输入 question.id 完全一致。",
+          "6 个维度分数均为 0 到 20，总分为 0 到 100。",
+          "答案为空、过短或跑题时要明确指出，不得编造用户未提供的事实。",
+          "optimizedAnswer 和 oralVersion60s 都必须保留事实边界，并分别控制在 300 个中文字符以内。"
+        ],
+        outputShape: {
+          questionId: input.question.id,
+          score: 76,
+          dimensionScores: {
+            jobRelevance: 20,
+            structure: 15,
+            evidence: 14,
+            professionalExpression: 12,
+            truthBoundary: 8,
+            completeness: 7
+          },
+          riskTags: ["string"],
+          fatalIssue: "string",
+          diagnosis: "string",
+          optimizedAnswer: "string",
+          oralVersion60s: "string"
+        },
+        candidateSummary: {
+          summary: input.candidateProfile.summary,
+          matchedPoints: input.candidateProfile.matchedPoints,
+          riskPoints: input.candidateProfile.riskPoints,
+          keywords: input.candidateProfile.keywords,
+          suggestedSupplements: input.candidateProfile.suggestedSupplements
+        },
+        question: input.question,
+        answer: input.answer
+      }, null, 2)
+    }
+  ];
+}
+
+export function buildFinalReportPrompt(
+  input: {
+    questionReports: QuestionReport[];
+    interviewerStyleId?: InterviewerStyleId;
+  },
+  promptOverrides: Partial<PromptOverrides> = defaultPromptOverrides
+) {
+  const overrides = normalizePromptOverrides(promptOverrides);
+  const interviewerPrompt = input.interviewerStyleId ? overrides.interviewers[input.interviewerStyleId] : undefined;
+  return [
+    { role: "system" as const, content: buildSystemContent(overrides) },
+    {
+      role: "user" as const,
+      content: JSON.stringify({
+        task: "根据三份已完成的单题复盘，只生成精简总评。",
+        interviewerStyle: input.interviewerStyleId ? styleLabel(input.interviewerStyleId) : undefined,
+        interviewerReportGuide: interviewerPrompt?.report,
+        rules: [
+          "不要重复输出单题优化答案。",
+          "summary、topRisks、actionItems 必须来自输入的三份单题复盘，不得增加新事实。",
+          "topRisks 和 actionItems 各控制在 3 条以内。"
+        ],
+        outputShape: {
+          summary: "string",
+          topRisks: ["string"],
+          actionItems: ["string"]
+        },
+        questionReports: input.questionReports.map(({ questionId, score, riskTags, fatalIssue, diagnosis }) => ({
+          questionId,
+          score,
+          riskTags,
+          fatalIssue,
+          diagnosis
+        }))
+      }, null, 2)
     }
   ];
 }

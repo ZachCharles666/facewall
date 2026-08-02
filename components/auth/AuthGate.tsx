@@ -186,10 +186,12 @@ export function AuthGate({
   }, [enabled]);
 
   useEffect(() => {
-    if (step === "authenticated") {
-      prewarmDevRoutes();
-    }
-  }, [step]);
+    // Development-mode route compilation is the dominant first-run delay.
+    // OPTIONS prewarming performs no business action and no provider call, so
+    // start it while the user is on the auth/setup entry instead of waiting
+    // until authentication has finished.
+    prewarmDevRoutes();
+  }, []);
 
   useEffect(() => {
     if (resendAfter <= 0) return;
@@ -538,7 +540,7 @@ export function AuthGate({
           <>
             <div className="figma-statusbar juju-auth-statusbar">
               <AuthClock />
-              <span>Facewall</span>
+              <span>PassBuddy</span>
             </div>
             <JujuOrb className="juju-auth-orb" />
           </>
@@ -773,7 +775,7 @@ export function AuthGate({
             内测期间验证码暂设 30 分钟有效；重发后旧验证码立即失效，最多尝试 3 次。
           </p>
         )}
-        {visualTheme === "juju" && (
+        {visualTheme === "juju" && step !== "checking" && (
           <div className="figma-home-indicator juju-auth-home-indicator" aria-hidden="true" />
         )}
       </section>

@@ -121,7 +121,7 @@
 | THEME-003 | Compatibility | 三主题主闭环与 IB-02 以来修改不被覆盖 | full suite | Pass |
 | SURVEY-001 | Configuration | Classic 配置四种题型并生成版本 | browser + contract test | Pass |
 | SURVEY-002 | Trigger | Juju 第一场完成且报告确认后才出现邀请 | component/contract test | Pass |
-| SURVEY-003 | Functional | 参与后进入动态问卷；关闭/跳过不阻断 | component/contract test | Pass |
+| SURVEY-003 | Functional | 参与后进入动态问卷；关闭邀请返回评分报告且不误回 CV 首页 | component/contract test | Pass |
 | SURVEY-004 | Validation | 服务端验证必答、评分、选项和长度 | contract test | Pass |
 | SURVEY-005 | Idempotency | 每用户/会话最多一次提交 | 待 DB integration | Partial |
 | SURVEY-006 | Privacy | RLS、无正文事件、删除覆盖 | 待 DB integration | Partial |
@@ -131,3 +131,4 @@
 | CONSENT-007 | Functional | 用户协议、隐私政策及勾选位于验证码登录页，登录/激活后保存同意记录 | component contract；待 Figma node/browser | Partial |
 | VOICE-006 | Recovery | Juju 不弹文字框，只显示三种失败提示之一；网络异常 5 秒退出 | component contract + browser | Partial |
 | SURVEY-008 | Functional | 报告页问卷按钮固定在可视底部，不依赖滚动到报告末尾 | component/CSS contract + browser | Partial |
+| SURVEY-009 | Entitlement | 首场问卷提交前刷新/重登恢复评分报告并拒绝创建第 2/3 场；提交后解锁剩余额度 | component/service contract；待 DB/browser E2E | Partial |

@@ -373,6 +373,8 @@ provider 未返回 usage 时 token 字段写 `null`，不得估算或用 `0` 冒
 - `POST /api/questionnaire/config`：校验四种题型、选项和长度；生产显式开关后才可写，保存生成新版本。
 - `GET /api/interview-sessions/:id/questionnaire`：仅 Juju 已登录 owner，返回资格、配置和既有提交摘要。
 - `POST /api/interview-sessions/:id/questionnaire`：服务端验证 owner、首次完成、配置版本与答案，每用户/会话唯一。
+- `POST /api/interview-sessions`：首场已完成但问卷尚未提交时返回 `409 QUESTIONNAIRE_REQUIRED`；幂等重放既有创建不受影响。
+- `GET /api/interview-sessions/current`：存在首场问卷门禁时返回对应已完成报告；提交问卷后恢复普通 active-session 语义。
 
 服务端事件新增 `questionnaire_submitted`；客户端 allowlist 新增 `questionnaire_invite_viewed`、`questionnaire_started`。properties 不得包含答案正文或客户端提供的用户/学校 ID。Auth API 只用于 Juju。
 

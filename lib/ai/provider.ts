@@ -24,9 +24,12 @@ export class LlmUnavailableError extends Error {
 }
 
 export class LlmProviderError extends Error {
-  constructor(message: string) {
+  status: number | null;
+
+  constructor(message: string, status: number | null = null) {
     super(message);
     this.name = "LlmProviderError";
+    this.status = status;
   }
 }
 
@@ -41,15 +44,29 @@ export function getLlmErrorCode(error: unknown) {
 }
 
 export function isLlmConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY || process.env.LLM_API_KEY);
+  return Boolean(
+    process.env.OPENAI_API_KEY ||
+      process.env.LLM_API_KEY ||
+      process.env.NVIDIA_API_KEY
+  );
 }
 
 export function getLlmProviderDescriptor() {
+  const usingNvidiaDefaults = Boolean(
+    process.env.NVIDIA_API_KEY &&
+      !process.env.OPENAI_API_KEY &&
+      !process.env.LLM_API_KEY
+  );
   const baseUrl =
     process.env.OPENAI_BASE_URL ||
     process.env.OPENAI_API_BASE ||
-    "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL || process.env.LLM_MODEL || "gpt-4o-mini";
+    (usingNvidiaDefaults
+      ? "https://integrate.api.nvidia.com/v1"
+      : "https://api.openai.com/v1");
+  const model =
+    process.env.OPENAI_MODEL ||
+    process.env.LLM_MODEL ||
+    (usingNvidiaDefaults ? "deepseek-ai/deepseek-v4-flash" : "gpt-4o-mini");
   let provider = "invalid-base-url";
   try {
     provider = new URL(baseUrl).host.toLowerCase();
@@ -59,7 +76,7 @@ export function getLlmProviderDescriptor() {
 
 export async function generateJsonWithRetry(
   messages: LlmMessage[],
-  options?: { signal?: AbortSignal; maxAttempts?: 1 | 2 }
+  options?: { signal?: AbortSignal; maxAttempts?: 1 | 2; maxTokens?: number }
 ) {
   let lastError: unknown;
   const maxAttempts = options?.maxAttempts === 1 ? 1 : 2;
@@ -70,19 +87,28 @@ export async function generateJsonWithRetry(
     } catch (error) {
       lastError = error;
       if (error instanceof LlmUnavailableError) break;
+      if (!isRetryableProviderError(error) || attempt + 1 >= maxAttempts) break;
+      await waitForRetry(700 * (attempt + 1), options?.signal);
     }
   }
   throw lastError instanceof Error ? lastError : new LlmProviderError("LLM request failed.");
 }
 
-async function generateJson(messages: LlmMessage[], options?: { signal?: AbortSignal }): Promise<LlmJsonResult> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY;
+async function generateJson(
+  messages: LlmMessage[],
+  options?: { signal?: AbortSignal; maxTokens?: number }
+): Promise<LlmJsonResult> {
+  const apiKey =
+    process.env.OPENAI_API_KEY ||
+    process.env.LLM_API_KEY ||
+    process.env.NVIDIA_API_KEY;
   if (!apiKey) {
     throw new LlmUnavailableError();
   }
 
   const { baseUrl, provider, model } = getLlmProviderDescriptor();
   const startedAt = performance.now();
+  const isNvidiaDeepSeek = provider === "integrate.api.nvidia.com" && model.startsWith("deepseek-ai/");
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -92,14 +118,16 @@ async function generateJson(messages: LlmMessage[], options?: { signal?: AbortSi
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.35,
-      response_format: { type: "json_object" }
+      temperature: 0.25,
+      response_format: { type: "json_object" },
+      ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
+      ...(isNvidiaDeepSeek ? { chat_template_kwargs: { thinking: false } } : {})
     }),
     signal: options?.signal
   });
 
   if (!response.ok) {
-    throw new LlmProviderError(`LLM request failed with status ${response.status}.`);
+    throw new LlmProviderError(`LLM request failed with status ${response.status}.`, response.status);
   }
 
   const payload = (await response.json()) as {
@@ -140,11 +168,45 @@ async function generateJson(messages: LlmMessage[], options?: { signal?: AbortSi
   }
 }
 
-export function createTimeoutSignal(timeoutMs = 25000) {
+export function createTimeoutSignal(timeoutMs = 25000, parentSignal?: AbortSignal) {
   const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  if (parentSignal?.aborted) {
+    controller.abort();
+  } else {
+    parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   return {
     signal: controller.signal,
-    clear: () => clearTimeout(timeout)
+    clear: () => {
+      clearTimeout(timeout);
+      parentSignal?.removeEventListener("abort", abortFromParent);
+    }
   };
+}
+
+function isRetryableProviderError(error: unknown) {
+  if (error instanceof LlmProviderError && error.status !== null) {
+    return error.status === 429 || error.status >= 500;
+  }
+  return error instanceof TypeError;
+}
+
+function waitForRetry(delayMs: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }

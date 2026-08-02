@@ -20,7 +20,9 @@ test("development route prewarm compiles the main transition APIs without execut
       "/api/profile/parse",
       "/api/questions/generate",
       "/api/report/generate-stream",
-      "/api/report/generate"
+      "/api/report/generate",
+      "/api/azure-status",
+      "/api/tts"
     ]
   );
   assert.ok(requests.every(({ init }) => init?.method === "OPTIONS"));

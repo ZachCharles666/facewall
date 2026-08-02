@@ -19,7 +19,6 @@ const typeLabels: Record<QuestionnaireQuestionType, string> = {
 function cloneDefaultConfig(): QuestionnaireConfig {
   return structuredClone(defaultQuestionnaireConfig);
 }
-
 function nextQuestion(type: QuestionnaireQuestionType): QuestionnaireQuestion {
   const id = `question_${Date.now().toString(36)}`;
   return {
@@ -334,4 +333,3 @@ export function QuestionnaireConfigPanel() {
     </section>
   );
 }
-

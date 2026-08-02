@@ -25,7 +25,6 @@ async function handleGet() {
     );
   }
 }
-
 async function handlePost(request: Request) {
   if (!isQuestionnaireConfigWriteEnabled()) {
     return NextResponse.json(
@@ -69,4 +68,3 @@ export async function POST(request: Request) {
     () => handlePost(request)
   );
 }
-

@@ -85,7 +85,7 @@ test("controlled LLM staging probe makes one fixture request and emits measureme
   assert.doesNotMatch(llmProbe, /^const response = await /m);
   assert.doesNotMatch(llmProbe, /console\.(?:log|error)\([^)]*(?:resumeText|jdText|data)/);
 
-  assert.match(llmProvider, /options\?: \{ signal\?: AbortSignal; maxAttempts\?: 1 \| 2 \}/);
+  assert.match(llmProvider, /options\?: \{ signal\?: AbortSignal; maxAttempts\?: 1 \| 2; maxTokens\?: number \}/);
   assert.match(llmProvider, /options\?\.maxAttempts === 1 \? 1 : 2/);
   assert.match(profileRoute, /PASSBUDDY_LLM_MAX_ATTEMPTS === "1" \? 1 : 2/);
 });

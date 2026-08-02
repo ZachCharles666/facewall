@@ -18,7 +18,6 @@ const defaultStorePath = path.join(
 function storePath() {
   return process.env.FACEWALL_QUESTIONNAIRE_STORE_PATH || defaultStorePath;
 }
-
 export function isQuestionnaireConfigWriteEnabled(
   env: Record<string, string | undefined> = process.env
 ) {
@@ -65,4 +64,3 @@ export async function saveQuestionnaireConfig(value: unknown) {
   await rename(temporary, target);
   return config;
 }
-

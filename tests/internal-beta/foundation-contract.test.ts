@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const read = (path: string) => readFile(path, "utf8");
+const read = async (path: string) => (await readFile(path, "utf8")).replaceAll("\r\n", "\n");
 
 test("auth foundation is passwordless and stores OTP hashes", async () => {
   const config = await read("better-auth.config.ts");
@@ -83,6 +83,91 @@ test("local OTP acceptance always preserves the invite-page checkpoint", async (
   assert.match(gate, /if \(invitePreviewOnly\)[\s\S]*setStep\("authenticated"\)/);
   assert.match(gate, /invitePreviewOnly[\s\S]*setStep\("authenticated"\)/);
   assert.match(gate, /placeholder="请输入邀请码"[\s\S]*"确 定"/);
+});
+
+test("Juju CV entry keeps account navigation inside a local side drawer", async () => {
+  const setup = await read("components/setup/SetupPanel.tsx");
+  const styles = await read("app/globals.css");
+
+  assert.match(setup, /isJujuTheme && \([\s\S]*aria-label="打开侧边菜单"/);
+  assert.match(setup, /menue__343-906@2x\.png/);
+  assert.match(setup, /avatar__342-897@2x\.png/);
+  assert.match(setup, /className="juju-home-side-avatar" src=\{accountAvatar\.src\}/);
+  assert.match(setup, /className="juju-home-side-panel"/);
+  assert.match(setup, /<span>简历管理<\/span>[\s\S]*<span>面试记录管理<\/span>/);
+  assert.match(setup, /function showNextVersionNotice\(\)[\s\S]*setJujuSideNotice\("下个版本开放"\)/);
+  assert.match(setup, /maskSessionEmail\(jujuSessionEmail\)/);
+  assert.match(setup, /event\.key === "Escape"/);
+  assert.match(styles, /\.theme-juju \.juju-home-menu-button \{[\s\S]*top: 58px;[\s\S]*left: 16px;[\s\S]*width: 32px;/);
+  assert.match(styles, /\.theme-juju \.juju-home-side-panel \{[\s\S]*width: 315px;/);
+  assert.match(styles, /\.theme-juju \.juju-home-side-layer\[data-open="true"\] \{[\s\S]*rgba\(0, 0, 0, 0\.5\)/);
+  assert.match(styles, /\.theme-juju \.juju-home-side-glass \{[\s\S]*top: 128px;[\s\S]*height: 300px;[\s\S]*blur\(24px\)/);
+  assert.match(styles, /\.theme-juju \.juju-home-side-logout \{[\s\S]*border: 1px solid #ff0080/);
+});
+
+test("Juju question reader moves short and long prompts continuously with speech", async () => {
+  const interview = await read("components/interview/InterviewPanel.tsx");
+  const styles = await read("app/globals.css");
+
+  assert.match(interview, /message__295-1277@2x\.png/);
+  assert.match(interview, /voice_S__379-1437@2x\.png/);
+  assert.match(interview, /B_01__326-805@2x\.png/);
+  assert.match(interview, /B_01__326-806@2x\.png/);
+  assert.match(interview, /avatar__342-897@2x\.png/);
+  assert.match(interview, /const lineHeightPx = 22/);
+  assert.match(interview, /Math\.max\(lineHeightPx \* 1\.5, overflowDistance\)/);
+  assert.match(interview, /--juju-question-scroll-duration/);
+  assert.match(interview, /paragraph\.classList\.add\("is-speech-scrolling"\)/);
+  assert.doesNotMatch(interview, /if \(wholeLineSteps === 0\) return/);
+  assert.match(interview, /resetQuestionTextMotion\(\)[\s\S]*resetQuestionViewportToTop\(\)/);
+  assert.match(
+    interview,
+    /function finishQuestionTextMotion\(\)[\s\S]*classList\.remove\("is-speech-scrolling"\)[\s\S]*resetQuestionViewportToTop\(\)[\s\S]*setQuestionTextMotionPhase\("finished"\)/
+  );
+  assert.match(styles, /\.juju-interview-question-viewport \{[\s\S]*height: 132px;[\s\S]*overflow-y: auto;/);
+  assert.match(styles, /rgba\(0, 0, 0, 0\.18\) 0,[\s\S]*rgba\(0, 0, 0, 0\.52\) 22px,[\s\S]*#000000 44px/);
+  assert.match(styles, /\.juju-interview-question-frame\.is-playing \.juju-interview-question-viewport \{[\s\S]*overflow-y: hidden;/);
+  assert.match(styles, /p\.is-speech-scrolling \{[\s\S]*animation: juju-question-text-scroll/);
+  assert.match(styles, /\.juju-history-orb-glow \{[\s\S]*top: 8\.6px;[\s\S]*left: 6\.2px;/);
+  assert.match(styles, /\.juju-history-orb-core \{[\s\S]*top: 6\.2px;[\s\S]*left: 6\.2px;/);
+});
+
+test("Juju response and skip controls preserve a confirmed path through the final question", async () => {
+  const interview = await read("components/interview/InterviewPanel.tsx");
+  const styles = await read("app/globals.css");
+
+  assert.doesNotMatch(interview, /aria-label="返回答题"/);
+  assert.match(interview, /onClick=\{requestJujuSkipConfirmation\}[\s\S]*aria-label="跳过当前题目"/);
+  assert.match(interview, /role="dialog"[\s\S]*是否跳过当前题目？/);
+  assert.match(interview, /跳过后将结束本轮面试。/);
+  assert.match(interview, /跳过并完成/);
+  assert.match(interview, /async function confirmJujuSkip\(\)[\s\S]*await stopStt\(\)[\s\S]*onAnswersChange\(nextAnswers\)/);
+  assert.match(interview, /if \(currentIndex < questions\.length - 1\)[\s\S]*setCurrentIndex[\s\S]*onGenerateReport\(nextAnswers\)/);
+  assert.match(styles, /\.juju-interview-skip-layer \{[\s\S]*backdrop-filter: blur\(6px\)/);
+  assert.match(styles, /\.juju-interview-skip-dialog \{[\s\S]*width: 303px;[\s\S]*border-radius: 24px;/);
+  assert.match(styles, /\.juju-interview-skip-actions button\.confirm \{[\s\S]*background: #ff0080;/);
+});
+
+test("all product status bars use the PassBuddy brand", async () => {
+  const files = await Promise.all([
+    read("components/InterviewCoachApp.tsx"),
+    read("components/auth/AuthGate.tsx"),
+    read("components/interview/InterviewPanel.tsx"),
+    read("components/questionnaire/JujuQuestionnaireFlow.tsx"),
+    read("components/report/ReportPanel.tsx"),
+    read("components/setup/SetupPanel.tsx"),
+    read("app/globals.css")
+  ]);
+  const productUi = files.join("\n");
+
+  assert.doesNotMatch(productUi, /Facewall|FACEWALL/);
+  assert.match(productUi, /<span>PassBuddy<\/span>/);
+  assert.match(productUi, /PASSBUDDY INTERVIEW/);
+});
+
+test("Juju auth launch screen omits the home indicator before login", async () => {
+  const gate = await read("components/auth/AuthGate.tsx");
+  assert.match(gate, /visualTheme === "juju" && step !== "checking"/);
 });
 
 test("admin APIs require a database-backed admin profile", async () => {
