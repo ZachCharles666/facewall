@@ -33,7 +33,7 @@ type FigmaAnswerPhase = "prompt" | "recording" | "processing";
 const MAX_ANSWER_SECONDS = 180;
 
 // Subtitle scroll pace relative to the spoken audio. 1 tracks the voice exactly.
-const QUESTION_SCROLL_SPEED = 2;
+const QUESTION_SCROLL_SPEED = 1.6;
 
 function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);

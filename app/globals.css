@@ -7030,11 +7030,7 @@ body[data-visual-theme="juju"] {
     place-items: start center;
     overflow: visible;
     background: var(--juju-phone-background);
-    /* The card is a fixed 812px design canvas, so on a shorter viewport the
-       bottom controls sit below the fold. iOS Safari and the WeChat webview
-       both overlay their own toolbar there, which is why the buttons could not
-       be scrolled into reach. This reserves the scroll headroom to clear it. */
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .theme-juju .figma-phone-card,
@@ -7047,6 +7043,14 @@ body[data-visual-theme="juju"] {
     border-radius: 0;
     box-shadow: none;
     background: var(--juju-phone-background);
+    /* Everything inside sits at absolute design coordinates, so the canvas is
+       scaled as a whole rather than re-anchoring individual elements. That keeps
+       the pieces aligned with each other and puts the bottom controls inside the
+       viewport without any scrolling. The negative margin gives back the layout
+       height that the visual scale no longer occupies. */
+    transform: scale(var(--juju-viewport-scale, 1));
+    transform-origin: top center;
+    margin-bottom: calc(812px * (var(--juju-viewport-scale, 1) - 1));
   }
 
   .theme-juju .figma-report-card.figma-report-page-card {
@@ -7129,25 +7133,8 @@ body[data-visual-theme="juju"] {
     left: calc(var(--juju-design-offset) + 28px);
   }
 
-  /* The 812px design canvas is taller than a phone viewport, so anchoring the
-     controls inside it put them below the fold: reaching them meant scrolling
-     the page, which pushed the orb and question out of view and still left the
-     row half-hidden behind the browser chrome. Pinning them to the visual
-     viewport removes the scroll entirely. */
   .theme-juju .juju-interview-controls {
-    position: fixed;
-    left: 50%;
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
-    z-index: 6;
-    transform: translateX(-50%);
-  }
-
-  .theme-juju .juju-interview-replay-button {
-    position: fixed;
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
-    z-index: 6;
+    left: calc(var(--juju-design-offset) + 32px);
   }
 
   .theme-juju .juju-interview-toast {

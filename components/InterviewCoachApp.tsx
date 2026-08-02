@@ -56,6 +56,9 @@ const stepLabels: Record<SessionStep, string> = {
 
 const activeSessionStorageKey = "passbuddy:active-interview-session:v1";
 
+// Height of the phone design canvas every figma/juju screen is laid out against.
+const DESIGN_CANVAS_HEIGHT = 812;
+
 type FigmaSetupStep = "home" | "jd";
 
 function localFallbackMeasurement(): GenerationMeasurement {
@@ -161,6 +164,37 @@ export function InterviewCoachApp({
       delete document.body.dataset.visualTheme;
     };
   }, [initialVisualTheme]);
+
+  // The phone layouts are a fixed 812px design canvas with every element placed
+  // at absolute design coordinates. On a shorter viewport the bottom controls
+  // fall below the fold, and re-anchoring individual pieces breaks their
+  // alignment with each other. Scaling the whole canvas keeps every coordinate
+  // internally consistent and guarantees the bottom row is reachable without
+  // scrolling at all. visualViewport is what actually shrinks when the iOS or
+  // WeChat toolbars appear, so it is the source of truth when available.
+  useEffect(() => {
+    if (!isFigmaLikeTheme || typeof window === "undefined") return;
+
+    function syncCanvasScale() {
+      const available = window.visualViewport?.height ?? window.innerHeight;
+      const scale = Math.min(1, Math.max(0.6, available / DESIGN_CANVAS_HEIGHT));
+      document.documentElement.style.setProperty(
+        "--juju-viewport-scale",
+        scale.toFixed(4)
+      );
+    }
+
+    syncCanvasScale();
+    window.addEventListener("resize", syncCanvasScale);
+    window.addEventListener("orientationchange", syncCanvasScale);
+    window.visualViewport?.addEventListener("resize", syncCanvasScale);
+    return () => {
+      window.removeEventListener("resize", syncCanvasScale);
+      window.removeEventListener("orientationchange", syncCanvasScale);
+      window.visualViewport?.removeEventListener("resize", syncCanvasScale);
+      document.documentElement.style.removeProperty("--juju-viewport-scale");
+    };
+  }, [isFigmaLikeTheme]);
 
   useEffect(() => {
     persistedSessionIdRef.current = persistedSessionId;
