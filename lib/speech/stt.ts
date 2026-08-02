@@ -50,7 +50,19 @@ function mergeAudioChunks(chunks: Float32Array[]) {
   return merged;
 }
 
-function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSampleRate: number) {
+// Encoding a full answer is a multi-million iteration loop. Running it in one
+// go freezes the main thread for hundreds of milliseconds right after the user
+// taps stop, which reads as the whole UI hanging. Yield back to the browser
+// every slice so React can paint the processing state and buttons stay live.
+const ENCODE_SLICE = 100_000;
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
+
+async function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSampleRate: number) {
   if (inputSampleRate === outputSampleRate) return input;
   const ratio = inputSampleRate / outputSampleRate;
   const outputLength = Math.round(input.length / ratio);
@@ -64,6 +76,7 @@ function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSam
       sum += input[inputIndex];
     }
     output[index] = sum / Math.max(1, end - start);
+    if (index % ENCODE_SLICE === ENCODE_SLICE - 1) await yieldToBrowser();
   }
 
   return output;
@@ -75,7 +88,7 @@ function writeString(view: DataView, offset: number, value: string) {
   }
 }
 
-function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
+async function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
   const bytesPerSample = 2;
   const dataSize = samples.length * bytesPerSample;
   const buffer = new ArrayBuffer(44 + dataSize);
@@ -100,6 +113,7 @@ function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
     const sample = Math.max(-1, Math.min(1, samples[index]));
     view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
     offset += bytesPerSample;
+    if (index % ENCODE_SLICE === ENCODE_SLICE - 1) await yieldToBrowser();
   }
 
   return new Blob([buffer], { type: "audio/wav" });
@@ -143,6 +157,15 @@ export async function startAzureSpeechRecognition(callbacks: {
     }
   });
   const audioContext = new AudioContextConstructor();
+  // Read this up front: cleanup() closes the context before we encode, and a
+  // closed context is not a reliable place to ask for the sample rate.
+  const sourceSampleRate = audioContext.sampleRate;
+  // Mobile webviews hand back a suspended context when it was not created
+  // inside a user gesture. onaudioprocess never fires while suspended, so the
+  // recording would come back empty.
+  if (audioContext.state === "suspended") {
+    await audioContext.resume().catch(() => undefined);
+  }
   const source = audioContext.createMediaStreamSource(stream);
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const chunks: Float32Array[] = [];
@@ -156,7 +179,7 @@ export async function startAzureSpeechRecognition(callbacks: {
 
   source.connect(processor);
   processor.connect(audioContext.destination);
-  callbacks.onStatus("recording", "正在录音，停止后会使用 Azure STT 识别；当前文本会保留。");
+  callbacks.onStatus("recording", "正在录音，停止后会提交服务端识别；当前文本会保留。");
 
   async function cleanup() {
     processor.disconnect();
@@ -176,17 +199,19 @@ export async function startAzureSpeechRecognition(callbacks: {
       await cleanup();
 
       try {
-        callbacks.onStatus("recording", "录音已停止，正在提交 Azure STT 识别。");
+        callbacks.onStatus("recording", "录音已停止，正在整理音频。");
         const merged = mergeAudioChunks(chunks);
-        const downsampled = downsampleAudio(merged, audioContext.sampleRate, 16000);
-        const transcript = (await callbacks.transcribe(encodePcmWav(downsampled))).trim();
+        const downsampled = await downsampleAudio(merged, sourceSampleRate, 16000);
+        const wav = await encodePcmWav(downsampled);
+        callbacks.onStatus("recording", "正在提交语音识别。");
+        const transcript = (await callbacks.transcribe(wav)).trim();
         const nextText = [callbacks.existingText.trim(), transcript].filter(Boolean).join(callbacks.existingText.trim() ? " " : "");
         callbacks.onText(nextText, true);
-        callbacks.onStatus(transcript ? "success" : "manual", transcript ? "Azure STT 识别完成，可继续编辑答案。" : "未识别到文本，可手动输入。");
+        callbacks.onStatus(transcript ? "success" : "manual", transcript ? "识别完成，可继续编辑答案。" : "未识别到文本，可手动输入。");
       } catch (error) {
         callbacks.onStatus(
           "failed",
-          error instanceof Error ? error.message : "Azure STT 识别失败，已保留当前文本，可重试或手动编辑。"
+          error instanceof Error ? error.message : "语音识别失败，已保留当前文本，可重试或手动编辑。"
         );
       }
     },

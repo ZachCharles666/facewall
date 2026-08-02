@@ -120,7 +120,10 @@ test("Juju replaces unavailable speech input with one bounded notice while Figma
   assert.match(interview, /juju-interview-voice-notice-keyword">网络异常/);
   assert.match(interview, /recordedDurationSec <= 2/);
   assert.match(interview, /jujuRecordingAttemptQuestionId !== currentAnswer\.questionId/);
-  assert.match(interview, /showVoiceFailure = !isRecording && jujuVoiceFailureKind !== null/);
+  assert.match(
+    interview,
+    /showVoiceFailure = !isRecording && !isProcessing && jujuVoiceFailureKind !== null/
+  );
   assert.match(interview, /setFigmaAnswerPhase\("prompt"\)/);
   assert.match(interview, /jujuVoiceFailureKind !== "network"/);
   assert.match(interview, /setTimeout\(\(\) => onExitInterview\?\.\(\), 5000\)/);

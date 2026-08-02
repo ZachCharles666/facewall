@@ -543,6 +543,26 @@ export function InterviewCoachApp({
         setProfileGenerationPending(false);
         return;
       }
+      // The questionnaire only ever appears on the report page of the session
+      // that is blocking us. Telling the user to "go fill it in" is a dead end
+      // because there is no way back to that report, so take them there.
+      if (error instanceof ApiClientError && error.code === "QUESTIONNAIRE_REQUIRED") {
+        const blockingSession = await getCurrentPersistedInterviewSession().catch(() => null);
+        setProfileGenerationPending(false);
+        if (blockingSession) {
+          applyPersistedSnapshot(blockingSession);
+          setSetupError("");
+          setStatus({
+            kind: "success",
+            message: "开始新面试前请先完成上一场的调研问卷，已为你打开该场报告。"
+          });
+          return;
+        }
+        const message = "请先完成上一场面试的调研问卷，再开始新的面试。";
+        setStatus({ kind: "error", message });
+        setSetupError(message);
+        return;
+      }
       const message = error instanceof Error ? error.message : "创建面试 Session 失败，输入已保留。";
       setStatus({
         kind: "error",

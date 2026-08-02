@@ -576,6 +576,7 @@ input[type="range"] {
 
 .figma-phone-stage {
   min-height: calc(100vh - 48px);
+  min-height: calc(100dvh - 48px);
   display: grid;
   place-items: center;
 }
@@ -583,6 +584,7 @@ input[type="range"] {
 .figma-phone-card {
   width: min(428px, calc(100vw - 32px));
   min-height: min(928px, calc(100vh - 48px));
+  min-height: min(928px, calc(100dvh - 48px));
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -611,7 +613,9 @@ input[type="range"] {
   flex-direction: column;
   width: min(375px, calc(100vw - 32px));
   height: min(812px, calc(100vh - 48px));
+  height: min(812px, calc(100dvh - 48px));
   min-height: min(812px, calc(100vh - 48px));
+  min-height: min(812px, calc(100dvh - 48px));
   padding: 0;
   border: 0;
   border-radius: 24px;
@@ -6556,6 +6560,40 @@ body[data-visual-theme="juju"] {
   touch-action: none;
 }
 
+/* Sits in the gap between the question frame (ends at 567px) and the control
+   row (starts at 642px). This is the only way back to the audio when a mobile
+   browser refuses to autoplay it. */
+.theme-juju .juju-interview-replay-button {
+  position: absolute;
+  left: 50%;
+  top: 580px;
+  z-index: 3;
+  transform: translateX(-50%);
+  min-height: 36px;
+  padding: 7px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  font-family: "PingFang SC", var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.theme-juju .juju-interview-replay-button:hover:not(:disabled),
+.theme-juju .juju-interview-replay-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateX(-50%);
+}
+
+.theme-juju .juju-interview-replay-button[data-attention="true"] {
+  border-color: rgba(244, 96, 182, 0.72);
+  background: rgba(244, 96, 182, 0.18);
+  color: #fff;
+}
+
 .theme-juju .juju-interview-listening-label {
   position: absolute;
   left: 28px;
@@ -6992,6 +7030,11 @@ body[data-visual-theme="juju"] {
     place-items: start center;
     overflow: visible;
     background: var(--juju-phone-background);
+    /* The card is a fixed 812px design canvas, so on a shorter viewport the
+       bottom controls sit below the fold. iOS Safari and the WeChat webview
+       both overlay their own toolbar there, which is why the buttons could not
+       be scrolled into reach. This reserves the scroll headroom to clear it. */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
   }
 
   .theme-juju .figma-phone-card,
