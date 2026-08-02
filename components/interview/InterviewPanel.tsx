@@ -3,6 +3,7 @@ import { getActiveSpeechSettings, getAzureSpeechStatus, requestSttTranscript, re
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
+import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
 import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
 import { JujuOrb } from "@/components/JujuOrb";
@@ -25,7 +26,17 @@ import interviewerOrb from "@/面壁者/B_01__326-806@2x.png";
 import messageIcon from "@/面壁者/message__295-1277@2x.png";
 import voiceIcon from "@/面壁者/voice_S__379-1437@2x.png";
 
-type FigmaAnswerPhase = "prompt" | "recording";
+type FigmaAnswerPhase = "prompt" | "recording" | "processing";
+
+// Product ceiling for a single answer. Recording stops itself here so a long
+// answer ends on our terms instead of failing somewhere downstream.
+const MAX_ANSWER_SECONDS = 180;
+
+function formatElapsed(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 type QuestionTextMotionPhase = "idle" | "playing" | "finished";
 type JujuVoiceFailureKind = "recording" | "too-short" | "network";
 const classicSpeechSettingsStorageKey = "facewall:classic:speech-settings:v1";
@@ -173,6 +184,9 @@ export function InterviewPanel({
   const [speechSettingsMessage, setSpeechSettingsMessage] = useState("classic 主题可分别锁定 3 位面试官声线，保存后对全站生效。");
   const [voiceMessage, setVoiceMessage] = useState("语音提问优先服务端 TTS，失败后使用浏览器 Web Speech。");
   const [figmaAnswerPhase, setFigmaAnswerPhase] = useState<FigmaAnswerPhase>("prompt");
+  // Set when the browser refused to start playback. The only way out is another
+  // real tap, so the UI has to offer one instead of failing silently.
+  const [ttsBlocked, setTtsBlocked] = useState(false);
   const [figmaElapsedSec, setFigmaElapsedSec] = useState(0);
   const [questionTextMotionPhase, setQuestionTextMotionPhase] = useState<QuestionTextMotionPhase>("idle");
   const [questionTextMotionRun, setQuestionTextMotionRun] = useState(0);
@@ -192,6 +206,10 @@ export function InterviewPanel({
   const jujuQuestionMotionTokenRef = useRef(0);
   const answersRef = useRef(answers);
   const autoPlayedIndexRef = useRef<number | null>(null);
+  // Generated audio keyed by question id, so replays and pre-fetched questions
+  // never pay the round trip twice.
+  const ttsCacheRef = useRef(new Map<string, Blob>());
+  const ttsPrefetchedRef = useRef(new Set<string>());
   const ttsPlaybackTokenRef = useRef(0);
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
   const jujuAdvanceLockRef = useRef(false);
@@ -293,6 +311,13 @@ export function InterviewPanel({
   }, [figmaAnswerPhase, figmaElapsedSec]);
 
   useEffect(() => {
+    if (figmaAnswerPhase !== "recording" || figmaElapsedSec < MAX_ANSWER_SECONDS) return;
+    setVoiceMessage(`单题回答上限 ${MAX_ANSWER_SECONDS / 60} 分钟，已自动结束录音并提交识别。`);
+    void finishFigmaAnswer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [figmaAnswerPhase, figmaElapsedSec]);
+
+  useEffect(() => {
     let cancelled = false;
     getAzureSpeechStatus()
       .then((status) => {
@@ -329,6 +354,12 @@ export function InterviewPanel({
     playQuestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, azureStatusReady, currentQuestion]);
+
+  useEffect(() => {
+    if (!azureStatusReady) return;
+    void prefetchQuestionAudio(currentIndex + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, azureStatusReady]);
 
   useEffect(() => {
     function syncWebVoices() {
@@ -481,6 +512,29 @@ export function InterviewPanel({
     }, 1800);
   }
 
+  // Generating a question takes 0.3–2s server side. Fetching the next one while
+  // the candidate is still answering turns that wait into an instant playback.
+  async function prefetchQuestionAudio(index: number) {
+    const question = questions[index];
+    if (!question || !azureConfigured || ttsEngine !== "azure") return;
+    if (ttsCacheRef.current.has(question.id) || ttsPrefetchedRef.current.has(question.id)) return;
+    ttsPrefetchedRef.current.add(question.id);
+    try {
+      const blob = await requestTtsAudio({
+        text: question.questionText,
+        styleId: interviewerStyleId,
+        voiceName: speechTuning.voiceName,
+        rate: speechTuning.rate,
+        pitch: speechTuning.pitch,
+        volume: speechTuning.volume
+      });
+      ttsCacheRef.current.set(question.id, blob);
+    } catch {
+      // A failed prefetch is not worth surfacing; the real playback will retry.
+      ttsPrefetchedRef.current.delete(question.id);
+    }
+  }
+
   async function playQuestion() {
     if (!currentQuestion) return;
     const text = currentQuestion.questionText;
@@ -496,22 +550,31 @@ export function InterviewPanel({
         controller.abort();
       }, 6000);
       try {
-        setTtsStatus("loading");
-        setVoiceMessage(`正在生成${speechProvider === "tencent" ? "腾讯云" : " Azure"} TTS 音频。`);
-        const blob = await requestTtsAudio(
-          {
-            text,
-            styleId: interviewerStyleId,
-            voiceName: speechTuning.voiceName,
-            rate: speechTuning.rate,
-            pitch: speechTuning.pitch,
-            volume: speechTuning.volume
-          },
-          { signal: controller.signal }
-        );
+        const cached = currentQuestion ? ttsCacheRef.current.get(currentQuestion.id) : undefined;
+        if (!cached) {
+          setTtsStatus("loading");
+          setVoiceMessage(`正在生成${speechProvider === "tencent" ? "腾讯云" : " Azure"} TTS 音频。`);
+        }
+        const blob =
+          cached ??
+          (await requestTtsAudio(
+            {
+              text,
+              styleId: interviewerStyleId,
+              voiceName: speechTuning.voiceName,
+              rate: speechTuning.rate,
+              pitch: speechTuning.pitch,
+              volume: speechTuning.volume
+            },
+            { signal: controller.signal }
+          ));
+        if (currentQuestion && !cached) ttsCacheRef.current.set(currentQuestion.id, blob);
         if (playbackToken !== ttsPlaybackTokenRef.current) return;
         const audioUrl = URL.createObjectURL(blob);
-        const audio = new Audio(audioUrl);
+        // Reuse the element that a user gesture already unlocked. A fresh
+        // `new Audio()` here would be blocked on iOS and in WeChat.
+        const audio = getSharedAudioElement() ?? new Audio();
+        audio.src = audioUrl;
         audio.volume = speechTuning.volume;
         audioRef.current = audio;
         audioUrlRef.current = audioUrl;
@@ -539,9 +602,23 @@ export function InterviewPanel({
           releaseAudio();
         };
         await audio.play();
+        setTtsBlocked(false);
         return;
-      } catch {
+      } catch (error) {
         if (playbackToken !== ttsPlaybackTokenRef.current || (!providerTimedOut && controller.signal.aborted)) return;
+        // The audio itself is fine — the browser just refused to start it
+        // without a gesture. Falling through to Web Speech would fail silently
+        // for the same reason, so surface a tap target instead.
+        if (error instanceof DOMException && error.name === "NotAllowedError") {
+          setTtsStatus("failed");
+          setTtsBlocked(true);
+          setVoiceMessage(
+            isWeChatBrowser()
+              ? "微信浏览器拦截了自动播放，点击「播放题目」即可收听。"
+              : "浏览器拦截了自动播放，点击「播放题目」即可收听。"
+          );
+          return;
+        }
         releaseAudio();
         setVoiceMessage(providerTimedOut ? "云端 TTS 响应较慢，已切换浏览器语音。" : "服务端 TTS 不可用，正在切换 Web Speech API 兜底。");
       } finally {
@@ -691,6 +768,9 @@ export function InterviewPanel({
   }
 
   function startFigmaAnswer() {
+    // This runs inside a real tap, which is the only moment iOS and WeChat will
+    // let us unlock audio for the rest of the interview.
+    void unlockAudioPlayback();
     stopTts();
     setJujuVoiceFailureKind(null);
     setJujuRecordingAttemptQuestionId(currentQuestion?.id ?? null);
@@ -702,6 +782,12 @@ export function InterviewPanel({
 
   async function finishFigmaAnswer() {
     if (!currentAnswer || jujuAdvanceLockRef.current) return;
+    // Encoding and recognition take a couple of seconds. Flip to a visible
+    // processing state before any await so the tap is acknowledged immediately,
+    // and hold the lock so a second tap cannot re-enter. The failure paths
+    // below release it; the advance paths keep it until the index changes.
+    jujuAdvanceLockRef.current = true;
+    setFigmaAnswerPhase("processing");
     await stopStt();
     const latestAnswer = answersRef.current.find((answer) => answer.questionId === currentAnswer.questionId) ?? currentAnswer;
     const recordedDurationSec = Math.max(latestAnswer.durationSec, figmaElapsedSec);
@@ -716,6 +802,7 @@ export function InterviewPanel({
       setVoiceMessage("语音过短，请重新作答。");
       setFigmaAnswerPhase("prompt");
       setFigmaElapsedSec(0);
+      jujuAdvanceLockRef.current = false;
       return;
     }
     if (["failed", "unsupported"].includes(latestAnswer.sttStatus)) {
@@ -724,6 +811,7 @@ export function InterviewPanel({
       );
       setFigmaAnswerPhase("prompt");
       setFigmaElapsedSec(0);
+      jujuAdvanceLockRef.current = false;
       return;
     }
     if (!latestAnswer.answerText.trim()) {
@@ -736,6 +824,7 @@ export function InterviewPanel({
       setVoiceMessage("录制失败，请重新作答。");
       setFigmaAnswerPhase("prompt");
       setFigmaElapsedSec(0);
+      jujuAdvanceLockRef.current = false;
       return;
     }
     const durationSec = Math.max(recordedDurationSec, 30);
@@ -773,7 +862,7 @@ export function InterviewPanel({
     if (jujuAdvanceLockRef.current) return;
     jujuAdvanceLockRef.current = true;
     setIsJujuAdvancing(true);
-    if (figmaAnswerPhase === "recording") await stopStt();
+    if (figmaAnswerPhase === "recording" || figmaAnswerPhase === "processing") await stopStt();
     stopTts();
 
     const nextAnswers = getPatchedAnswers({
@@ -859,7 +948,8 @@ export function InterviewPanel({
 
   if (visualTheme === "juju") {
     const isRecording = figmaAnswerPhase === "recording";
-    const showVoiceFailure = !isRecording && jujuVoiceFailureKind !== null;
+    const isProcessing = figmaAnswerPhase === "processing";
+    const showVoiceFailure = !isRecording && !isProcessing && jujuVoiceFailureKind !== null;
     const jujuVoiceFailureMessage =
       jujuVoiceFailureKind === "network"
         ? <>抱歉 <span className="juju-interview-voice-notice-keyword">网络异常</span> 5S后退出面试 ...</>
@@ -890,17 +980,44 @@ export function InterviewPanel({
 
           <JujuOrb className="juju-interview-orb" progressText={progressText} showEllipse11={isRecording} showOuterArc />
 
-          {!isRecording && !showVoiceFailure && (
-            <section className={`juju-interview-question-frame is-${questionTextMotionPhase}`}>
-              <div className="juju-interview-question-viewport" ref={jujuQuestionViewportRef}>
-                <p key={`${currentQuestion.id}-${questionTextMotionRun}`}>{currentQuestion.questionText}</p>
-              </div>
-            </section>
+          {!isRecording && !isProcessing && !showVoiceFailure && (
+            <>
+              <section className={`juju-interview-question-frame is-${questionTextMotionPhase}`}>
+                <div className="juju-interview-question-viewport" ref={jujuQuestionViewportRef}>
+                  <p key={`${currentQuestion.id}-${questionTextMotionRun}`}>{currentQuestion.questionText}</p>
+                </div>
+              </section>
+              <button
+                className="juju-interview-replay-button"
+                data-attention={ttsBlocked}
+                onClick={() => {
+                  void unlockAudioPlayback();
+                  playQuestion();
+                }}
+                type="button"
+              >
+                {ttsStatus === "speaking"
+                  ? "正在播放…"
+                  : ttsStatus === "loading"
+                    ? "正在生成语音…"
+                    : ttsBlocked
+                      ? "点击播放题目"
+                      : "重播题目"}
+              </button>
+            </>
+          )}
+
+          {isProcessing && (
+            <p className="juju-interview-listening-label" role="status">
+              正在识别你的回答…
+            </p>
           )}
 
           {isRecording && !showVoiceFailure && (
             <>
-              <p className="juju-interview-listening-label">{interviewerName}正在聆听...</p>
+              <p className="juju-interview-listening-label">
+                {interviewerName}正在聆听... {formatElapsed(figmaElapsedSec)} / {formatElapsed(MAX_ANSWER_SECONDS)}
+              </p>
               <div className="figma-interview-listening-rings juju-interview-listening-rings" aria-hidden="true">
                 <span className="ring ring-outer" />
                 <span className="ring ring-large" />
@@ -921,7 +1038,7 @@ export function InterviewPanel({
               className="juju-interview-control juju-interview-control-frame7"
               onClick={requestJujuSkipConfirmation}
               aria-label="跳过当前题目"
-              disabled={isJujuAdvancing}
+              disabled={isJujuAdvancing || isProcessing}
             >
               <img src="/juju/interview-controls/frame-7.svg?v=202607102345" alt="" />
             </button>
@@ -929,7 +1046,7 @@ export function InterviewPanel({
               className="juju-interview-control juju-interview-control-frame8"
               onClick={isRecording ? finishFigmaAnswer : startFigmaAnswer}
               aria-label={isRecording ? "结束回答" : "开始回答"}
-              disabled={isJujuAdvancing}
+              disabled={isJujuAdvancing || isProcessing}
             >
               <img
                 src={isRecording ? "/juju/interview-controls/frame-8-recording.svg?v=2026080101" : "/juju/interview-controls/frame-8.svg?v=202607102345"}
@@ -947,7 +1064,7 @@ export function InterviewPanel({
                 setShowJujuHistory(true);
               }}
               aria-label="查看答题记录"
-              disabled={isJujuAdvancing}
+              disabled={isJujuAdvancing || isProcessing}
             >
               <img src={messageIcon.src} alt="" />
             </button>
@@ -1093,6 +1210,7 @@ export function InterviewPanel({
             <button
               className="figma-interview-round-button next"
               onClick={() => {
+                void unlockAudioPlayback();
                 if (isRecording) {
                   finishFigmaAnswer();
                   return;

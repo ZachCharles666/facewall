@@ -50,7 +50,25 @@ function mergeAudioChunks(chunks: Float32Array[]) {
   return merged;
 }
 
-function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSampleRate: number) {
+// Encoding a full answer is a multi-million iteration loop. Running it in one
+// go freezes the main thread for hundreds of milliseconds right after the user
+// taps stop, which reads as the whole UI hanging. Yield back to the browser
+// every slice so React can paint the processing state and buttons stay live.
+const ENCODE_SLICE = 100_000;
+
+// Both Azure's short-audio endpoint and Tencent's sentence recognition reject
+// anything past 60s, but candidates are expected to answer for up to 3 minutes.
+// 45s leaves room for the silence-seeking split to drift later.
+const SEGMENT_TARGET_SECONDS = 45;
+const SILENCE_SEARCH_SECONDS = 4;
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
+
+async function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSampleRate: number) {
   if (inputSampleRate === outputSampleRate) return input;
   const ratio = inputSampleRate / outputSampleRate;
   const outputLength = Math.round(input.length / ratio);
@@ -64,6 +82,7 @@ function downsampleAudio(input: Float32Array, inputSampleRate: number, outputSam
       sum += input[inputIndex];
     }
     output[index] = sum / Math.max(1, end - start);
+    if (index % ENCODE_SLICE === ENCODE_SLICE - 1) await yieldToBrowser();
   }
 
   return output;
@@ -75,7 +94,7 @@ function writeString(view: DataView, offset: number, value: string) {
   }
 }
 
-function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
+async function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
   const bytesPerSample = 2;
   const dataSize = samples.length * bytesPerSample;
   const buffer = new ArrayBuffer(44 + dataSize);
@@ -100,6 +119,7 @@ function encodePcmWav(samples: Float32Array, sampleRate = 16000) {
     const sample = Math.max(-1, Math.min(1, samples[index]));
     view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
     offset += bytesPerSample;
+    if (index % ENCODE_SLICE === ENCODE_SLICE - 1) await yieldToBrowser();
   }
 
   return new Blob([buffer], { type: "audio/wav" });
@@ -143,20 +163,103 @@ export async function startAzureSpeechRecognition(callbacks: {
     }
   });
   const audioContext = new AudioContextConstructor();
+  // Read this up front: cleanup() closes the context before we encode, and a
+  // closed context is not a reliable place to ask for the sample rate.
+  const sourceSampleRate = audioContext.sampleRate;
+  // Mobile webviews hand back a suspended context when it was not created
+  // inside a user gesture. onaudioprocess never fires while suspended, so the
+  // recording would come back empty.
+  if (audioContext.state === "suspended") {
+    await audioContext.resume().catch(() => undefined);
+  }
   const source = audioContext.createMediaStreamSource(stream);
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const chunks: Float32Array[] = [];
+  // Segments already handed to the recognizer, in spoken order. Each entry
+  // settles to its own transcript so a single bad segment cannot lose the rest.
+  const segmentTranscripts: Promise<string>[] = [];
+  const segmentSampleTarget = Math.round(SEGMENT_TARGET_SECONDS * sourceSampleRate);
+  let bufferedSamples = 0;
+  let flushing = false;
   let stopped = false;
   let aborted = false;
+
+  function drainBuffer() {
+    const merged = mergeAudioChunks(chunks);
+    chunks.length = 0;
+    bufferedSamples = 0;
+    return merged;
+  }
+
+  function queueSegment(samples: Float32Array) {
+    if (samples.length === 0) return;
+    segmentTranscripts.push(
+      (async () => {
+        const downsampled = await downsampleAudio(samples, sourceSampleRate, 16000);
+        const wav = await encodePcmWav(downsampled);
+        return (await callbacks.transcribe(wav)).trim();
+      })()
+    );
+  }
+
+  // Cutting a segment mid-word garbles it, so the split point is nudged to the
+  // quietest moment in the tail of the buffer rather than an exact timestamp.
+  function splitAtQuietestPoint(samples: Float32Array) {
+    const searchSpan = Math.min(
+      samples.length,
+      Math.round(SILENCE_SEARCH_SECONDS * sourceSampleRate)
+    );
+    const windowSize = Math.max(1, Math.round(0.1 * sourceSampleRate));
+    const searchStart = samples.length - searchSpan;
+    let quietestEnergy = Number.POSITIVE_INFINITY;
+    let cutIndex = samples.length;
+
+    for (let start = searchStart; start + windowSize <= samples.length; start += windowSize) {
+      let energy = 0;
+      for (let index = start; index < start + windowSize; index += 1) {
+        energy += samples[index] * samples[index];
+      }
+      if (energy < quietestEnergy) {
+        quietestEnergy = energy;
+        cutIndex = start + Math.floor(windowSize / 2);
+      }
+    }
+
+    return {
+      segment: samples.subarray(0, cutIndex),
+      remainder: new Float32Array(samples.subarray(cutIndex))
+    };
+  }
+
+  async function flushSegment() {
+    if (flushing) return;
+    flushing = true;
+    try {
+      const buffered = drainBuffer();
+      const { segment, remainder } = splitAtQuietestPoint(buffered);
+      queueSegment(segment);
+      if (remainder.length > 0) {
+        chunks.push(remainder);
+        bufferedSamples += remainder.length;
+      }
+    } finally {
+      flushing = false;
+    }
+  }
 
   processor.onaudioprocess = (event) => {
     if (stopped || aborted) return;
     chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+    bufferedSamples += event.inputBuffer.length;
+    // Recognizers cap a single request at 60s of audio, so long answers are cut
+    // into segments while the candidate is still talking. By the time they stop,
+    // only the tail is still in flight.
+    if (bufferedSamples >= segmentSampleTarget) void flushSegment();
   };
 
   source.connect(processor);
   processor.connect(audioContext.destination);
-  callbacks.onStatus("recording", "正在录音，停止后会使用 Azure STT 识别；当前文本会保留。");
+  callbacks.onStatus("recording", "正在录音，停止后会提交服务端识别；当前文本会保留。");
 
   async function cleanup() {
     processor.disconnect();
@@ -176,17 +279,45 @@ export async function startAzureSpeechRecognition(callbacks: {
       await cleanup();
 
       try {
-        callbacks.onStatus("recording", "录音已停止，正在提交 Azure STT 识别。");
-        const merged = mergeAudioChunks(chunks);
-        const downsampled = downsampleAudio(merged, audioContext.sampleRate, 16000);
-        const transcript = (await callbacks.transcribe(encodePcmWav(downsampled))).trim();
+        callbacks.onStatus("recording", "录音已停止，正在整理音频。");
+        queueSegment(drainBuffer());
+        callbacks.onStatus(
+          "recording",
+          segmentTranscripts.length > 1
+            ? `正在提交语音识别（共 ${segmentTranscripts.length} 段）。`
+            : "正在提交语音识别。"
+        );
+
+        const settled = await Promise.allSettled(segmentTranscripts);
+        const failedCount = settled.filter((result) => result.status === "rejected").length;
+        if (settled.length > 0 && failedCount === settled.length) {
+          const firstRejection = settled.find(
+            (result): result is PromiseRejectedResult => result.status === "rejected"
+          );
+          throw firstRejection?.reason instanceof Error
+            ? firstRejection.reason
+            : new Error("语音识别失败，已保留当前文本，可重试或手动编辑。");
+        }
+
+        const transcript = settled
+          .map((result) => (result.status === "fulfilled" ? result.value : ""))
+          .filter(Boolean)
+          .join(" ")
+          .trim();
         const nextText = [callbacks.existingText.trim(), transcript].filter(Boolean).join(callbacks.existingText.trim() ? " " : "");
         callbacks.onText(nextText, true);
-        callbacks.onStatus(transcript ? "success" : "manual", transcript ? "Azure STT 识别完成，可继续编辑答案。" : "未识别到文本，可手动输入。");
+        callbacks.onStatus(
+          transcript ? "success" : "manual",
+          transcript
+            ? failedCount > 0
+              ? `识别完成，但有 ${failedCount} 段未能识别，请检查后补充。`
+              : "识别完成，可继续编辑答案。"
+            : "未识别到文本，可手动输入。"
+        );
       } catch (error) {
         callbacks.onStatus(
           "failed",
-          error instanceof Error ? error.message : "Azure STT 识别失败，已保留当前文本，可重试或手动编辑。"
+          error instanceof Error ? error.message : "语音识别失败，已保留当前文本，可重试或手动编辑。"
         );
       }
     },

@@ -18,6 +18,56 @@ function pickTranscript(payload: AzureSimpleSttResponse) {
   return (payload.DisplayText || payload.NBest?.[0]?.Display || payload.NBest?.[0]?.Lexical || "").trim();
 }
 
+class SttProviderError extends Error {
+  constructor(
+    public readonly detail: string,
+    public readonly status: number
+  ) {
+    super(detail);
+  }
+}
+
+async function recognizeWithAzure(audio: ArrayBuffer, key: string, region: string) {
+  const endpoint = new URL(
+    `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1`
+  );
+  endpoint.searchParams.set("language", "zh-CN");
+  endpoint.searchParams.set("format", "simple");
+
+  let azureResponse: Response;
+  try {
+    azureResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Ocp-Apim-Subscription-Key": key,
+        "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
+        "Accept": "application/json",
+        "User-Agent": "facewall-next-app"
+      },
+      body: audio
+    });
+  } catch {
+    throw new SttProviderError("Failed to reach Azure STT.", 502);
+  }
+
+  if (!azureResponse.ok) {
+    throw new SttProviderError(
+      `Azure STT request failed (${azureResponse.status}).`,
+      azureResponse.status
+    );
+  }
+
+  const payload = (await azureResponse.json()) as AzureSimpleSttResponse;
+  const text = pickTranscript(payload);
+  if (!text) {
+    throw new SttProviderError(
+      `Azure STT did not return text (${payload.RecognitionStatus || "NoText"}).`,
+      422
+    );
+  }
+  return text;
+}
+
 async function handlePost(request: Request) {
   if (shouldInjectDevFault(request, "stt")) {
     return NextResponse.json({ error: "开发故障注入：Azure STT 不可用。" }, { status: 503 });
@@ -39,64 +89,44 @@ async function handlePost(request: Request) {
     return NextResponse.json({ error: "Audio body is too large." }, { status: 413 });
   }
 
-  if (tencentConfigured) {
+  // Azure is the preferred engine; Tencent covers its free-tier concurrency
+  // limits and any transient failure so a candidate is never blocked mid-answer.
+  let azureError: SttProviderError | null = null;
+  if (azureConfigured) {
     try {
-      const text = await recognizeWithTencent({
-        audio: Buffer.from(audio),
-        contentType: request.headers.get("content-type") || "audio/wav"
-      });
+      const text = await recognizeWithAzure(audio, azureKey as string, azureRegion);
       return NextResponse.json(
-        { text, provider: "tencent" },
+        { text, provider: "azure" },
         { status: 200, headers: { "Cache-Control": "no-store" } }
       );
-    } catch {
-      if (!azureConfigured) {
-        return NextResponse.json({ error: "Tencent ASR request failed." }, { status: 502 });
+    } catch (error) {
+      azureError =
+        error instanceof SttProviderError
+          ? error
+          : new SttProviderError("Failed to reach Azure STT.", 502);
+      if (!tencentConfigured) {
+        return NextResponse.json({ error: azureError.detail }, { status: azureError.status });
       }
     }
   }
 
-  if (!azureConfigured) {
+  if (!tencentConfigured) {
     return NextResponse.json({ error: "STT is not configured." }, { status: 503 });
   }
 
-  const endpoint = new URL(`https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1`);
-  endpoint.searchParams.set("language", "zh-CN");
-  endpoint.searchParams.set("format", "simple");
-
   try {
-    const azureResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Ocp-Apim-Subscription-Key": azureKey as string,
-        "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
-        "Accept": "application/json",
-        "User-Agent": "facewall-next-app"
-      },
-      body: audio
+    const text = await recognizeWithTencent({
+      audio: Buffer.from(audio),
+      contentType: request.headers.get("content-type") || "audio/wav"
     });
-
-    if (!azureResponse.ok) {
-      return NextResponse.json({ error: `Azure STT request failed (${azureResponse.status}).` }, { status: azureResponse.status });
-    }
-
-    const payload = (await azureResponse.json()) as AzureSimpleSttResponse;
-    const text = pickTranscript(payload);
-    if (!text) {
-      return NextResponse.json({ error: `Azure STT did not return text (${payload.RecognitionStatus || "NoText"}).` }, { status: 422 });
-    }
-
     return NextResponse.json(
-      { text },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "no-store"
-        }
-      }
+      { text, provider: "tencent" },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
     );
   } catch {
-    return NextResponse.json({ error: "Failed to reach Azure STT." }, { status: 502 });
+    // Surface the Tencent failure on its own terms. Reporting a stale Azure
+    // status here is what made the earlier 401 so hard to trace.
+    return NextResponse.json({ error: "Tencent ASR request failed." }, { status: 502 });
   }
 }
 
