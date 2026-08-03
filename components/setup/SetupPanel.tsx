@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { canUseDevControls } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES } from "@/lib/state/constants";
 import type { CommonResponse, SetupForm, VisualTheme } from "@/lib/types";
@@ -107,6 +108,10 @@ export function SetupPanel({
     message: ""
   });
   const isJujuTheme = visualTheme === "juju";
+  // The demo shortcuts fill the form with the canned scenario. Useful while
+  // developing, confusing for a real candidate, so they stay off in production
+  // and the file upload takes their slot in the toolbar.
+  const showDemoShortcuts = canUseDevControls();
   const uploadButtonImageSrc = isJujuTheme
     ? "/juju/home/toolbar-plus.svg?v=2026071003"
     : "/figma/home/frame4-frame1-upload@2x.png?v=2026070302";
@@ -415,9 +420,11 @@ export function SetupPanel({
                         <span aria-hidden="true">×</span>
                       )}
                     </button>
-                    <button className="figma-frame4-pill-button" onClick={fillDemoResume}>
-                      <span>UseDemoCV</span>
-                    </button>
+                    {showDemoShortcuts && (
+                      <button className="figma-frame4-pill-button" onClick={fillDemoResume}>
+                        <span>UseDemoCV</span>
+                      </button>
+                    )}
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaResumeFile">
                       <img
                         className="figma-file-upload-icon"
@@ -527,7 +534,7 @@ export function SetupPanel({
                     tabIndex={jujuSideOpen ? 0 : -1}
                     type="button"
                   >
-                    {jujuLogoutBusy ? "退出中..." : "退出登陆"}
+                    {jujuLogoutBusy ? "退出中..." : "退出登录"}
                   </button>
                 </aside>
               </div>
@@ -612,9 +619,11 @@ export function SetupPanel({
                         <span aria-hidden="true">×</span>
                       )}
                     </button>
-                    <button className="figma-frame4-pill-button" onClick={fillDemoJd}>
-                      <span>UseDemoJD</span>
-                    </button>
+                    {showDemoShortcuts && (
+                      <button className="figma-frame4-pill-button" onClick={fillDemoJd}>
+                        <span>UseDemoJD</span>
+                      </button>
+                    )}
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaJdFile">
                       <img
                         className="figma-file-upload-icon"

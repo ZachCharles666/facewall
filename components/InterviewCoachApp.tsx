@@ -175,23 +175,35 @@ export function InterviewCoachApp({
   useEffect(() => {
     if (!isFigmaLikeTheme || typeof window === "undefined") return;
 
-    function syncCanvasScale() {
+    // An on-screen keyboard shrinks the visual viewport by hundreds of pixels.
+    // Scaling to that would collapse the whole page the moment a field is
+    // focused, so the scale tracks the tallest viewport seen instead. The page
+    // then simply scrolls the focused field into view, which is the behaviour
+    // people expect. Rotating resets the baseline.
+    let tallestViewport = 0;
+
+    function syncCanvasScale(resetBaseline = false) {
       const available = window.visualViewport?.height ?? window.innerHeight;
-      const scale = Math.min(1, Math.max(0.6, available / DESIGN_CANVAS_HEIGHT));
+      if (resetBaseline) tallestViewport = 0;
+      tallestViewport = Math.max(tallestViewport, available);
+      const scale = Math.min(1, Math.max(0.6, tallestViewport / DESIGN_CANVAS_HEIGHT));
       document.documentElement.style.setProperty(
         "--juju-viewport-scale",
         scale.toFixed(4)
       );
     }
 
+    const onResize = () => syncCanvasScale();
+    const onOrientationChange = () => syncCanvasScale(true);
+
     syncCanvasScale();
-    window.addEventListener("resize", syncCanvasScale);
-    window.addEventListener("orientationchange", syncCanvasScale);
-    window.visualViewport?.addEventListener("resize", syncCanvasScale);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onOrientationChange);
+    window.visualViewport?.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("resize", syncCanvasScale);
-      window.removeEventListener("orientationchange", syncCanvasScale);
-      window.visualViewport?.removeEventListener("resize", syncCanvasScale);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onOrientationChange);
+      window.visualViewport?.removeEventListener("resize", onResize);
       document.documentElement.style.removeProperty("--juju-viewport-scale");
     };
   }, [isFigmaLikeTheme]);
