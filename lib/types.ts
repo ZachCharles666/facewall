@@ -212,6 +212,12 @@ export interface SpeechTuning {
   rate: number;
   pitch: number;
   volume: number;
+  /**
+   * Tencent voice id for this persona. 0 means inherit the server default, so a
+   * deployment that never touches the panel keeps working. Free-form rather
+   * than a fixed list because which ids an account can use varies.
+   */
+  tencentVoiceType: number;
 }
 
 export type PersonaSpeechTunings = Record<InterviewerStyleId, SpeechTuning>;

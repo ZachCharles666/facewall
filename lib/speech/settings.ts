@@ -29,19 +29,22 @@ export const personaSpeechDefaults: Record<InterviewerStyleId, SpeechTuning> = {
     voiceName: "auto",
     rate: 1.12,
     pitch: 0.82,
-    volume: 1
+    volume: 1,
+    tencentVoiceType: 0
   },
   techBro: {
     voiceName: "auto",
     rate: 1.02,
     pitch: 0.72,
-    volume: 1
+    volume: 1,
+    tencentVoiceType: 0
   },
   gentleSister: {
     voiceName: "auto",
     rate: 0.94,
     pitch: 1.14,
-    volume: 1
+    volume: 1,
+    tencentVoiceType: 0
   }
 };
 
@@ -57,7 +60,10 @@ export function normalizeSpeechTuning(value: unknown, fallback: SpeechTuning): S
     voiceName: typeof candidate.voiceName === "string" && candidate.voiceName.trim() ? candidate.voiceName : fallback.voiceName,
     rate: clampNumber(candidate.rate, fallback.rate, 0.6, 1.5),
     pitch: clampNumber(candidate.pitch, fallback.pitch, 0.1, 1.5),
-    volume: clampNumber(candidate.volume, fallback.volume, 0, 1)
+    volume: clampNumber(candidate.volume, fallback.volume, 0, 1),
+    tencentVoiceType: Math.round(
+      clampNumber(candidate.tencentVoiceType, fallback.tencentVoiceType, 0, 999_999_999)
+    )
   };
 }
 

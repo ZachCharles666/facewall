@@ -2,12 +2,24 @@ import "server-only";
 
 import { asr, tts } from "tencentcloud-sdk-nodejs";
 
+import type { InterviewerStyleId } from "@/lib/types";
+
 type TencentSpeechConfig = {
   secretId: string;
   secretKey: string;
   region: string;
   voiceType: number;
+  personaVoiceTypes: Record<InterviewerStyleId, number>;
   asrEngine: string;
+};
+
+// Each interviewer needs its own voice, and which voice ids an account can use
+// varies, so the mapping stays in the environment: swapping a persona's voice
+// is a config change, not a release.
+const PERSONA_VOICE_ENV: Record<InterviewerStyleId, string> = {
+  strictHr: "TENCENT_TTS_VOICE_STRICTHR",
+  techBro: "TENCENT_TTS_VOICE_TECHBRO",
+  gentleSister: "TENCENT_TTS_VOICE_GENTLESISTER"
 };
 
 function configuredValue(value: string | undefined) {
@@ -15,19 +27,32 @@ function configuredValue(value: string | undefined) {
   return normalized && !/^replace_|^your_/i.test(normalized) ? normalized : null;
 }
 
+function readVoiceType(value: string | undefined, fallback: number) {
+  const parsed = Number(configuredValue(value) ?? Number.NaN);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 export function readTencentSpeechConfig(): TencentSpeechConfig | null {
   const secretId = configuredValue(process.env.TENCENT_SPEECH_SECRET_ID);
   const secretKey = configuredValue(process.env.TENCENT_SPEECH_SECRET_KEY);
   if (!secretId || !secretKey) return null;
 
-  const parsedVoiceType = Number(process.env.TENCENT_TTS_VOICE_TYPE ?? "101001");
+  const voiceType = readVoiceType(process.env.TENCENT_TTS_VOICE_TYPE, 101001);
+  const personaVoiceTypes = {} as Record<InterviewerStyleId, number>;
+  for (const [styleId, envName] of Object.entries(PERSONA_VOICE_ENV) as Array<
+    [InterviewerStyleId, string]
+  >) {
+    // Unset personas fall back to the shared voice, so this stays backwards
+    // compatible with a deployment that only sets TENCENT_TTS_VOICE_TYPE.
+    personaVoiceTypes[styleId] = readVoiceType(process.env[envName], voiceType);
+  }
+
   return {
     secretId,
     secretKey,
     region: process.env.TENCENT_SPEECH_REGION?.trim() || "ap-shanghai",
-    voiceType: Number.isInteger(parsedVoiceType) && parsedVoiceType >= 0
-      ? parsedVoiceType
-      : 101001,
+    voiceType,
+    personaVoiceTypes,
     asrEngine: process.env.TENCENT_ASR_ENGINE?.trim() || "16k_zh"
   };
 }
@@ -57,15 +82,24 @@ function toTencentSpeed(rate: number | string | undefined) {
 export async function synthesizeWithTencent(input: {
   text: string;
   rate?: number | string;
+  styleId?: InterviewerStyleId;
+  /** Overrides both the persona mapping and the environment default. */
+  voiceType?: number;
 }) {
   const config = readTencentSpeechConfig();
   if (!config) throw new Error("TENCENT_SPEECH_NOT_CONFIGURED");
   const Client = tts.v20190823.Client;
   const client = new Client(clientConfig(config, 6));
+  const resolvedVoiceType =
+    input.voiceType && input.voiceType > 0
+      ? input.voiceType
+      : input.styleId
+        ? config.personaVoiceTypes[input.styleId]
+        : config.voiceType;
   const response = await client.TextToVoice({
     Text: input.text,
     SessionId: crypto.randomUUID(),
-    VoiceType: config.voiceType,
+    VoiceType: resolvedVoiceType,
     PrimaryLanguage: 1,
     SampleRate: 16000,
     Codec: "mp3",

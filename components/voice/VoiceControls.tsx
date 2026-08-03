@@ -111,6 +111,22 @@ export function VoiceControls({
                   </option>
                 ))}
               </select>
+              {/* Free-form rather than a dropdown: which Tencent voices an
+                  account can use varies, and a hardcoded list would go stale. */}
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                placeholder="腾讯音色 ID，0 为默认"
+                value={personaSpeechTunings[styleId].tencentVoiceType || ""}
+                onChange={(event) =>
+                  onPersonaSpeechTuningChange(styleId, {
+                    tencentVoiceType: Number(event.target.value) || 0
+                  })
+                }
+              />
+              <span className="helper">腾讯音色 ID（0 = 用服务端默认）</span>
             </label>
           ))}
         </div>

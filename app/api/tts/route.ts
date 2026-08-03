@@ -3,6 +3,7 @@ import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { isInterviewerStyleId } from "@/lib/schemas/contracts";
 import { personaVoices, toAzurePitch, toAzureRate, toAzureVolume } from "@/lib/speech/settings";
 import { observeRoute } from "@/lib/observability/route";
+import { readActiveSpeechSettings } from "@/lib/speech/speechSettingsStore";
 import {
   readTencentSpeechConfig,
   synthesizeWithTencent
@@ -54,7 +55,17 @@ async function handlePost(request: Request) {
 
   if (tencentConfigured) {
     try {
-      const audio = await synthesizeWithTencent({ text, rate: payload.rate as number | string | undefined });
+      // A voice saved from the Classic tuning panel wins over the environment
+      // default, so changing an interviewer's voice needs no redeploy.
+      const savedVoiceType = await readActiveSpeechSettings()
+        .then((snapshot) => snapshot.speechTunings[styleId]?.tencentVoiceType ?? 0)
+        .catch(() => 0);
+      const audio = await synthesizeWithTencent({
+        text,
+        rate: payload.rate as number | string | undefined,
+        styleId,
+        voiceType: Number(payload.tencentVoiceType) || savedVoiceType
+      });
       return new Response(audio, {
         status: 200,
         headers: {
