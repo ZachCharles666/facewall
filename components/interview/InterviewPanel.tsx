@@ -213,6 +213,7 @@ export function InterviewPanel({
   // never pay the round trip twice.
   const ttsCacheRef = useRef(new Map<string, Blob>());
   const ttsPrefetchedRef = useRef(new Set<string>());
+  const pinnedTtsEngineRef = useRef(false);
   const ttsPlaybackTokenRef = useRef(0);
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
   const jujuAdvanceLockRef = useRef(false);
@@ -272,6 +273,12 @@ export function InterviewPanel({
         const speechTunings = normalizePersonaSpeechTunings(snapshot.speechTunings);
         setClassicSpeechTunings(speechTunings);
         cacheClassicSpeechTunings(speechTunings);
+        // An operator's pinned engine outranks whatever the server would pick
+        // on its own, so it also outranks the status probe below.
+        if (snapshot.ttsEngine) {
+          pinnedTtsEngineRef.current = true;
+          setTtsEngine(snapshot.ttsEngine);
+        }
         setSpeechSettingsMessage(snapshot.updatedAt ? "已加载服务端全局声线配置。" : "当前使用默认声线配置，可调整后保存为全局配置。");
       })
       .catch(() => {
@@ -327,6 +334,16 @@ export function InterviewPanel({
         if (cancelled) return;
         setAzureConfigured(status.configured);
         setSpeechProvider(status.provider);
+        // Start on whichever engine the server actually resolves to, so the
+        // selector reflects reality instead of always claiming Azure. A pinned
+        // choice from the Classic panel wins.
+        if (
+          !pinnedTtsEngineRef.current &&
+          status.configured &&
+          (status.provider === "tencent" || status.provider === "azure")
+        ) {
+          setTtsEngine(status.provider);
+        }
         setAzureVoices(status.voices.length > 0 ? status.voices : azureVoiceOptions);
         setVoiceMessage(
           status.configured
@@ -522,14 +539,16 @@ export function InterviewPanel({
   // the candidate is still answering turns that wait into an instant playback.
   async function prefetchQuestionAudio(index: number) {
     const question = questions[index];
-    if (!question || !azureConfigured || ttsEngine !== "azure") return;
+    if (!question || !azureConfigured || ttsEngine === "web") return;
     if (ttsCacheRef.current.has(question.id) || ttsPrefetchedRef.current.has(question.id)) return;
     ttsPrefetchedRef.current.add(question.id);
     try {
       const blob = await requestTtsAudio({
         text: question.questionText,
         styleId: interviewerStyleId,
+        engine: ttsEngine,
         voiceName: speechTuning.voiceName,
+        tencentVoiceType: speechTuning.tencentVoiceType,
         rate: speechTuning.rate,
         pitch: speechTuning.pitch,
         volume: speechTuning.volume
@@ -547,7 +566,7 @@ export function InterviewPanel({
     stopTts();
     const playbackToken = ttsPlaybackTokenRef.current;
 
-    if (ttsEngine === "azure" && azureConfigured) {
+    if (ttsEngine !== "web" && azureConfigured) {
       const controller = new AbortController();
       ttsAbortControllerRef.current = controller;
       let providerTimedOut = false;
@@ -567,7 +586,9 @@ export function InterviewPanel({
             {
               text,
               styleId: interviewerStyleId,
+              engine: ttsEngine,
               voiceName: speechTuning.voiceName,
+              tencentVoiceType: speechTuning.tencentVoiceType,
               rate: speechTuning.rate,
               pitch: speechTuning.pitch,
               volume: speechTuning.volume
@@ -934,10 +955,11 @@ export function InterviewPanel({
     const speechTunings = normalizePersonaSpeechTunings(classicSpeechTunings);
     setSpeechSettingsMessage("正在保存 classic 全局声线配置...");
     try {
-      const snapshot = await saveActiveSpeechSettings(speechTunings);
+      const snapshot = await saveActiveSpeechSettings(speechTunings, ttsEngine);
       setClassicSpeechTunings(snapshot.speechTunings);
       cacheClassicSpeechTunings(snapshot.speechTunings);
-      setSpeechSettingsMessage("已保存为服务端全局声线配置，后续 classic 面试会按面试官自动使用。");
+      pinnedTtsEngineRef.current = Boolean(snapshot.ttsEngine);
+      setSpeechSettingsMessage("已保存为服务端全局声线配置，引擎与音色对全站生效。");
     } catch {
       cacheClassicSpeechTunings(speechTunings);
       setSpeechSettingsMessage("服务端保存失败，已保存在本机缓存；请确认线上实例的 outputs 目录可写。");

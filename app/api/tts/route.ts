@@ -53,7 +53,13 @@ async function handlePost(request: Request) {
     return NextResponse.json({ error: "Text is required." }, { status: 400 });
   }
 
-  if (tencentConfigured) {
+  // The Classic panel lets an operator pin an engine so they can compare voices
+  // side by side. Without a preference the server keeps its own order.
+  const requestedEngine =
+    payload.engine === "azure" || payload.engine === "tencent" ? payload.engine : null;
+  const tryTencentFirst = requestedEngine !== "azure";
+
+  if (tencentConfigured && tryTencentFirst) {
     try {
       // A voice saved from the Classic tuning panel wins over the environment
       // default, so changing an interviewer's voice needs no redeploy.
@@ -82,6 +88,14 @@ async function handlePost(request: Request) {
   }
 
   if (!azureConfigured) {
+    // Asking for Azure when it is not configured should say so rather than
+    // silently returning a Tencent voice the operator did not pick.
+    if (requestedEngine === "azure" && tencentConfigured) {
+      return NextResponse.json(
+        { error: "Azure TTS is not configured." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: "TTS is not configured." }, { status: 503 });
   }
 
@@ -109,6 +123,8 @@ async function handlePost(request: Request) {
     });
 
     if (!azureResponse.ok) {
+      const fallback = await tencentFallback();
+      if (fallback) return fallback;
       return NextResponse.json({ error: "Azure TTS request failed." }, { status: azureResponse.status });
     }
 
@@ -122,7 +138,31 @@ async function handlePost(request: Request) {
       }
     });
   } catch {
+    const fallback = await tencentFallback();
+    if (fallback) return fallback;
     return NextResponse.json({ error: "Failed to reach Azure TTS." }, { status: 502 });
+  }
+
+  // Only reachable when Azure was tried first because the caller asked for it.
+  async function tencentFallback() {
+    if (!tencentConfigured || tryTencentFirst) return null;
+    try {
+      const audio = await synthesizeWithTencent({
+        text,
+        rate: payload.rate as number | string | undefined,
+        styleId
+      });
+      return new Response(audio, {
+        status: 200,
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "no-store",
+          "X-Speech-Provider": "tencent"
+        }
+      });
+    } catch {
+      return null;
+    }
   }
 }
 

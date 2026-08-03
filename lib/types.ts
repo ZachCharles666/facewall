@@ -8,7 +8,7 @@ export type SttStatus = "idle" | "recording" | "success" | "failed" | "unsupport
 
 export type TtsStatus = "idle" | "loading" | "speaking" | "ended" | "failed" | "unsupported";
 
-export type TtsEngine = "azure" | "web";
+export type TtsEngine = "tencent" | "azure" | "web";
 
 export type SessionStep = "setup" | "profile" | "questions" | "interview" | "report";
 
@@ -224,5 +224,10 @@ export type PersonaSpeechTunings = Record<InterviewerStyleId, SpeechTuning>;
 
 export interface SpeechSettingsSnapshot {
   speechTunings: PersonaSpeechTunings;
+  /**
+   * Engine pinned from the Classic panel. null means no preference, in which
+   * case the server falls back to Tencent, then Azure, then browser speech.
+   */
+  ttsEngine: TtsEngine | null;
   updatedAt: string | null;
 }

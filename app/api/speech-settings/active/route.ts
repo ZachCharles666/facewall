@@ -24,7 +24,11 @@ async function handlePost(request: Request) {
   }
 
   try {
-    const snapshot = await saveActiveSpeechSettings((payload as { speechTunings?: unknown }).speechTunings ?? payload);
+    const body = payload as { speechTunings?: unknown; ttsEngine?: unknown };
+    const snapshot = await saveActiveSpeechSettings(
+      body.speechTunings ?? payload,
+      body.ttsEngine
+    );
     return NextResponse.json(okResponse(snapshot));
   } catch {
     return NextResponse.json(errorResponse<SpeechSettingsSnapshot>("SPEECH_SETTINGS_WRITE_FAILED", "保存全局声线配置失败。", true), {

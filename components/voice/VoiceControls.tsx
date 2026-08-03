@@ -44,6 +44,9 @@ export function VoiceControls({
   onStopStt: () => void;
   onSimulateSttFailure: () => void;
 }) {
+  // Tencent voices are numeric ids the account enables, so there is no list to
+  // offer; the per-persona fields below take them directly.
+  const isTencentEngine = ttsEngine === "tencent";
   const voiceOptions = ttsEngine === "azure" ? azureVoices : webVoices;
   const lockedVoiceOptions = azureVoices;
   const selectedVoiceValue = voiceOptions.some((voice) => voice.value === speechTuning.voiceName) ? speechTuning.voiceName : "auto";
@@ -75,6 +78,7 @@ export function VoiceControls({
         <label className="field compact-field">
           <span>TTS 引擎</span>
           <select value={ttsEngine} onChange={(event) => onTtsEngineChange(event.target.value as TtsEngine)}>
+            <option value="tencent">腾讯云 TTS</option>
             <option value="azure">Azure Neural TTS</option>
             <option value="web">Web Speech API</option>
           </select>
@@ -82,13 +86,27 @@ export function VoiceControls({
 
         <label className="field compact-field">
           <span>发音人</span>
-          <select value={selectedVoiceValue} onChange={(event) => onSpeechTuningChange({ voiceName: event.target.value })}>
-            {voiceOptions.map((voice) => (
-              <option key={voice.value} value={voice.value}>
-                {voice.label}
-              </option>
-            ))}
-          </select>
+          {isTencentEngine ? (
+            <input
+              type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              placeholder="腾讯音色 ID，0 为默认"
+              value={speechTuning.tencentVoiceType || ""}
+              onChange={(event) =>
+                onSpeechTuningChange({ tencentVoiceType: Number(event.target.value) || 0 })
+              }
+            />
+          ) : (
+            <select value={selectedVoiceValue} onChange={(event) => onSpeechTuningChange({ voiceName: event.target.value })}>
+              {voiceOptions.map((voice) => (
+                <option key={voice.value} value={voice.value}>
+                  {voice.label}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
       </div>
 
@@ -104,29 +122,35 @@ export function VoiceControls({
           {interviewerSpeechStyleIds.map((styleId) => (
             <label className={styleId === currentInterviewerStyleId ? "field compact-field active" : "field compact-field"} key={styleId}>
               <span>{interviewerSpeechLabels[styleId]}</span>
-              <select value={personaSpeechTunings[styleId].voiceName} onChange={(event) => onPersonaSpeechTuningChange(styleId, { voiceName: event.target.value })}>
-                {lockedVoiceOptions.map((voice) => (
-                  <option key={`${styleId}-${voice.value}`} value={voice.value}>
-                    {voice.label}
-                  </option>
-                ))}
-              </select>
-              {/* Free-form rather than a dropdown: which Tencent voices an
-                  account can use varies, and a hardcoded list would go stale. */}
-              <input
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                placeholder="腾讯音色 ID，0 为默认"
-                value={personaSpeechTunings[styleId].tencentVoiceType || ""}
-                onChange={(event) =>
-                  onPersonaSpeechTuningChange(styleId, {
-                    tencentVoiceType: Number(event.target.value) || 0
-                  })
-                }
-              />
-              <span className="helper">腾讯音色 ID（0 = 用服务端默认）</span>
+              {isTencentEngine ? (
+                <>
+                  {/* Free-form rather than a dropdown: which Tencent voices an
+                      account can use varies, and a hardcoded list would go
+                      stale the moment the account changes. */}
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="腾讯音色 ID，0 为默认"
+                    value={personaSpeechTunings[styleId].tencentVoiceType || ""}
+                    onChange={(event) =>
+                      onPersonaSpeechTuningChange(styleId, {
+                        tencentVoiceType: Number(event.target.value) || 0
+                      })
+                    }
+                  />
+                  <span className="helper">腾讯音色 ID（0 = 用服务端默认）</span>
+                </>
+              ) : (
+                <select value={personaSpeechTunings[styleId].voiceName} onChange={(event) => onPersonaSpeechTuningChange(styleId, { voiceName: event.target.value })}>
+                  {lockedVoiceOptions.map((voice) => (
+                    <option key={`${styleId}-${voice.value}`} value={voice.value}>
+                      {voice.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
           ))}
         </div>

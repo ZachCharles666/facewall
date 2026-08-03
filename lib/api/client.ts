@@ -400,14 +400,23 @@ export async function getActiveSpeechSettings() {
   return body.data;
 }
 
-export function saveActiveSpeechSettings(speechTunings: SpeechSettingsSnapshot["speechTunings"]) {
-  return postJson<SpeechSettingsSnapshot, { speechTunings: SpeechSettingsSnapshot["speechTunings"] }>("/api/speech-settings/active", { speechTunings });
+export function saveActiveSpeechSettings(
+  speechTunings: SpeechSettingsSnapshot["speechTunings"],
+  ttsEngine?: SpeechSettingsSnapshot["ttsEngine"]
+) {
+  return postJson<
+    SpeechSettingsSnapshot,
+    { speechTunings: SpeechSettingsSnapshot["speechTunings"]; ttsEngine?: SpeechSettingsSnapshot["ttsEngine"] }
+  >("/api/speech-settings/active", { speechTunings, ttsEngine });
 }
 
 export async function requestTtsAudio(payload: {
   text: string;
   styleId: InterviewerStyleId;
+  /** Which server engine to try first. Omitted lets the server decide. */
+  engine?: "tencent" | "azure";
   voiceName?: string;
+  tencentVoiceType?: number;
   rate?: number | string;
   pitch?: number | string;
   volume?: number | string;
