@@ -18,6 +18,19 @@ export const azureVoiceOptions: VoiceOption[] = [
   { value: "zh-CN-YunhaoNeural", label: "Yunhao 男声，深沉有力" }
 ];
 
+// Ids verified as callable on the deployment's Tencent account. Deliberately
+// unlabelled beyond the number: the published name and gender of each voice
+// belong to the Tencent console, and guessing them here would be worse than
+// useless when someone picks a voice for an interviewer. Use the audition
+// button to hear one before keeping it.
+export const tencentVoiceOptions: VoiceOption[] = [
+  { value: "0", label: "跟随服务端默认" },
+  ...Array.from({ length: 20 }, (_, index) => {
+    const voiceId = 101001 + index;
+    return { value: String(voiceId), label: `腾讯音色 ${voiceId}` };
+  })
+];
+
 export const personaVoices: Record<InterviewerStyleId, string> = {
   strictHr: "zh-CN-XiaoxiaoNeural",
   techBro: "zh-CN-YunxiNeural",

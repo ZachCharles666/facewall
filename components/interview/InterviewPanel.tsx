@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getActiveSpeechSettings, getAzureSpeechStatus, requestSttTranscript, requestTtsAudio, saveActiveSpeechSettings } from "@/lib/api/client";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
-import { azureVoiceOptions, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
+import { azureVoiceOptions, interviewerSpeechLabels, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
 import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
 import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
@@ -537,11 +537,27 @@ export function InterviewPanel({
 
   // Generating a question takes 0.3–2s server side. Fetching the next one while
   // the candidate is still answering turns that wait into an instant playback.
+  // Keyed by voice as well as question: caching on the question alone meant a
+  // voice change silently replayed the old audio, which reads as the setting
+  // having no effect at all.
+  function ttsCacheKey(questionId: string) {
+    return [
+      questionId,
+      ttsEngine,
+      speechTuning.tencentVoiceType,
+      speechTuning.voiceName,
+      speechTuning.rate,
+      speechTuning.pitch,
+      speechTuning.volume
+    ].join("|");
+  }
+
   async function prefetchQuestionAudio(index: number) {
     const question = questions[index];
     if (!question || !azureConfigured || ttsEngine === "web") return;
-    if (ttsCacheRef.current.has(question.id) || ttsPrefetchedRef.current.has(question.id)) return;
-    ttsPrefetchedRef.current.add(question.id);
+    const cacheKey = ttsCacheKey(question.id);
+    if (ttsCacheRef.current.has(cacheKey) || ttsPrefetchedRef.current.has(cacheKey)) return;
+    ttsPrefetchedRef.current.add(cacheKey);
     try {
       const blob = await requestTtsAudio({
         text: question.questionText,
@@ -553,10 +569,43 @@ export function InterviewPanel({
         pitch: speechTuning.pitch,
         volume: speechTuning.volume
       });
-      ttsCacheRef.current.set(question.id, blob);
+      ttsCacheRef.current.set(cacheKey, blob);
     } catch {
       // A failed prefetch is not worth surfacing; the real playback will retry.
-      ttsPrefetchedRef.current.delete(question.id);
+      ttsPrefetchedRef.current.delete(cacheKey);
+    }
+  }
+
+  // Plays one persona's currently selected voice so it can be judged by ear
+  // before being kept. Bypasses the question cache entirely.
+  async function auditionPersonaVoice(styleId: InterviewerStyleId) {
+    const tuning = classicSpeechTunings[styleId];
+    stopTts();
+    setSpeechSettingsMessage(`正在生成 ${interviewerSpeechLabels[styleId]} 的试听音频…`);
+    try {
+      const blob = await requestTtsAudio({
+        text: `你好，我是${interviewerSpeechLabels[styleId]}，我们开始今天的面试吧。`,
+        styleId,
+        // Auditioning through the browser engine would not exercise the voice
+        // being chosen, so the server engines are the only meaningful targets.
+        engine: ttsEngine === "web" ? "tencent" : ttsEngine,
+        voiceName: tuning.voiceName,
+        tencentVoiceType: tuning.tencentVoiceType,
+        rate: tuning.rate,
+        pitch: tuning.pitch,
+        volume: tuning.volume
+      });
+      const audio = getSharedAudioElement() ?? new Audio();
+      const url = URL.createObjectURL(blob);
+      audio.src = url;
+      audio.volume = tuning.volume;
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play();
+      setSpeechSettingsMessage(
+        `${interviewerSpeechLabels[styleId]} 试听中；满意后记得点保存全局声线。`
+      );
+    } catch {
+      setSpeechSettingsMessage("试听失败，请确认该音色 ID 在当前引擎下可用。");
     }
   }
 
@@ -575,7 +624,8 @@ export function InterviewPanel({
         controller.abort();
       }, 6000);
       try {
-        const cached = currentQuestion ? ttsCacheRef.current.get(currentQuestion.id) : undefined;
+        const cacheKey = currentQuestion ? ttsCacheKey(currentQuestion.id) : "";
+        const cached = currentQuestion ? ttsCacheRef.current.get(cacheKey) : undefined;
         if (!cached) {
           setTtsStatus("loading");
           setVoiceMessage(`正在生成${speechProvider === "tencent" ? "腾讯云" : " Azure"} TTS 音频。`);
@@ -595,7 +645,7 @@ export function InterviewPanel({
             },
             { signal: controller.signal }
           ));
-        if (currentQuestion && !cached) ttsCacheRef.current.set(currentQuestion.id, blob);
+        if (currentQuestion && !cached) ttsCacheRef.current.set(cacheKey, blob);
         if (playbackToken !== ttsPlaybackTokenRef.current) return;
         const audioUrl = URL.createObjectURL(blob);
         // Reuse the element that a user gesture already unlocked. A fresh
@@ -1305,6 +1355,7 @@ export function InterviewPanel({
             personaSpeechTunings={classicSpeechTunings}
             speechSettingsMessage={speechSettingsMessage}
             onPersonaSpeechTuningChange={updateClassicSpeechTuning}
+            onAuditionVoice={(styleId) => void auditionPersonaVoice(styleId)}
             onSaveSpeechSettings={saveClassicSpeechSettings}
             onSpeechTuningChange={updateSpeechTuning}
             onSimulateSttFailure={() => simulateStt("failed")}
