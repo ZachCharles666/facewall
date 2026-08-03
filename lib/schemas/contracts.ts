@@ -238,6 +238,78 @@ export function validateQuestionReport(value: unknown): value is QuestionReport 
   );
 }
 
+// The model deviates from the contract in a few mechanical ways that cost the
+// candidate their whole report for no good reason: it paraphrases the question
+// id we already know, returns a single string where a list is expected, or
+// scores on a 0-100 scale in a 0-20 field. Repairing those is lossless. Missing
+// content is still a hard failure — inventing it would be worse than retrying.
+function coerceStringList(value: unknown) {
+  if (isStringArray(value)) return value.map((entry) => entry.trim()).filter(Boolean);
+  if (isNonEmptyString(value)) return [value.trim()];
+  return null;
+}
+
+function coerceScore(value: unknown, max: number) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round(Math.min(max, Math.max(0, parsed)));
+}
+
+/**
+ * Returns a contract-shaped QuestionReport, or the name of the field that could
+ * not be recovered so callers can log something more useful than the fact that
+ * validation failed.
+ */
+export function repairQuestionReport(
+  value: unknown,
+  expectedQuestionId: string
+): { report: QuestionReport } | { invalidField: string } {
+  if (!isRecord(value)) return { invalidField: "root" };
+
+  const score = coerceScore(value.score, 100);
+  if (score === null) return { invalidField: "score" };
+
+  if (!isRecord(value.dimensionScores)) return { invalidField: "dimensionScores" };
+  const dimensionScores = {} as DimensionScores;
+  for (const key of dimensionKeys) {
+    const dimension = coerceScore((value.dimensionScores as Record<string, unknown>)[key], 20);
+    if (dimension === null) return { invalidField: `dimensionScores.${key}` };
+    dimensionScores[key] = dimension;
+  }
+
+  const riskTags = coerceStringList(value.riskTags) ?? [];
+
+  for (const key of ["fatalIssue", "diagnosis", "optimizedAnswer", "oralVersion60s"]) {
+    if (!isNonEmptyString(value[key])) return { invalidField: key };
+  }
+
+  return {
+    report: {
+      // We asked the question, so we do not need the model to tell us which.
+      questionId: expectedQuestionId,
+      score,
+      dimensionScores,
+      riskTags,
+      fatalIssue: String(value.fatalIssue).trim(),
+      diagnosis: String(value.diagnosis).trim(),
+      optimizedAnswer: String(value.optimizedAnswer).trim(),
+      oralVersion60s: String(value.oralVersion60s).trim()
+    }
+  };
+}
+
+export function repairFinalReportSummary(
+  value: unknown
+): { summary: { summary: string; topRisks: string[]; actionItems: string[] } } | { invalidField: string } {
+  if (!isRecord(value)) return { invalidField: "root" };
+  if (!isNonEmptyString(value.summary)) return { invalidField: "summary" };
+  const topRisks = coerceStringList(value.topRisks) ?? [];
+  const actionItems = coerceStringList(value.actionItems) ?? [];
+  return {
+    summary: { summary: String(value.summary).trim(), topRisks, actionItems }
+  };
+}
+
 export function validateFinalReportSummary(value: unknown): value is {
   summary: string;
   topRisks: string[];

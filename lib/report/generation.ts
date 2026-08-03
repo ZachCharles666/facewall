@@ -4,7 +4,8 @@ import { shouldForceDemoFallback, shouldInjectDevFault } from "@/lib/dev/ops";
 import { buildFallbackReport } from "@/lib/demo/fallback";
 import { buildFinalReportPrompt, buildQuestionReportPrompt } from "@/lib/prompts/interview";
 import { resolvePromptOverrides } from "@/lib/prompts/promptStore";
-import { validateFinalReportSummary, validateQuestionReport, validateReportOutput } from "@/lib/schemas/contracts";
+import { repairFinalReportSummary, repairQuestionReport, validateReportOutput } from "@/lib/schemas/contracts";
+import { structuredLog } from "@/lib/observability/logger";
 import type { CandidateProfile, GenerationMeasurement, GenerationResult, InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
 import type { LlmJsonResult } from "@/lib/ai/provider";
 import { getCurrentRequestId } from "@/lib/observability/context";
@@ -108,8 +109,13 @@ export async function generateInterviewReportWithMeasurement(
     } finally {
       finalTimeout.clear();
     }
-    if (!validateFinalReportSummary(finalResult.json)) {
-      throw new Error("LLM_SCHEMA_INVALID: FinalReportSummary");
+    const repairedSummary = repairFinalReportSummary(finalResult.json);
+    if ("invalidField" in repairedSummary) {
+      structuredLog("warn", "report.schema.rejected", {
+        stage: "finalReport",
+        invalidField: repairedSummary.invalidField
+      });
+      throw new Error(`LLM_SCHEMA_INVALID: FinalReportSummary.${repairedSummary.invalidField}`);
     }
     measurements.push(finalResult);
     const overallScore = Math.round(
@@ -119,10 +125,10 @@ export async function generateInterviewReportWithMeasurement(
       questionReports,
       finalReport: {
         overallScore,
-        summary: finalResult.json.summary,
-        topRisks: finalResult.json.topRisks,
-        actionItems: finalResult.json.actionItems,
-        copyText: buildReportCopyText(questionReports, finalResult.json.summary, overallScore)
+        summary: repairedSummary.summary.summary,
+        topRisks: repairedSummary.summary.topRisks,
+        actionItems: repairedSummary.summary.actionItems,
+        copyText: buildReportCopyText(questionReports, repairedSummary.summary.summary, overallScore)
       }
     };
     return {
@@ -161,10 +167,15 @@ async function generateOneQuestionReport(
       ),
       { signal: timeout.signal, maxAttempts: 2, maxTokens: 1200 }
     );
-    if (!validateQuestionReport(result.json) || result.json.questionId !== question.id) {
-      throw new Error("LLM_SCHEMA_INVALID: QuestionReport");
+    const repaired = repairQuestionReport(result.json, question.id);
+    if ("invalidField" in repaired) {
+      structuredLog("warn", "report.schema.rejected", {
+        stage: "questionReport",
+        invalidField: repaired.invalidField
+      });
+      throw new Error(`LLM_SCHEMA_INVALID: QuestionReport.${repaired.invalidField}`);
     }
-    return { report: result.json, measurement: result };
+    return { report: repaired.report, measurement: result };
   } finally {
     timeout.clear();
   }
