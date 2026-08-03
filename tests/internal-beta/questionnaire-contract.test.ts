@@ -87,7 +87,7 @@ test("questionnaire config writes are explicit and fail closed in production", a
   assert.match(store, /QUESTIONNAIRE_CONFIG_WRITE_ENABLED/);
 });
 
-test("questionnaire response is owner-bound, first-completion-only and RLS protected", async () => {
+test("questionnaire response is owner-bound, gated on the same completion count everywhere, and RLS protected", async () => {
   const service = await read("lib/questionnaire/responses.ts");
   const persistence = await read("lib/persistence/interviewSessions.ts");
   const migration = await read("db/migrations/0012_questionnaire_responses.sql");
@@ -99,9 +99,24 @@ test("questionnaire response is owner-bound, first-completion-only and RLS prote
   assert.match(service, /on conflict \(user_id\) do nothing/);
   assert.match(service, /validateQuestionnaireAnswers/);
   assert.match(persistence, /QUESTIONNAIRE_REQUIRED/);
-  assert.match(persistence, /has_completed_session/);
+  assert.match(persistence, /completed_session_count/);
   assert.match(persistence, /questionnaire_submitted/);
   assert.match(persistence, /idempotent_replay/);
+  // The gate, the snapshot selector and the eligibility check must all be
+  // driven by one constant. If they drift apart the candidate can be blocked
+  // from a session before the questionnaire they need to answer can appear.
+  assert.match(
+    persistence,
+    /completed_session_count\) >= QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS/
+  );
+  assert.match(
+    persistence,
+    /\) = \$\{QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS - 1\}/
+  );
+  assert.match(
+    service,
+    /earlier_completed_count\) ===\s*QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS - 1/
+  );
   assert.match(
     persistence,
     /s\.status = 'completed'[\s\S]*questionnaire_responses[\s\S]*earlier\.status = 'completed'/

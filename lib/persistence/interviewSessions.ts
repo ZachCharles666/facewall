@@ -25,6 +25,13 @@ import type {
 } from "@/lib/types";
 
 const SESSION_SCHEMA_VERSION = 1;
+// Which completed interview triggers the research questionnaire. Three places
+// depend on this and they must agree: the eligibility check that decides when
+// to show it, the snapshot selector that reopens the session it belongs to,
+// and the gate that blocks a further session until it is answered. If the gate
+// fires before the questionnaire can appear, the candidate is locked out with
+// no way to satisfy it.
+export const QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS = 2;
 const sources = new Set<GenerationSource>(["llm", "demo_fallback", "mixed"]);
 const statusRank: Record<PersistedSessionStatus, number> = {
   draft: 0,
@@ -161,13 +168,13 @@ async function loadSnapshot(
              select 1 from public.questionnaire_responses qr
               where qr.user_id = s.user_id
            )
-           and not exists (
-             select 1 from public.interview_sessions earlier
+           and (
+             select count(*)::int from public.interview_sessions earlier
               where earlier.user_id = s.user_id
                 and earlier.id <> s.id
                 and earlier.status = 'completed'
                 and earlier.completed_at <= s.completed_at
-           )
+           ) = ${QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS - 1}
          ))`;
   const params = "sessionId" in selector ? [userId, selector.sessionId] : [userId];
   const result = await client.query(
@@ -244,10 +251,10 @@ export async function createInterviewSession(input: {
                   select 1 from public.interview_sessions
                    where user_id = $1 and idempotency_key = $2
                 ) as idempotent_replay,
-                exists (
-                  select 1 from public.interview_sessions
+                (
+                  select count(*)::int from public.interview_sessions
                    where user_id = $1 and status = 'completed'
-                ) as has_completed_session,
+                ) as completed_session_count,
                 exists (
                   select 1 from public.questionnaire_responses
                    where user_id = $1
@@ -255,9 +262,13 @@ export async function createInterviewSession(input: {
         [input.userId, input.idempotencyKey]
       );
       const gate = questionnaireGate.rows[0] as Record<string, unknown>;
+      // The questionnaire is offered after the second completed interview, so
+      // the gate has to wait for the same moment. Blocking a session earlier
+      // than the questionnaire appears would lock the candidate out with no way
+      // to satisfy it.
       if (
         !Boolean(gate.idempotent_replay) &&
-        Boolean(gate.has_completed_session) &&
+        Number(gate.completed_session_count) >= QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS &&
         !Boolean(gate.questionnaire_submitted)
       ) {
         throw new InterviewPersistenceError("QUESTIONNAIRE_REQUIRED", 409);

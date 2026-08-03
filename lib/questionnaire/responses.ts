@@ -2,6 +2,7 @@ import "server-only";
 
 import { insertServerEvent } from "@/lib/analytics/events";
 import { withUserTransaction } from "@/lib/db/context";
+import { QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS } from "@/lib/persistence/interviewSessions";
 import {
   type QuestionnaireAnswers,
   validateQuestionnaireAnswers
@@ -53,8 +54,8 @@ async function readEligibility(
                 from public.questionnaire_responses qr
                where qr.user_id = $2
             ) as already_submitted,
-            exists (
-              select 1
+            (
+              select count(*)::int
                 from public.interview_sessions earlier
                where earlier.user_id = $2
                  and earlier.id <> s.id
@@ -63,7 +64,7 @@ async function readEligibility(
                    s.completed_at is null or
                    earlier.completed_at <= s.completed_at
                  )
-            ) as earlier_completed
+            ) as earlier_completed_count
        from public.interview_sessions s
       where s.id = $1 and s.user_id = $2
       ${lock ? "for update" : ""}`,
@@ -74,10 +75,14 @@ async function readEligibility(
   const reportReady = ["report_ready", "completed"].includes(String(row.status));
   return {
     row,
+    // Offered on the session that completes the configured count, so the
+    // candidate has been through the flow more than once before being asked
+    // what they think of it.
     eligible:
       reportReady &&
       !Boolean(row.already_submitted) &&
-      !Boolean(row.earlier_completed)
+      Number(row.earlier_completed_count) ===
+        QUESTIONNAIRE_AFTER_COMPLETED_SESSIONS - 1
   };
 }
 
