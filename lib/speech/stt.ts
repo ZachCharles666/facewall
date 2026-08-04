@@ -62,6 +62,25 @@ const ENCODE_SLICE = 100_000;
 const SEGMENT_TARGET_SECONDS = 45;
 const SILENCE_SEARCH_SECONDS = 4;
 
+// A recording can come back full-length but entirely silent: the wrong system
+// input device, an input volume at zero, or another app holding the microphone
+// all leave the processor emitting zeroes. Uploading that wastes a round trip
+// and returns an unrecognisable "recording failed", so it is caught locally and
+// reported as what it is.
+const SILENCE_PEAK_THRESHOLD = 0.008;
+
+export const SILENT_RECORDING_MESSAGE =
+  "没有采集到声音。请检查系统输入设备和麦克风音量，并确认没有其他应用正在占用麦克风。";
+
+function measurePeakAmplitude(samples: Float32Array) {
+  let peak = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    const magnitude = Math.abs(samples[index]);
+    if (magnitude > peak) peak = magnitude;
+  }
+  return peak;
+}
+
 function yieldToBrowser() {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0);
@@ -180,6 +199,7 @@ export async function startAzureSpeechRecognition(callbacks: {
   const segmentTranscripts: Promise<string>[] = [];
   const segmentSampleTarget = Math.round(SEGMENT_TARGET_SECONDS * sourceSampleRate);
   let bufferedSamples = 0;
+  let overallPeak = 0;
   let flushing = false;
   let stopped = false;
   let aborted = false;
@@ -249,7 +269,11 @@ export async function startAzureSpeechRecognition(callbacks: {
 
   processor.onaudioprocess = (event) => {
     if (stopped || aborted) return;
-    chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+    const frame = new Float32Array(event.inputBuffer.getChannelData(0));
+    // Tracked as it arrives, because segments are drained during recording and
+    // the loudest moment may already have been flushed by the time we stop.
+    overallPeak = Math.max(overallPeak, measurePeakAmplitude(frame));
+    chunks.push(frame);
     bufferedSamples += event.inputBuffer.length;
     // Recognizers cap a single request at 60s of audio, so long answers are cut
     // into segments while the candidate is still talking. By the time they stop,
@@ -279,6 +303,10 @@ export async function startAzureSpeechRecognition(callbacks: {
       await cleanup();
 
       try {
+        if (overallPeak < SILENCE_PEAK_THRESHOLD) {
+          callbacks.onStatus("failed", SILENT_RECORDING_MESSAGE);
+          return;
+        }
         callbacks.onStatus("recording", "录音已停止，正在整理音频。");
         queueSegment(drainBuffer());
         callbacks.onStatus(

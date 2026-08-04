@@ -4,7 +4,7 @@ import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, interviewerSpeechLabels, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
 import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
-import { canUseMicrophoneRecording, canUseSpeechRecognition, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
+import { canUseMicrophoneRecording, canUseSpeechRecognition, SILENT_RECORDING_MESSAGE, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
 import { JujuOrb } from "@/components/JujuOrb";
 import type {
@@ -41,7 +41,7 @@ function formatElapsed(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 type QuestionTextMotionPhase = "idle" | "playing" | "finished";
-type JujuVoiceFailureKind = "recording" | "too-short" | "network";
+type JujuVoiceFailureKind = "recording" | "too-short" | "network" | "silent";
 const classicSpeechSettingsStorageKey = "facewall:classic:speech-settings:v1";
 
 function FigmaInterviewClock() {
@@ -243,11 +243,13 @@ export function InterviewPanel({
     }
 
     const nextFailureKind: JujuVoiceFailureKind =
-      /网络|network|fetch|连接|服务暂时不可用|request failed/i.test(voiceMessage)
-        ? "network"
-        : currentAnswer.durationSec <= 2
-          ? "too-short"
-          : "recording";
+      voiceMessage === SILENT_RECORDING_MESSAGE
+        ? "silent"
+        : /网络|network|fetch|连接|服务暂时不可用|request failed/i.test(voiceMessage)
+          ? "network"
+          : currentAnswer.durationSec <= 2
+            ? "too-short"
+            : "recording";
     setJujuVoiceFailureKind(nextFailureKind);
     if (nextFailureKind === "network") setFigmaAnswerPhase("prompt");
   }, [currentAnswer, jujuRecordingAttemptQuestionId, visualTheme, voiceMessage]);
@@ -1033,7 +1035,9 @@ export function InterviewPanel({
         ? <>抱歉 <span className="juju-interview-voice-notice-keyword">网络异常</span> 5S后退出面试 ...</>
         : jujuVoiceFailureKind === "too-short"
           ? <>抱歉 <span className="juju-interview-voice-notice-keyword">语音过短</span> 请重新作答 ...</>
-          : <>抱歉 <span className="juju-interview-voice-notice-keyword">录制失败</span> 请重新作答 ...</>;
+          : jujuVoiceFailureKind === "silent"
+            ? <>抱歉 <span className="juju-interview-voice-notice-keyword">没有采集到声音</span> 请检查麦克风后重试 ...</>
+            : <>抱歉 <span className="juju-interview-voice-notice-keyword">录制失败</span> 请重新作答 ...</>;
     const interviewerName =
       interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
     const progressText = `${currentIndex + 1}/${questions.length}`;

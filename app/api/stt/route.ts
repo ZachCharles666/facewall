@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
+import { structuredLog } from "@/lib/observability/logger";
 import { observeRoute } from "@/lib/observability/route";
 import {
   readTencentSpeechConfig,
@@ -68,6 +69,31 @@ async function recognizeWithAzure(audio: ArrayBuffer, key: string, region: strin
   return text;
 }
 
+function logAudioLevel(audio: ArrayBuffer) {
+  // 16-bit mono PCM behind a 44 byte WAV header, which is all this route is
+  // ever sent. Sampled rather than scanned so a 3MB body stays cheap.
+  const HEADER_BYTES = 44;
+  if (audio.byteLength <= HEADER_BYTES) return;
+  const samples = new Int16Array(audio, HEADER_BYTES, (audio.byteLength - HEADER_BYTES) >> 1);
+  const stride = Math.max(1, Math.floor(samples.length / 20_000));
+  let peak = 0;
+  let sumSquares = 0;
+  let counted = 0;
+  for (let index = 0; index < samples.length; index += stride) {
+    const magnitude = Math.abs(samples[index]);
+    if (magnitude > peak) peak = magnitude;
+    sumSquares += magnitude * magnitude;
+    counted += 1;
+  }
+  const rms = counted > 0 ? Math.sqrt(sumSquares / counted) : 0;
+  structuredLog("info", "stt.audio.received", {
+    bytes: audio.byteLength,
+    approxSeconds: Number(((audio.byteLength - HEADER_BYTES) / 32000).toFixed(1)),
+    peak: Math.round((peak / 32768) * 1000) / 1000,
+    rms: Math.round((rms / 32768) * 1000) / 1000
+  });
+}
+
 async function handlePost(request: Request) {
   if (shouldInjectDevFault(request, "stt")) {
     return NextResponse.json({ error: "开发故障注入：Azure STT 不可用。" }, { status: 503 });
@@ -88,6 +114,12 @@ async function handlePost(request: Request) {
   if (audio.byteLength > 3 * 1024 * 1024) {
     return NextResponse.json({ error: "Audio body is too large." }, { status: 413 });
   }
+
+  // Recorded audio can arrive full-length but silent when the wrong input
+  // device is selected or another application holds the microphone. Logging the
+  // amplitude makes an empty transcription immediately diagnosable instead of
+  // indistinguishable from a recogniser that simply heard nothing useful.
+  logAudioLevel(audio);
 
   // Tencent runs in-region and answers in well under a second; Azure measured
   // 8-10s per segment from this host, which the candidate feels directly on the
