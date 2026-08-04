@@ -449,15 +449,29 @@ export async function requestTtsAudio(payload: {
   return response.blob();
 }
 
+// A long answer is uploaded as several segments and the caller waits for all of
+// them. Without a bound, one stalled upload leaves the interview frozen on
+// "正在识别你的回答" with no way forward, so a slow segment has to fail instead.
+const STT_REQUEST_TIMEOUT_MS = 90_000;
+
 export async function requestSttTranscript(audio: Blob) {
-  const response = await fetch("/api/stt", {
-    method: "POST",
-    headers: {
-      "Content-Type": audio.type || "audio/wav",
-      ...getDevRequestHeaders("tts")
-    },
-    body: audio
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/stt", {
+      method: "POST",
+      headers: {
+        "Content-Type": audio.type || "audio/wav",
+        ...getDevRequestHeaders("tts")
+      },
+      body: audio,
+      signal: AbortSignal.timeout(STT_REQUEST_TIMEOUT_MS)
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error("语音识别超时，网络可能不稳定，请重试或手动输入。");
+    }
+    throw new Error("语音识别请求失败，请检查网络后重试。");
+  }
 
   const payload = (await response.json().catch(() => null)) as { text?: string; error?: string } | null;
   if (!response.ok || !payload?.text) {

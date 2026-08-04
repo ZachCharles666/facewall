@@ -32,6 +32,11 @@ type FigmaAnswerPhase = "prompt" | "recording" | "processing";
 // answer ends on our terms instead of failing somewhere downstream.
 const MAX_ANSWER_SECONDS = 180;
 
+// Upper bound on turning a finished recording into a transcript, covering the
+// local encode as well as the upload. Generous, because a three minute answer
+// on a slow connection is legitimately slow; the point is that it ends.
+const ANSWER_PROCESSING_TIMEOUT_MS = 120_000;
+
 // Subtitle scroll pace relative to the spoken audio. 1 tracks the voice exactly.
 const QUESTION_SCROLL_SPEED = 1.6;
 
@@ -867,7 +872,28 @@ export function InterviewPanel({
     // below release it; the advance paths keep it until the index changes.
     jujuAdvanceLockRef.current = true;
     setFigmaAnswerPhase("processing");
-    await stopStt();
+
+    // Everything between here and the transcript runs in the page: closing the
+    // audio device, then encoding in slices that yield through setTimeout. A
+    // backgrounded tab throttles those timers to once a second or worse, which
+    // has left an interview frozen on "正在识别你的回答" indefinitely. Whatever
+    // stalls, the interview must not become unusable.
+    const processingTimedOut = await Promise.race([
+      stopStt().then(() => false),
+      new Promise<boolean>((resolve) => {
+        window.setTimeout(() => resolve(true), ANSWER_PROCESSING_TIMEOUT_MS);
+      })
+    ]);
+    if (processingTimedOut) {
+      sttSessionRef.current?.abort();
+      sttSessionRef.current = null;
+      setVoiceMessage("识别处理超时，已保留题目，可重新作答或手动输入。");
+      setJujuVoiceFailureKind("recording");
+      setFigmaAnswerPhase("prompt");
+      setFigmaElapsedSec(0);
+      jujuAdvanceLockRef.current = false;
+      return;
+    }
     const latestAnswer = answersRef.current.find((answer) => answer.questionId === currentAnswer.questionId) ?? currentAnswer;
     const recordedDurationSec = Math.max(latestAnswer.durationSec, figmaElapsedSec);
     if (recordedDurationSec <= 2) {
@@ -1091,7 +1117,7 @@ export function InterviewPanel({
 
           {isProcessing && (
             <p className="juju-interview-listening-label" role="status">
-              正在识别你的回答…
+              正在识别你的回答… {voiceMessage}
             </p>
           )}
 

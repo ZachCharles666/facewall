@@ -31,10 +31,13 @@ export const tencentVoiceOptions: VoiceOption[] = [
   })
 ];
 
+// The gentleSister id is historical: that persona is presented as 资深业务大佬
+// and is male. It was still mapped to a female Azure voice, so any question the
+// Azure path happened to serve came out in the wrong gender mid-interview.
 export const personaVoices: Record<InterviewerStyleId, string> = {
   strictHr: "zh-CN-XiaoxiaoNeural",
   techBro: "zh-CN-YunxiNeural",
-  gentleSister: "zh-CN-XiaoyiNeural"
+  gentleSister: "zh-CN-YunjianNeural"
 };
 
 export const personaSpeechDefaults: Record<InterviewerStyleId, SpeechTuning> = {

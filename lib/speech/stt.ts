@@ -54,7 +54,10 @@ function mergeAudioChunks(chunks: Float32Array[]) {
 // go freezes the main thread for hundreds of milliseconds right after the user
 // taps stop, which reads as the whole UI hanging. Yield back to the browser
 // every slice so React can paint the processing state and buttons stay live.
-const ENCODE_SLICE = 100_000;
+// Each yield is a setTimeout, and a backgrounded tab throttles those to roughly
+// one a second. Fewer, larger slices keep the main thread responsive while the
+// tab is visible without leaving dozens of throttled hops if it is not.
+const ENCODE_SLICE = 400_000;
 
 // Both Azure's short-audio endpoint and Tencent's sentence recognition reject
 // anything past 60s, but candidates are expected to answer for up to 3 minutes.
@@ -290,7 +293,13 @@ export async function startAzureSpeechRecognition(callbacks: {
     source.disconnect();
     stream.getTracks().forEach((track) => track.stop());
     if (audioContext.state !== "closed") {
-      await audioContext.close().catch(() => undefined);
+      // close() has been observed not to settle on some devices. Releasing the
+      // device is best effort — the recording is already captured, so waiting
+      // forever for the teardown would throw away a finished answer.
+      await Promise.race([
+        audioContext.close().catch(() => undefined),
+        new Promise((resolve) => window.setTimeout(resolve, 2000))
+      ]);
     }
   }
 
@@ -307,13 +316,17 @@ export async function startAzureSpeechRecognition(callbacks: {
           callbacks.onStatus("failed", SILENT_RECORDING_MESSAGE);
           return;
         }
-        callbacks.onStatus("recording", "录音已停止，正在整理音频。");
+        // These stage messages are surfaced in the processing screen. Recording
+        // has frozen here before with no way to tell which step stalled, and a
+        // visible stage turns the next report into an answer instead of a
+        // guess.
+        callbacks.onStatus("recording", "正在整理音频");
         queueSegment(drainBuffer());
         callbacks.onStatus(
           "recording",
           segmentTranscripts.length > 1
-            ? `正在提交语音识别（共 ${segmentTranscripts.length} 段）。`
-            : "正在提交语音识别。"
+            ? `正在提交语音识别（共 ${segmentTranscripts.length} 段）`
+            : "正在提交语音识别"
         );
 
         const settled = await Promise.allSettled(segmentTranscripts);

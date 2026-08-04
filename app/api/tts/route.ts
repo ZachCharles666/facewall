@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { shouldInjectDevFault } from "@/lib/dev/ops";
 import { isInterviewerStyleId } from "@/lib/schemas/contracts";
 import { personaVoices, toAzurePitch, toAzureRate, toAzureVolume } from "@/lib/speech/settings";
+import { structuredLog } from "@/lib/observability/logger";
 import { observeRoute } from "@/lib/observability/route";
 import { readActiveSpeechSettings } from "@/lib/speech/speechSettingsStore";
 import {
@@ -66,11 +67,21 @@ async function handlePost(request: Request) {
       const savedVoiceType = await readActiveSpeechSettings()
         .then((snapshot) => snapshot.speechTunings[styleId]?.tencentVoiceType ?? 0)
         .catch(() => 0);
+      const requestedVoiceType = Number(payload.tencentVoiceType) || savedVoiceType;
       const audio = await synthesizeWithTencent({
         text,
         rate: payload.rate as number | string | undefined,
         styleId,
-        voiceType: Number(payload.tencentVoiceType) || savedVoiceType
+        voiceType: requestedVoiceType
+      });
+      // Logged per request because a silent switch of provider or voice changes
+      // the interviewer partway through an interview, and the response body
+      // gives no way to tell after the fact.
+      structuredLog("info", "tts.synthesized", {
+        provider: "tencent",
+        styleId,
+        voiceType: requestedVoiceType,
+        savedVoiceType
       });
       return new Response(audio, {
         status: 200,
@@ -128,6 +139,7 @@ async function handlePost(request: Request) {
       return NextResponse.json({ error: "Azure TTS request failed." }, { status: azureResponse.status });
     }
 
+    structuredLog("info", "tts.synthesized", { provider: "azure", styleId, voiceName });
     return new Response(await azureResponse.arrayBuffer(), {
       status: 200,
       headers: {
