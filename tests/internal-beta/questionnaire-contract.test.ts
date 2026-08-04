@@ -182,7 +182,12 @@ test("Juju report invitation and answer-history entry preserve the main flow", a
   assert.match(flow, /确认并返回首页/);
   assert.doesNotMatch(flow, /正在准备问卷/);
   assert.match(flow, /disabled=\{snapshotLoading\}/);
-  assert.match(flow, /questionnaireAlreadyCompleted/);
+  // Whether the questionnaire is already answered comes from the server
+  // snapshot. It was once inferred from the session number, which silently
+  // skipped the questionnaire once it moved off the first interview.
+  assert.doesNotMatch(flow, /questionnaireAlreadyCompleted/);
+  assert.match(flow, /snapshot\.response \|\| !snapshot\.eligible/);
+  assert.match(flow, /promptToken/);
   assert.match(flow, /立即参与/);
   assert.match(flow, /暂不参与并返回报告/);
   assert.match(flow, /setStage\("report"\)/);

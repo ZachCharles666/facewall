@@ -47,11 +47,16 @@ async function emitQuestionnaireEvent(
 
 export function JujuQuestionnaireFlow({
   sessionId,
-  questionnaireAlreadyCompleted = false,
+  promptToken = 0,
   onReturnHome
 }: {
   sessionId: string | null;
-  questionnaireAlreadyCompleted?: boolean;
+  /**
+   * Bumped when the app sends the candidate back here because the
+   * questionnaire is still outstanding. Re-opens the invite so returning
+   * lands on the thing that is being asked for.
+   */
+  promptToken?: number;
   onReturnHome: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<QuestionnaireSnapshot | null>(null);
@@ -61,18 +66,11 @@ export function JujuQuestionnaireFlow({
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [snapshotLoading, setSnapshotLoading] = useState(
-    Boolean(sessionId) && !questionnaireAlreadyCompleted
-  );
+  const [snapshotLoading, setSnapshotLoading] = useState(Boolean(sessionId));
   const [snapshotFailed, setSnapshotFailed] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    if (questionnaireAlreadyCompleted) {
-      setSnapshotLoading(false);
-      setSnapshotFailed(false);
-      return;
-    }
     if (!sessionId) {
       setSnapshotLoading(false);
       return;
@@ -102,7 +100,14 @@ export function JujuQuestionnaireFlow({
     return () => {
       cancelled = true;
     };
-  }, [questionnaireAlreadyCompleted, reloadToken, sessionId]);
+  }, [reloadToken, sessionId]);
+
+  useEffect(() => {
+    if (promptToken <= 0 || !snapshot) return;
+    if (snapshot.response || !snapshot.eligible) return;
+    setStage("invite");
+    if (sessionId) void emitQuestionnaireEvent("questionnaire_invite_viewed", sessionId);
+  }, [promptToken, sessionId, snapshot]);
 
   const missingRequired = useMemo(() => {
     if (!snapshot) return [];
@@ -117,10 +122,6 @@ export function JujuQuestionnaireFlow({
   }, [answers, snapshot]);
 
   function confirmAndReturn() {
-    if (questionnaireAlreadyCompleted) {
-      onReturnHome();
-      return;
-    }
     if (!sessionId) {
       setMessage("当前报告尚未关联面试记录，请刷新后重试。");
       return;

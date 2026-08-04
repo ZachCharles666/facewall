@@ -117,7 +117,7 @@ export function ReportPanel({
   onUseFallback,
   onRegenerateQuestion,
   sessionId,
-  questionnaireAlreadyCompleted = false,
+  questionnairePromptToken = 0,
   onReturnHome
 }: {
   report: InterviewReport | null;
@@ -136,7 +136,7 @@ export function ReportPanel({
   onUseFallback: () => void;
   onRegenerateQuestion: (questionId: string) => void;
   sessionId: string | null;
-  questionnaireAlreadyCompleted?: boolean;
+  questionnairePromptToken?: number;
   onReturnHome: () => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "failed">("idle");
@@ -426,7 +426,7 @@ export function ReportPanel({
           state={state}
           interviewerStyleId={interviewerStyleId}
           sessionId={sessionId}
-          questionnaireAlreadyCompleted={questionnaireAlreadyCompleted}
+          questionnairePromptToken={questionnairePromptToken}
           onReturnHome={onReturnHome}
         />
       );
@@ -808,7 +808,7 @@ function JujuReportPanel({
   state,
   interviewerStyleId,
   sessionId,
-  questionnaireAlreadyCompleted,
+  questionnairePromptToken,
   onReturnHome
 }: {
   report: InterviewReport;
@@ -833,7 +833,7 @@ function JujuReportPanel({
   };
   interviewerStyleId: InterviewerStyleId;
   sessionId: string | null;
-  questionnaireAlreadyCompleted: boolean;
+  questionnairePromptToken: number;
   onReturnHome: () => void;
 }) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -1035,7 +1035,7 @@ function JujuReportPanel({
 
         <JujuQuestionnaireFlow
           onReturnHome={onReturnHome}
-          questionnaireAlreadyCompleted={questionnaireAlreadyCompleted}
+          promptToken={questionnairePromptToken}
           sessionId={sessionId}
         />
 

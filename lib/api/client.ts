@@ -386,6 +386,17 @@ export function saveActivePromptOverrides(promptOverrides: PromptOverrides) {
   return postJson<PromptStoreSnapshot, { promptOverrides: PromptOverrides }>("/api/prompts/active", { promptOverrides });
 }
 
+export async function getSessionQuestionnaireSnapshot(sessionId: string) {
+  const response = await fetch(`/api/interview-sessions/${sessionId}/questionnaire`, {
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error("questionnaire unavailable");
+  const body = (await response.json()) as {
+    data: { eligible: boolean; response: { id: string } | null };
+  };
+  return body.data;
+}
+
 export async function getActiveSpeechSettings() {
   const response = await fetch("/api/speech-settings/active", {
     method: "GET",

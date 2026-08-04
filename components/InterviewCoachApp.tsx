@@ -11,6 +11,7 @@ import {
   getActivePromptOverrides,
   getCurrentPersistedInterviewSession,
   getPersistedInterviewSession,
+  getSessionQuestionnaireSnapshot,
   parseProfile,
   regenerateQuestionReport,
   savePersistedAnswer,
@@ -125,6 +126,7 @@ export function InterviewCoachApp({
   const [profileGenerationPending, setProfileGenerationPending] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [quotaExhaustedDialogOpen, setQuotaExhaustedDialogOpen] = useState(false);
+  const [questionnairePromptToken, setQuestionnairePromptToken] = useState(0);
   const [streamedQuestionReports, setStreamedQuestionReports] = useState<QuestionReport[]>([]);
   const [reportState, setReportState] = useState<{
     kind: "idle" | "loading" | "streaming" | "ready" | "error";
@@ -597,6 +599,7 @@ export function InterviewCoachApp({
         setProfileGenerationPending(false);
         if (blockingSession) {
           applyPersistedSnapshot(blockingSession);
+          setQuestionnairePromptToken((token) => token + 1);
           setSetupError("");
           setStatus({
             kind: "success",
@@ -669,13 +672,51 @@ export function InterviewCoachApp({
     }
   }
 
-  function returnToFreshSetup() {
+  /**
+   * An outstanding questionnaire keeps the candidate on the report it belongs
+   * to. Enforcing that only when a new session is created let them fill in a
+   * whole CV and JD first and get bounced at the very end, which reads as the
+   * app losing their work. Every route home goes through here.
+   */
+  async function returnToFreshSetup() {
+    const blocking = await findOutstandingQuestionnaireSession();
+    if (blocking) {
+      applyPersistedSnapshot(blocking);
+      setQuestionnairePromptToken((token) => token + 1);
+      setStatus({
+        kind: "success",
+        message: "开始新面试前，请先完成上一场的调研问卷。"
+      });
+      return;
+    }
     setFigmaSetupInitialStep("home");
     resetDownstream({
       resumeText: "",
       jdText: "",
       interviewerStyleId: form.interviewerStyleId
     });
+  }
+
+  async function findOutstandingQuestionnaireSession() {
+    if (initialPersistenceMode === "off") return null;
+    const sessionId = persistedSessionIdRef.current;
+    try {
+      if (sessionId) {
+        const snapshot = await getSessionQuestionnaireSnapshot(sessionId);
+        if (snapshot.eligible && !snapshot.response) {
+          return await getPersistedInterviewSession(sessionId);
+        }
+        return null;
+      }
+      // No session in hand, so ask the server which one is still waiting.
+      const current = await getCurrentPersistedInterviewSession();
+      if (!current?.report) return null;
+      const snapshot = await getSessionQuestionnaireSnapshot(current.sessionId);
+      return snapshot.eligible && !snapshot.response ? current : null;
+    } catch {
+      // Never trap someone on a report because a check failed.
+      return null;
+    }
   }
 
   async function handleGenerateQuestions() {
@@ -1179,10 +1220,8 @@ export function InterviewCoachApp({
             onUseFallback={() => handleUseFallbackReport()}
             onRegenerateQuestion={handleRegenerateQuestion}
             sessionId={persistedSessionId}
-            questionnaireAlreadyCompleted={
-              persistedSessionNumber !== null && persistedSessionNumber > 1
-            }
-            onReturnHome={returnToFreshSetup}
+            questionnairePromptToken={questionnairePromptToken}
+            onReturnHome={() => void returnToFreshSetup()}
           />
           {report && initialVisualTheme !== "juju" && (
             <FeedbackPanel
