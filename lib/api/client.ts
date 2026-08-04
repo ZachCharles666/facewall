@@ -17,8 +17,24 @@ import type {
 } from "@/lib/types";
 import { getDevRequestHeaders } from "@/lib/dev/clientControls";
 
+// Generation can legitimately take a while — the server allows 35s per attempt
+// and retries once — but never forever. A request that hangs leaves the app on
+// a spinner with no way out, which has stranded candidates mid-setup.
+const REQUEST_TIMEOUT_MS = 120_000;
+
+async function fetchJson(url: string, init: RequestInit) {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error("等待服务器响应的时间太长了，请重试一次。");
+    }
+    throw new Error("网络好像不太通畅，请稍后重试。");
+  }
+}
+
 async function postJson<TData, TPayload>(url: string, payload: TPayload, devFault?: "llm"): Promise<TData> {
-  const response = await fetch(url, {
+  const response = await fetchJson(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -57,7 +73,7 @@ async function postJsonWithGeneration<TData, TPayload>(
   payload: TPayload,
   devFault?: "llm"
 ): Promise<GenerationResult<TData>> {
-  const response = await fetch(url, {
+  const response = await fetchJson(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -85,7 +101,7 @@ async function requestCommon<TData>(
   url: string,
   init?: RequestInit
 ): Promise<TData> {
-  const response = await fetch(url, { cache: "no-store", ...init });
+  const response = await fetchJson(url, { cache: "no-store", ...init });
   const body = (await response.json()) as
     | Extract<CommonResponse<TData>, { ok: true }>
     | (Extract<CommonResponse<TData>, { ok: false }> & {
