@@ -468,9 +468,9 @@ export async function requestSttTranscript(audio: Blob) {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
-      throw new Error("语音识别超时，网络可能不稳定，请重试或手动输入。");
+      throw new Error("等待识别的时间太长了，网络可能不太稳定，可以再说一次或直接打字。");
     }
-    throw new Error("语音识别请求失败，请检查网络后重试。");
+    throw new Error("网络好像不太通畅，可以再说一次或直接打字。");
   }
 
   const payload = (await response.json().catch(() => null)) as { text?: string; error?: string } | null;

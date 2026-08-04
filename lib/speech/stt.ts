@@ -72,8 +72,15 @@ const SILENCE_SEARCH_SECONDS = 4;
 // reported as what it is.
 const SILENCE_PEAK_THRESHOLD = 0.008;
 
+// Shown to candidates, so it says what to do rather than what went wrong.
 export const SILENT_RECORDING_MESSAGE =
-  "没有采集到声音。请检查系统输入设备和麦克风音量，并确认没有其他应用正在占用麦克风。";
+  "没有听到你的声音，请检查麦克风是否被静音，或有没有其他软件正在使用麦克风。";
+
+// These double as the label on the processing screen, so each one reads as a
+// complete sentence a candidate understands, while still telling us which step
+// an interview stalled on.
+export const STT_STAGE_PREPARING = "正在整理录音…";
+export const STT_STAGE_TRANSCRIBING = "正在识别你的回答…";
 
 function measurePeakAmplitude(samples: Float32Array) {
   let peak = 0;
@@ -286,7 +293,7 @@ export async function startAzureSpeechRecognition(callbacks: {
 
   source.connect(processor);
   processor.connect(audioContext.destination);
-  callbacks.onStatus("recording", "正在录音，停止后会提交服务端识别；当前文本会保留。");
+  callbacks.onStatus("recording", "正在录音，点击结束后会自动识别，已有文字会保留。");
 
   async function cleanup() {
     processor.disconnect();
@@ -316,18 +323,11 @@ export async function startAzureSpeechRecognition(callbacks: {
           callbacks.onStatus("failed", SILENT_RECORDING_MESSAGE);
           return;
         }
-        // These stage messages are surfaced in the processing screen. Recording
-        // has frozen here before with no way to tell which step stalled, and a
-        // visible stage turns the next report into an answer instead of a
-        // guess.
-        callbacks.onStatus("recording", "正在整理音频");
+        // Recording has frozen in here before with no way to tell which step
+        // stalled, so the stage is visible on screen from now on.
+        callbacks.onStatus("recording", STT_STAGE_PREPARING);
         queueSegment(drainBuffer());
-        callbacks.onStatus(
-          "recording",
-          segmentTranscripts.length > 1
-            ? `正在提交语音识别（共 ${segmentTranscripts.length} 段）`
-            : "正在提交语音识别"
-        );
+        callbacks.onStatus("recording", STT_STAGE_TRANSCRIBING);
 
         const settled = await Promise.allSettled(segmentTranscripts);
         const failedCount = settled.filter((result) => result.status === "rejected").length;
@@ -351,14 +351,14 @@ export async function startAzureSpeechRecognition(callbacks: {
           transcript ? "success" : "manual",
           transcript
             ? failedCount > 0
-              ? `识别完成，但有 ${failedCount} 段未能识别，请检查后补充。`
-              : "识别完成，可继续编辑答案。"
-            : "未识别到文本，可手动输入。"
+              ? "识别完成，但有一部分没听清，请检查后补充。"
+              : "识别完成，可以继续修改答案。"
+            : "没有识别出内容，可以直接打字回答。"
         );
       } catch (error) {
         callbacks.onStatus(
           "failed",
-          error instanceof Error ? error.message : "语音识别失败，已保留当前文本，可重试或手动编辑。"
+          error instanceof Error ? error.message : "没能识别你的回答，可以再说一次，或者直接打字。"
         );
       }
     },

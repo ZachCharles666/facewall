@@ -4,7 +4,7 @@ import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, interviewerSpeechLabels, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
 import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
-import { canUseMicrophoneRecording, canUseSpeechRecognition, SILENT_RECORDING_MESSAGE, startAzureSpeechRecognition, startSpeechRecognition, type SttSession } from "@/lib/speech/stt";
+import { canUseMicrophoneRecording, canUseSpeechRecognition, SILENT_RECORDING_MESSAGE, startAzureSpeechRecognition, startSpeechRecognition, STT_STAGE_PREPARING, STT_STAGE_TRANSCRIBING, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
 import { JujuOrb } from "@/components/JujuOrb";
 import type {
@@ -329,7 +329,7 @@ export function InterviewPanel({
 
   useEffect(() => {
     if (figmaAnswerPhase !== "recording" || figmaElapsedSec < MAX_ANSWER_SECONDS) return;
-    setVoiceMessage(`单题回答上限 ${MAX_ANSWER_SECONDS / 60} 分钟，已自动结束录音并提交识别。`);
+    setVoiceMessage(`每题最多回答 ${MAX_ANSWER_SECONDS / 60} 分钟，已经帮你结束录音了。`);
     void finishFigmaAnswer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [figmaAnswerPhase, figmaElapsedSec]);
@@ -698,8 +698,8 @@ export function InterviewPanel({
           setTtsBlocked(true);
           setVoiceMessage(
             isWeChatBrowser()
-              ? "微信浏览器拦截了自动播放，点击「播放题目」即可收听。"
-              : "浏览器拦截了自动播放，点击「播放题目」即可收听。"
+              ? "微信里需要手动播放，点一下「播放题目」就能听到。"
+              : "浏览器需要手动播放，点一下「播放题目」就能听到。"
           );
           return;
         }
@@ -887,7 +887,7 @@ export function InterviewPanel({
     if (processingTimedOut) {
       sttSessionRef.current?.abort();
       sttSessionRef.current = null;
-      setVoiceMessage("识别处理超时，已保留题目，可重新作答或手动输入。");
+      setVoiceMessage("处理时间有点长，题目已经保留，可以再答一次或者直接打字。");
       setJujuVoiceFailureKind("recording");
       setFigmaAnswerPhase("prompt");
       setFigmaElapsedSec(0);
@@ -1062,7 +1062,7 @@ export function InterviewPanel({
         : jujuVoiceFailureKind === "too-short"
           ? <>抱歉 <span className="juju-interview-voice-notice-keyword">语音过短</span> 请重新作答 ...</>
           : jujuVoiceFailureKind === "silent"
-            ? <>抱歉 <span className="juju-interview-voice-notice-keyword">没有采集到声音</span> 请检查麦克风后重试 ...</>
+            ? <>抱歉 <span className="juju-interview-voice-notice-keyword">没有听到声音</span> 请检查麦克风后再试 ...</>
             : <>抱歉 <span className="juju-interview-voice-notice-keyword">录制失败</span> 请重新作答 ...</>;
     const interviewerName =
       interviewerStyleId === "strictHr" ? "温婉HR小姐姐" : interviewerStyleId === "techBro" ? "技术老哥" : "资深业务大佬";
@@ -1117,7 +1117,10 @@ export function InterviewPanel({
 
           {isProcessing && (
             <p className="juju-interview-listening-label" role="status">
-              正在识别你的回答… {voiceMessage}
+              {/* Only the stage labels are shown here. Everything else that
+                  lands in voiceMessage is written for the Classic tuning
+                  panel and reads as jargon to a candidate. */}
+              {voiceMessage === STT_STAGE_PREPARING ? STT_STAGE_PREPARING : STT_STAGE_TRANSCRIBING}
             </p>
           )}
 
