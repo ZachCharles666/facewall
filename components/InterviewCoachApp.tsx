@@ -251,21 +251,9 @@ export function InterviewCoachApp({
         }
         if (cancelled || !snapshot) return;
         applyPersistedSnapshot(snapshot);
-        // Coming back to the product with a questionnaire outstanding should
-        // land on that report with the invite up, not on a report the
-        // candidate has to poke at before anything is asked of them.
-        const outstanding = snapshot.report
-          ? await getSessionQuestionnaireSnapshot(snapshot.sessionId)
-              .then((state) => state.eligible && !state.response)
-              .catch(() => false)
-          : false;
-        if (cancelled) return;
-        if (outstanding) setQuestionnairePromptToken((token) => token + 1);
         setStatus({
           kind: "success",
-          message: outstanding
-            ? "已恢复上一场面试报告，请先完成调研问卷。"
-            : "已从数据库恢复上次提交的面试进度。"
+          message: "已从数据库恢复上次提交的面试进度。"
         });
       } catch (error) {
         if (!cancelled) {
