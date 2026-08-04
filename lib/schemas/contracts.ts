@@ -15,6 +15,7 @@ import type {
   SttStatus
 } from "@/lib/types";
 import { getCurrentRequestId } from "@/lib/observability/context";
+import { MAX_SETUP_TEXT_LENGTH } from "@/lib/state/constants";
 
 export const interviewerStyleIds: InterviewerStyleId[] = ["strictHr", "techBro", "gentleSister"];
 const evidenceSources = ["resume", "jd", "inferred"];
@@ -93,6 +94,8 @@ export function validateSetupPayload(value: unknown): value is {
     typeof payload.jdText === "string" &&
     payload.resumeText.trim().length >= 20 &&
     payload.jdText.trim().length >= 20 &&
+    payload.resumeText.length <= MAX_SETUP_TEXT_LENGTH &&
+    payload.jdText.length <= MAX_SETUP_TEXT_LENGTH &&
     isInterviewerStyleId(payload.interviewerStyleId)
   );
 }

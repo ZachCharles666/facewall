@@ -11,7 +11,8 @@ const allowedSources = new Set([
   "error-boundary",
   "window-error",
   "unhandled-rejection",
-  "resource-error"
+  "resource-error",
+  "speech-fallback"
 ]);
 
 function validatePayload(value: unknown) {

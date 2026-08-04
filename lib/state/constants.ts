@@ -2,6 +2,18 @@ import type { InterviewerStyleId, SessionStep } from "@/lib/types";
 
 export const SESSION_STEPS: SessionStep[] = ["setup", "profile", "questions", "interview", "report"];
 
+/**
+ * Roughly ten pages of Chinese. No real resume or job description comes close,
+ * but pasting a whole web page does, and an unbounded body flows into the
+ * upload, the prompt and the stored session. On a phone connection a large
+ * enough paste simply never finishes uploading, which the candidate sees as the
+ * app hanging on profile generation with nothing in the server logs at all.
+ *
+ * Lives here rather than in the contracts module so the setup form can enforce
+ * it without dragging server-only observability into the client bundle.
+ */
+export const MAX_SETUP_TEXT_LENGTH = 20_000;
+
 export const INTERVIEWER_STYLES: Array<{
   id: InterviewerStyleId;
   label: string;

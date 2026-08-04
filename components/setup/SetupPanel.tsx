@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { canUseDevControls } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
-import { INTERVIEWER_STYLES } from "@/lib/state/constants";
+import { INTERVIEWER_STYLES, MAX_SETUP_TEXT_LENGTH } from "@/lib/state/constants";
 import type { CommonResponse, SetupForm, VisualTheme } from "@/lib/types";
 import { JujuOrb } from "@/components/JujuOrb";
 import accountAvatar from "@/面壁者/avatar__342-897@2x.png";
@@ -39,6 +39,13 @@ function maskSessionEmail(email: string) {
   return `${visibleLocal} *** ***${domain}`;
 }
 
+// Caught here rather than at upload time: an over-long paste is otherwise only
+// discovered by waiting for a request that never finishes.
+function getLengthLimitMessage(text: string, label: string) {
+  if (text.length <= MAX_SETUP_TEXT_LENGTH) return "";
+  return `${label}太长了（${text.length}字），请只保留正文部分，控制在${MAX_SETUP_TEXT_LENGTH}字以内`;
+}
+
 function getResumeValidationMessage(text: string) {
   const charCount = countResumeChars(text);
   if (charCount === 0) {
@@ -49,7 +56,7 @@ function getResumeValidationMessage(text: string) {
     return `个人简历至少需要${MIN_RESUME_CHAR_COUNT}字，当前${charCount}字`;
   }
 
-  return "";
+  return getLengthLimitMessage(text, "个人简历");
 }
 
 function getJdValidationMessage(text: string) {
@@ -58,7 +65,7 @@ function getJdValidationMessage(text: string) {
     return "请输入职位介绍，至少需要100字";
   }
 
-  return "";
+  return getLengthLimitMessage(text, "职位介绍");
 }
 
 export function SetupPanel({

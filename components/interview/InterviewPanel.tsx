@@ -3,6 +3,7 @@ import { getActiveSpeechSettings, getAzureSpeechStatus, requestSttTranscript, re
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, interviewerSpeechLabels, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
+import { reportClientError } from "@/lib/observability/client";
 import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
 import { canUseMicrophoneRecording, canUseSpeechRecognition, SILENT_RECORDING_MESSAGE, startAzureSpeechRecognition, startSpeechRecognition, STT_STAGE_PREPARING, STT_STAGE_TRANSCRIBING, type SttSession } from "@/lib/speech/stt";
 import { canUseWebSpeech, getWebSpeechVoices, speakWithWebSpeech } from "@/lib/speech/webSpeech";
@@ -704,7 +705,16 @@ export function InterviewPanel({
           return;
         }
         releaseAudio();
-        setVoiceMessage(providerTimedOut ? "云端 TTS 响应较慢，已切换浏览器语音。" : "服务端 TTS 不可用，正在切换 Web Speech API 兜底。");
+        // Reported because this is the only way the interviewer's voice can
+        // change mid-interview, and it happens entirely in the browser: the
+        // server logs a clean run while the candidate hears a different person.
+        reportClientError(
+          new Error(
+            `${providerTimedOut ? "provider timeout" : "provider unavailable"} at question ${currentIndex + 1}`
+          ),
+          { source: "speech-fallback" }
+        );
+        setVoiceMessage(providerTimedOut ? "云端语音响应较慢，已改用本机语音朗读。" : "云端语音暂时不可用，已改用本机语音朗读。");
       } finally {
         window.clearTimeout(providerTimeout);
         if (ttsAbortControllerRef.current === controller) ttsAbortControllerRef.current = null;
@@ -718,13 +728,13 @@ export function InterviewPanel({
         onStart: () => {
           if (playbackToken !== ttsPlaybackTokenRef.current) return;
           setTtsStatus("speaking");
-          setVoiceMessage("Web Speech API 播放中；本机发音人效果取决于浏览器和系统。");
+          setVoiceMessage("正在用本机语音朗读，声音会和平时不同。");
           startQuestionTextMotion(text);
         },
         onEnd: () => {
           if (playbackToken !== ttsPlaybackTokenRef.current) return;
           setTtsStatus("ended");
-          setVoiceMessage("Web Speech API 播放完成。");
+          setVoiceMessage("本机语音朗读完成。");
           finishQuestionTextMotion();
         },
         onError: () => {

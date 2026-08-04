@@ -20,7 +20,11 @@ export function reportClientError(
       | "error-boundary"
       | "window-error"
       | "unhandled-rejection"
-      | "resource-error";
+      | "resource-error"
+      // Falling back to browser speech swaps the interviewer's voice for a
+      // system one and leaves no server trace, which made a reported change of
+      // voice impossible to explain from logs that looked entirely healthy.
+      | "speech-fallback";
   }
 ) {
   const payload = {

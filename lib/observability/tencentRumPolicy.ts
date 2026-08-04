@@ -31,7 +31,8 @@ export interface TencentRumClientError {
     | "error-boundary"
     | "window-error"
     | "unhandled-rejection"
-    | "resource-error";
+    | "resource-error"
+    | "speech-fallback";
   path: string;
   stack?: string;
 }
