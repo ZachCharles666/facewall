@@ -1,4 +1,4 @@
-import { deflateRawSync, deflateSync } from "node:zlib";
+import { deflateRawSync } from "node:zlib";
 
 const positionalBaseUrl = process.argv.find((item, index) => index > 1 && /^https?:\/\//.test(item));
 const baseUrl = positionalBaseUrl ?? process.env.FACEWALL_BASE_URL ?? "http://localhost:3000";
@@ -35,18 +35,61 @@ function makeDocx(text) {
 }
 
 function makePdf(text) {
-  const stream = deflateSync(Buffer.from(`BT /F1 12 Tf 72 720 Td <${toUtf16BeHex(text)}> Tj ET`, "latin1"));
-  const pdf = [
-    "%PDF-1.4\n",
-    "1 0 obj\n<< /Length ",
-    String(stream.byteLength),
-    " /Filter /FlateDecode >>\nstream\n"
-  ];
-  return Buffer.concat([
-    Buffer.from(pdf.join(""), "latin1"),
-    stream,
-    Buffer.from("\nendstream\nendobj\n%%EOF\n", "latin1")
+  const characters = [...text];
+  const encoded = characters
+    .map((_, index) => (index + 1).toString(16).padStart(4, "0"))
+    .join("");
+  const mappings = characters
+    .map((character, index) => {
+      const source = (index + 1).toString(16).padStart(4, "0");
+      const target = character.charCodeAt(0).toString(16).padStart(4, "0");
+      return `<${source}> <${target}>`;
+    })
+    .join("\n");
+  const cmap = [
+    "/CIDInit /ProcSet findresource begin",
+    "12 dict begin",
+    "begincmap",
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def",
+    "/CMapName /PassBuddy-UCS def",
+    "/CMapType 2 def",
+    "1 begincodespacerange",
+    "<0000> <FFFF>",
+    "endcodespacerange",
+    `${characters.length} beginbfchar`,
+    mappings,
+    "endbfchar",
+    "endcmap",
+    "CMapName currentdict /CMap defineresource pop",
+    "end",
+    "end"
+  ].join("\n");
+  const content = `BT /F1 12 Tf 72 720 Td <${encoded}> Tj ET`;
+  return buildPdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 7 0 R >>",
+    "<< /Type /Font /Subtype /Type0 /BaseFont /PassBuddyChinese /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 6 0 R >>",
+    "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /PassBuddyChinese /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /CIDToGIDMap /Identity >>",
+    `<< /Length ${Buffer.byteLength(cmap, "latin1")} >>\nstream\n${cmap}\nendstream`,
+    `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`
   ]);
+}
+
+function buildPdf(objects) {
+  let body = "%PDF-1.7\n";
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(body, "latin1"));
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(body, "latin1");
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    body += `${offset.toString().padStart(10, "0")} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
 }
 
 function makeZip(entries) {
@@ -106,19 +149,6 @@ function crc32(buffer) {
 
 function escapeXml(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function escapePdfLiteral(value) {
-  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-}
-
-function toUtf16BeHex(value) {
-  const bytes = [0xfe, 0xff];
-  for (const char of value) {
-    const code = char.charCodeAt(0);
-    bytes.push((code >> 8) & 0xff, code & 0xff);
-  }
-  return Buffer.from(bytes).toString("hex").toUpperCase();
 }
 
 const txt = await uploadFile(

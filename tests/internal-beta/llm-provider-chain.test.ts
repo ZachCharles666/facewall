@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   generateJsonWithRetry,
@@ -55,7 +56,7 @@ test("TokenHub chain falls through safely to independent NVIDIA", async () => {
       { provider: "tokenhub.test", model: "hy3" },
       { provider: "tokenhub.test", model: "deepseek-v4-flash" },
       { provider: "tokenhub.test", model: "kimi-k3" },
-      { provider: "nvidia.test", model: "deepseek-ai/deepseek-v4-flash" }
+      { provider: "nvidia.test", model: "meta/llama-3.1-8b-instruct" }
     ]);
 
     globalThis.fetch = async (_input, init) => {
@@ -76,7 +77,7 @@ test("TokenHub chain falls through safely to independent NVIDIA", async () => {
       "hy3",
       "deepseek-v4-flash",
       "kimi-k3",
-      "deepseek-ai/deepseek-v4-flash"
+      "meta/llama-3.1-8b-instruct"
     ]);
     assert.deepEqual(calls.map((call) => call.authorization), [
       "Bearer tokenhub-test-key",
@@ -140,4 +141,10 @@ test("NVIDIA remains usable as a standalone provider", async () => {
     globalThis.fetch = originalFetch;
     restoreEnvironment(originalEnv);
   }
+});
+
+test("NVIDIA receives a bounded longer attempt window for report-sized JSON", async () => {
+  const provider = await readFile("lib/ai/provider.ts", "utf8");
+  assert.match(provider, /NVIDIA_PROVIDER_ATTEMPT_TIMEOUT_MS = 25_000/);
+  assert.match(provider, /provider === "integrate\.api\.nvidia\.com"/);
 });

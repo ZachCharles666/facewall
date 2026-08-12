@@ -85,7 +85,7 @@
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `file` | File | Yes | 支持 `.txt`、`.pdf`、`.docx`，最大 8MB |
+| `file` | File | Yes | 支持 `.txt`、`.pdf`、`.docx`，统一最大 1MB（PDF 与 Word 相同） |
 
 ### Response data
 
@@ -103,8 +103,8 @@
 
 - `.txt` 支持 UTF-8、UTF-8 BOM 和 UTF-16LE BOM。
 - `.docx` 解析 `word/document.xml` 中的正文文本；旧版 `.doc` 暂不支持，需另存为 `.docx`。
-- `.pdf` 支持常见可复制文本 PDF；扫描件或复杂字体编码 PDF 可能提取不到文本，需要先 OCR 或手动复制。
-- 解析失败返回 `FILE_PARSE_FAILED`，前端必须保留用户已有输入。
+- `.pdf` 通过 PDF 字体编码与 `ToUnicode` 映射解析文件中已有的可提取文本（包括中文文本层），不执行 OCR。纯图片、扫描版或其他无法提取文字的 PDF 返回 HTTP `422`、`PDF_TEXT_UNRECOGNIZABLE`、`retryable=false`，提示用户改传含可复制文字的 PDF 或粘贴文字内容。
+- 空文件、超限、损坏或其他解析失败返回 HTTP `400`、`FILE_PARSE_FAILED`、`retryable=false`；前端必须保留用户已有输入。
 - 不允许在日志、错误信息或文档中输出上传文件全文。
 
 ## 4. POST /api/questions/generate
@@ -161,6 +161,8 @@
 ```
 
 > `interviewerStyleId` 为**可选**字段。传入时，报告链路会按对应面试官的评分/诊断倾向调整评价侧重与口吻；不传或非法时优雅降级为中性报告 prompt。不进入 `validateReportRequest` 必填校验，因此老调用方不受影响。`generate-stream` 与 `regenerate-question` 复用同一 request，因此也支持该可选字段。
+
+> 未作答语义：某题 `answerText.trim()` 为空时，服务端必须直接返回该题 0 分、六维 0 分和明确的“未作答/无法评估”信息，不调用 LLM，也不得读取示例、Mock 或备选答案。部分未作答时，仅真实作答题允许调用 LLM，未作答题按 0 分计入总分；三题全部未作答时整份报告由确定性规则生成，总分为 0。客户端恢复历史报告时也必须用当前真实答案重新校正该语义。
 
 ### Response data
 

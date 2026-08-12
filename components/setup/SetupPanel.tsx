@@ -1,9 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { canUseDevControls } from "@/lib/dev/clientControls";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES, MAX_SETUP_TEXT_LENGTH } from "@/lib/state/constants";
+import {
+  readLastSetupInput,
+  saveLastSetupInput,
+  subscribeLastSetupInput,
+  type LastSetupInputSnapshot,
+  type LastSetupInputValue
+} from "@/lib/setup/lastInputStore";
 import type { CommonResponse, SetupForm, VisualTheme } from "@/lib/types";
 import { JujuOrb } from "@/components/JujuOrb";
+import { JujuLastInputDetails } from "@/components/setup/JujuLastInputDetails";
 import accountAvatar from "@/面壁者/avatar__342-897@2x.png";
 import menuIcon from "@/面壁者/menue__343-906@2x.png";
 
@@ -21,7 +28,12 @@ const MIN_RESUME_CHAR_COUNT = 100;
 const MIN_JD_CHAR_COUNT = 100;
 const MAX_UPLOAD_BYTES = 1024 * 1024;
 const SUPPORTED_UPLOAD_ACCEPT =
-  ".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  ".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+const EMPTY_LAST_SETUP_INPUT: LastSetupInputSnapshot = {
+  version: 1,
+  ownerId: ""
+};
 
 function formatSystemTime(date: Date) {
   const minutes = date.getMinutes().toString().padStart(2, "0");
@@ -37,6 +49,16 @@ function maskSessionEmail(email: string) {
   if (!localPart || !domain) return "用户 *** ***已登录";
   const visibleLocal = localPart.slice(0, 3);
   return `${visibleLocal} *** ***${domain}`;
+}
+
+async function fetchJujuSessionIdentity() {
+  const response = await fetch("/api/auth/session", { cache: "no-store" });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as {
+    data?: { user?: { id?: string; email?: string } };
+  };
+  const id = payload.data?.user?.id?.trim() || "";
+  return id ? { id, email: payload.data?.user?.email || "" } : null;
 }
 
 // Caught here rather than at upload time: an over-long paste is otherwise only
@@ -99,9 +121,22 @@ export function SetupPanel({
   const [figmaJdRows, setFigmaJdRows] = useState(2);
   const [figmaJdError, setFigmaJdError] = useState("");
   const [jujuSideOpen, setJujuSideOpen] = useState(false);
+  const [jujuSideView, setJujuSideView] = useState<"menu" | "lastInput">("menu");
   const [jujuSideNotice, setJujuSideNotice] = useState("");
   const [jujuSessionEmail, setJujuSessionEmail] = useState("");
+  const [jujuSessionUserId, setJujuSessionUserId] = useState("");
+  const [jujuSessionLoading, setJujuSessionLoading] = useState(true);
   const [jujuLogoutBusy, setJujuLogoutBusy] = useState(false);
+  const [startSubmitBusy, setStartSubmitBusy] = useState(false);
+  const [lastSetupInput, setLastSetupInput] = useState<LastSetupInputSnapshot>(
+    EMPTY_LAST_SETUP_INPUT
+  );
+  const [resumeInputMeta, setResumeInputMeta] = useState<
+    Omit<LastSetupInputValue, "text">
+  >({ source: "text" });
+  const [jdInputMeta, setJdInputMeta] = useState<
+    Omit<LastSetupInputValue, "text">
+  >({ source: "text" });
   const [currentSystemTime, setCurrentSystemTime] = useState("9:41");
   const figmaResumeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const figmaJdTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -115,10 +150,6 @@ export function SetupPanel({
     message: ""
   });
   const isJujuTheme = visualTheme === "juju";
-  // The demo shortcuts fill the form with the canned scenario. Useful while
-  // developing, confusing for a real candidate, so they stay off in production
-  // and the file upload takes their slot in the toolbar.
-  const showDemoShortcuts = canUseDevControls();
   const uploadButtonImageSrc = isJujuTheme
     ? "/juju/home/toolbar-plus.svg?v=2026071003"
     : "/figma/home/frame4-frame1-upload@2x.png?v=2026070302";
@@ -133,6 +164,12 @@ export function SetupPanel({
   const homeIntro = isJujuTheme
     ? "我是面壁者，请告诉我您的过往经历，以便我能够更好地了解您。"
     : "我是Lili，请告诉我您的过往经历，以便我能够更好地了解您。";
+  const scopedLastSetupInput =
+    !jujuSessionLoading &&
+    jujuSessionUserId &&
+    lastSetupInput.ownerId === jujuSessionUserId
+      ? lastSetupInput
+      : EMPTY_LAST_SETUP_INPUT;
 
   useEffect(() => {
     function refreshSystemTime() {
@@ -145,26 +182,50 @@ export function SetupPanel({
   }, []);
 
   useEffect(() => {
-    if (!isJujuTheme) return;
+    if (!isJujuTheme) {
+      setJujuSessionLoading(false);
+      return;
+    }
     let cancelled = false;
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok || cancelled) return;
-        const payload = (await response.json()) as {
-          data?: { user?: { email?: string } };
-        };
-        if (!cancelled) setJujuSessionEmail(payload.data?.user?.email || "");
+    setJujuSessionLoading(true);
+    fetchJujuSessionIdentity()
+      .then((identity) => {
+        if (!cancelled) {
+          setJujuSessionEmail(identity?.email || "");
+          setJujuSessionUserId(identity?.id || "");
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setJujuSessionEmail("");
+          setJujuSessionUserId("");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setJujuSessionLoading(false);
+      });
     return () => {
       cancelled = true;
     };
   }, [isJujuTheme]);
 
   useEffect(() => {
+    if (!isJujuTheme || !jujuSessionUserId) {
+      setLastSetupInput(EMPTY_LAST_SETUP_INPUT);
+      return;
+    }
+
+    setLastSetupInput(readLastSetupInput(jujuSessionUserId));
+    return subscribeLastSetupInput(jujuSessionUserId, setLastSetupInput);
+  }, [isJujuTheme, jujuSessionUserId]);
+
+  useEffect(() => {
     if (!jujuSideOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setJujuSideOpen(false);
+      if (event.key === "Escape") {
+        setJujuSideOpen(false);
+        setJujuSideView("menu");
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
@@ -210,11 +271,15 @@ export function SetupPanel({
     if (!file) return;
 
     const normalizedName = file.name.toLowerCase();
-    if (!normalizedName.endsWith(".txt") && !normalizedName.endsWith(".docx")) {
+    if (
+      !normalizedName.endsWith(".txt") &&
+      !normalizedName.endsWith(".pdf") &&
+      !normalizedName.endsWith(".docx")
+    ) {
       setUploadState({
         target,
         kind: "error",
-        message: "仅支持 TXT 和 Word（.docx）文档。"
+        message: "仅支持 TXT、PDF 和 Word（.docx）文档。"
       });
       return;
     }
@@ -246,10 +311,20 @@ export function SetupPanel({
 
       onChange({ ...form, [target]: payload.data.text });
       if (target === "resumeText") {
+        setResumeInputMeta({
+          source: "file",
+          fileName: payload.data.fileName,
+          fileType: payload.data.fileType
+        });
         setFigmaResumeError((currentError) =>
           currentError ? getResumeValidationMessage(payload.data.text) : currentError
         );
       } else {
+        setJdInputMeta({
+          source: "file",
+          fileName: payload.data.fileName,
+          fileType: payload.data.fileType
+        });
         setFigmaJdError((currentError) => (currentError ? getJdValidationMessage(payload.data.text) : currentError));
       }
       const warningText = payload.data.warnings.length > 0 ? `；${payload.data.warnings.join("；")}` : "";
@@ -279,18 +354,29 @@ export function SetupPanel({
     setFigmaStep("jd");
   }
 
-  function fillDemoResume() {
-    onChange({ ...form, resumeText: demoScenario.resumeText });
-    setFigmaResumeError("");
-    setFigmaUploadOpen(false);
-    setUploadState({ target: null, kind: "idle", message: "" });
-  }
+  function useLastInput(target: UploadTarget) {
+    const entry =
+      target === "resumeText" ? scopedLastSetupInput.cv : scopedLastSetupInput.jd;
+    if (!entry) return;
 
-  function fillDemoJd() {
-    onChange({ ...form, jdText: demoScenario.jdText });
-    setFigmaJdError(getJdValidationMessage(demoScenario.jdText));
-    setFigmaJdUploadOpen(false);
+    onChange({ ...form, [target]: entry.text });
+    const meta = {
+      source: entry.source,
+      fileName: entry.fileName,
+      fileType: entry.fileType
+    } satisfies Omit<LastSetupInputValue, "text">;
     setUploadState({ target: null, kind: "idle", message: "" });
+    if (target === "resumeText") {
+      setResumeInputMeta(meta);
+      setFigmaResumeError("");
+      setFigmaUploadOpen(false);
+      window.requestAnimationFrame(() => figmaResumeTextareaRef.current?.focus());
+    } else {
+      setJdInputMeta(meta);
+      setFigmaJdError("");
+      setFigmaJdUploadOpen(false);
+      window.requestAnimationFrame(() => figmaJdTextareaRef.current?.focus());
+    }
   }
 
   function syncFigmaResumeSelection(target: HTMLTextAreaElement) {
@@ -301,7 +387,8 @@ export function SetupPanel({
     setFigmaJdSelection(target.selectionStart ?? target.value.length);
   }
 
-  function startFromJd() {
+  async function startFromJd() {
+    if (startSubmitBusy) return;
     const validationMessage = getJdValidationMessage(form.jdText);
     if (validationMessage) {
       setFigmaJdError(validationMessage);
@@ -311,7 +398,29 @@ export function SetupPanel({
     }
 
     setFigmaJdError("");
+    setStartSubmitBusy(true);
+    let ownerId = jujuSessionUserId;
+    if (isJujuTheme && !ownerId) {
+      const identity = await fetchJujuSessionIdentity().catch(() => null);
+      if (!identity) {
+        setFigmaJdError("登录会话暂不可用，请稍后重试，CV 和 JD 输入已保留。");
+        setStartSubmitBusy(false);
+        return;
+      }
+      ownerId = identity.id;
+      setJujuSessionEmail(identity.email);
+      setJujuSessionUserId(identity.id);
+      setJujuSessionLoading(false);
+    }
+    if (isJujuTheme && ownerId) {
+      const savedSnapshot = saveLastSetupInput(ownerId, {
+        cv: { text: form.resumeText, ...resumeInputMeta },
+        jd: { text: form.jdText, ...jdInputMeta }
+      });
+      setLastSetupInput(savedSnapshot);
+    }
     onStart();
+    setStartSubmitBusy(false);
   }
 
   function showNextVersionNotice() {
@@ -350,7 +459,11 @@ export function SetupPanel({
                 aria-expanded={jujuSideOpen}
                 aria-label="打开侧边菜单"
                 className="juju-home-menu-button"
-                onClick={() => setJujuSideOpen(true)}
+                onClick={() => {
+                  setJujuSideNotice("");
+                  setJujuSideView("menu");
+                  setJujuSideOpen(true);
+                }}
                 type="button"
               >
                 <img alt="" aria-hidden="true" height={32} src={menuIcon.src} width={32} />
@@ -374,7 +487,7 @@ export function SetupPanel({
             <div className="figma-copy">
               <h2>{homeTitle}</h2>
               <p>{homeIntro}</p>
-              <p className="figma-home-help">您可粘贴至输入框或点击“+”上传word 文档 最大不超过1M。</p>
+              <p className="figma-home-help">您可粘贴至输入框或点击“+”上传 PDF 或 Word 文档，最大不超过1M。</p>
             </div>
             <div
               className="figma-home-toolbar"
@@ -393,6 +506,7 @@ export function SetupPanel({
                   onChange={(event) => {
                     const nextResumeText = event.target.value;
                     onChange({ ...form, resumeText: nextResumeText });
+                    setResumeInputMeta({ source: "text" });
                     if (figmaResumeError) {
                       setFigmaResumeError(getResumeValidationMessage(nextResumeText));
                     }
@@ -427,9 +541,16 @@ export function SetupPanel({
                         <span aria-hidden="true">×</span>
                       )}
                     </button>
-                    {showDemoShortcuts && (
-                      <button className="figma-frame4-pill-button" onClick={fillDemoResume}>
-                        <span>UseDemoCV</span>
+                    {isJujuTheme && (
+                      <button
+                        aria-label="快捷录入上次 CV"
+                        className="figma-frame4-pill-button juju-last-input-button"
+                        disabled={!scopedLastSetupInput.cv}
+                        onClick={() => useLastInput("resumeText")}
+                        title={scopedLastSetupInput.cv ? "填入当前账号上次录入的 CV" : "暂无上次 CV"}
+                        type="button"
+                      >
+                        <span>上次 CV</span>
                       </button>
                     )}
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaResumeFile">
@@ -496,53 +617,71 @@ export function SetupPanel({
                 <button
                   aria-label="关闭侧边菜单"
                   className="juju-home-side-dismiss"
-                  onClick={() => setJujuSideOpen(false)}
+                  onClick={() => {
+                    setJujuSideOpen(false);
+                    setJujuSideView("menu");
+                  }}
                   tabIndex={jujuSideOpen ? 0 : -1}
                   type="button"
                 />
                 <aside
-                  aria-label="账户与记录"
+                  aria-label={jujuSideView === "lastInput" ? "上次录入详情" : "账户与记录"}
                   className="juju-home-side-panel"
                   id="juju-home-side-panel"
                 >
-                  <div className="juju-home-side-account">
-                    <img className="juju-home-side-avatar" src={accountAvatar.src} alt="" />
-                    <span>{maskSessionEmail(jujuSessionEmail)}</span>
-                  </div>
-                  <div className="juju-home-side-glass">
-                    <div className="juju-home-side-menu">
+                  {jujuSideView === "lastInput" ? (
+                    <JujuLastInputDetails
+                      ownerId={jujuSessionUserId}
+                      sessionLoading={jujuSessionLoading}
+                      snapshot={lastSetupInput}
+                      onBack={() => setJujuSideView("menu")}
+                      tabIndex={jujuSideOpen ? 0 : -1}
+                    />
+                  ) : (
+                    <>
+                      <div className="juju-home-side-account">
+                        <img className="juju-home-side-avatar" src={accountAvatar.src} alt="" />
+                        <span>{maskSessionEmail(jujuSessionEmail)}</span>
+                      </div>
+                      <div className="juju-home-side-glass">
+                        <div className="juju-home-side-menu">
+                          <button
+                            onClick={() => {
+                              setJujuSideNotice("");
+                              setJujuSideView("lastInput");
+                            }}
+                            tabIndex={jujuSideOpen ? 0 : -1}
+                            type="button"
+                          >
+                            <span>简历管理</span>
+                            <i aria-hidden="true" />
+                          </button>
+                          <button
+                            onClick={showNextVersionNotice}
+                            tabIndex={jujuSideOpen ? 0 : -1}
+                            type="button"
+                          >
+                            <span>面试记录管理</span>
+                            <i aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                      {jujuSideNotice && (
+                        <p className="juju-home-side-notice" role="status">
+                          {jujuSideNotice}
+                        </p>
+                      )}
                       <button
-                        onClick={showNextVersionNotice}
+                        className="juju-home-side-logout"
+                        disabled={jujuLogoutBusy}
+                        onClick={() => void logoutFromJujuSide()}
                         tabIndex={jujuSideOpen ? 0 : -1}
                         type="button"
                       >
-                        <span>简历管理</span>
-                        <i aria-hidden="true" />
+                        {jujuLogoutBusy ? "退出中..." : "退出登录"}
                       </button>
-                      <button
-                        onClick={showNextVersionNotice}
-                        tabIndex={jujuSideOpen ? 0 : -1}
-                        type="button"
-                      >
-                        <span>面试记录管理</span>
-                        <i aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                  {jujuSideNotice && (
-                    <p className="juju-home-side-notice" role="status">
-                      {jujuSideNotice}
-                    </p>
+                    </>
                   )}
-                  <button
-                    className="juju-home-side-logout"
-                    disabled={jujuLogoutBusy}
-                    onClick={() => void logoutFromJujuSide()}
-                    tabIndex={jujuSideOpen ? 0 : -1}
-                    type="button"
-                  >
-                    {jujuLogoutBusy ? "退出中..." : "退出登录"}
-                  </button>
                 </aside>
               </div>
             )}
@@ -592,6 +731,7 @@ export function SetupPanel({
                   onChange={(event) => {
                     const nextJdText = event.target.value;
                     onChange({ ...form, jdText: nextJdText });
+                    setJdInputMeta({ source: "text" });
                     if (figmaJdError) {
                       setFigmaJdError(getJdValidationMessage(nextJdText));
                     }
@@ -626,9 +766,16 @@ export function SetupPanel({
                         <span aria-hidden="true">×</span>
                       )}
                     </button>
-                    {showDemoShortcuts && (
-                      <button className="figma-frame4-pill-button" onClick={fillDemoJd}>
-                        <span>UseDemoJD</span>
+                    {isJujuTheme && (
+                      <button
+                        aria-label="快捷录入上次 JD"
+                        className="figma-frame4-pill-button juju-last-input-button"
+                        disabled={!scopedLastSetupInput.jd}
+                        onClick={() => useLastInput("jdText")}
+                        title={scopedLastSetupInput.jd ? "填入当前账号上次录入的 JD" : "暂无上次 JD"}
+                        type="button"
+                      >
+                        <span>上次 JD</span>
                       </button>
                     )}
                     <label className="figma-frame4-pill-button figma-frame4-file-button" htmlFor="figmaJdFile">
@@ -660,7 +807,12 @@ export function SetupPanel({
                     <img src={uploadButtonImageSrc} alt="" aria-hidden="true" />
                   </button>
                 )}
-                <button className="figma-frame4-group1-button" aria-label="Generate profile" onClick={startFromJd}>
+                <button
+                  className="figma-frame4-group1-button"
+                  aria-label="Generate profile"
+                  disabled={startSubmitBusy}
+                  onClick={() => void startFromJd()}
+                >
                   <img src={continueButtonImageSrc} alt="" aria-hidden="true" />
                 </button>
               </div>
@@ -796,7 +948,7 @@ function FileUploadControl({
           event.target.value = "";
         }}
       />
-      {!isFigmaHomeUpload && <span className="helper">支持 TXT / Word(.docx)，最大 1MB</span>}
+          {!isFigmaHomeUpload && <span className="helper">支持 TXT / PDF / Word(.docx)，最大 1MB</span>}
       {isCurrent && <span className={statusClass}>{state.message}</span>}
     </div>
   );

@@ -73,6 +73,18 @@ test("session create migration locks quota, rechecks idempotency, and writes one
   );
 });
 
+test("questionnaire quota unlock persists the effective limit before incrementing usage", async () => {
+  const migration = await readFile(
+    "db/migrations/0014_questionnaire_quota_constraint.sql",
+    "utf8"
+  );
+  assert.match(migration, /sessions_started >= effective_session_limit/);
+  assert.match(
+    migration,
+    /set session_limit = effective_session_limit,[\s\S]*sessions_started = sessions_started \+ 1/
+  );
+});
+
 test("persistence API surface is owner-derived and never accepts raw audio", async () => {
   const createRoute = await source("app/api/interview-sessions/route.ts");
   const answerRoute = await source(
@@ -150,7 +162,7 @@ test("Juju preserves answers and retries only a real report instead of masking f
   const reportGeneration = await source("lib/report/generation.ts");
   const report = await source("components/report/ReportPanel.tsx");
 
-  assert.match(app, /initialVisualTheme === "juju"[\s\S]*?真实复盘报告生成超时或服务暂时不可用/);
+  assert.match(app, /initialVisualTheme === "juju"[\s\S]*?\$\{message\} 你的题目和答案已经保存，请重新生成/);
   assert.doesNotMatch(app, /initialVisualTheme === "juju"[\s\S]*?handleUseFallbackReport\(reportPayload\.answers/);
   assert.match(apiClient, /signal: handlers\.signal/);
   assert.match(provider, /createTimeoutSignal\(timeoutMs = 25_000, parentSignal\?: AbortSignal\)/);
@@ -158,6 +170,18 @@ test("Juju preserves answers and retries only a real report instead of masking f
   assert.match(reportGeneration, /buildQuestionReportPrompt[\s\S]*?buildFinalReportPrompt/);
   assert.match(report, /state\.kind === "error" && visualTheme !== "juju"/);
   assert.match(report, /state\.kind === "error" && visualTheme === "juju"[\s\S]*?重新生成真实报告/);
+});
+
+test("unanswered questions never receive sample, mock, or provider scores", async () => {
+  const interview = await source("components/interview/InterviewPanel.tsx");
+  const app = await source("components/InterviewCoachApp.tsx");
+  const generation = await source("lib/report/generation.ts");
+
+  assert.doesNotMatch(interview, /demoScenario\.sampleAnswers|fillSampleAnswers|填入样例答案/);
+  assert.match(generation, /if \(answeredCount === 0\)[\s\S]*?buildFullyUnansweredReport/);
+  assert.match(generation, /if \(!hasRealAnswer\(answer\)\)[\s\S]*?buildUnansweredQuestionReport/);
+  assert.match(app, /enforceAnswerSemantics\(snapshot\.report, snapshot\.questions, restoredAnswers\)/);
+  assert.match(app, /enforceAnswerSemantics\(generated\.data, sourceQuestions, nextAnswers\)/);
 });
 
 test("Juju enters loading before quota, persistence, profile, and report work begins", async () => {

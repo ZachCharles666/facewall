@@ -9,6 +9,12 @@ import { structuredLog } from "@/lib/observability/logger";
 import type { CandidateProfile, GenerationMeasurement, GenerationResult, InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, PromptOverrides, QuestionReport } from "@/lib/types";
 import type { LlmJsonResult } from "@/lib/ai/provider";
 import { getCurrentRequestId } from "@/lib/observability/context";
+import {
+  buildFullyUnansweredReport,
+  buildUnansweredQuestionReport,
+  enforceAnswerSemantics,
+  hasRealAnswer
+} from "@/lib/report/answerSemantics";
 
 const QUESTION_REPORT_TIMEOUT_MS = 35000;
 const FINAL_REPORT_TIMEOUT_MS = 35000;
@@ -41,12 +47,28 @@ export async function generateInterviewReportWithMeasurement(
   request?: Request,
   onQuestionReport?: (report: QuestionReport, completed: number) => void
 ): Promise<GenerationResult<InterviewReport>> {
+  const answeredCount = payload.questions.filter((question) =>
+    hasRealAnswer(payload.answers.find((answer) => answer.questionId === question.id))
+  ).length;
+  if (answeredCount === 0) {
+    const report = buildFullyUnansweredReport(payload.questions);
+    report.questionReports.forEach((questionReport, index) => onQuestionReport?.(questionReport, index + 1));
+    return {
+      data: report,
+      measurement: fallbackMeasurement("mixed")
+    };
+  }
+
   if (shouldInjectDevFault(request, "llm")) {
     throw new ReportGenerationError("LLM_PROVIDER_FAILED", "开发故障注入：报告生成失败。", true, 502);
   }
 
   if (shouldForceDemoFallback(request) || !isLlmConfigured()) {
-    const report = buildFallbackReport(payload.questions, payload.answers);
+    const report = enforceAnswerSemantics(
+      buildFallbackReport(payload.questions, payload.answers),
+      payload.questions,
+      payload.answers
+    );
     report.questionReports.forEach((questionReport, index) => onQuestionReport?.(questionReport, index + 1));
     return {
       data: report,
@@ -75,6 +97,13 @@ export async function generateInterviewReportWithMeasurement(
           durationSec: 0,
           sttStatus: "idle" as const
         };
+        if (!hasRealAnswer(answer)) {
+          const missingReport = buildUnansweredQuestionReport(question.id);
+          questionReports[questionIndex] = missingReport;
+          completed += 1;
+          onQuestionReport?.(missingReport, completed);
+          continue;
+        }
         const generated = await generateOneQuestionReport(
           payload,
           question,
@@ -121,7 +150,7 @@ export async function generateInterviewReportWithMeasurement(
     const overallScore = Math.round(
       questionReports.reduce((total, report) => total + report.score, 0) / questionReports.length
     );
-    const report: InterviewReport = {
+    const report = enforceAnswerSemantics({
       questionReports,
       finalReport: {
         overallScore,
@@ -130,7 +159,7 @@ export async function generateInterviewReportWithMeasurement(
         actionItems: repairedSummary.summary.actionItems,
         copyText: buildReportCopyText(questionReports, repairedSummary.summary.summary, overallScore)
       }
-    };
+    }, payload.questions, payload.answers);
     return {
       data: validateReportOutput(
         report,
@@ -222,10 +251,6 @@ export async function regenerateQuestionReport(
   if (!question) {
     throw new ReportGenerationError("LLM_SCHEMA_INVALID", "单题报告缺少目标 questionId，请重试或使用演示兜底。", true, 502);
   }
-  if (shouldForceDemoFallback(request) || !isLlmConfigured()) {
-    return buildFallbackReport(payload.questions, payload.answers).questionReports.find((item) => item.questionId === questionId)!;
-  }
-  const promptOverrides = await resolvePromptOverrides(payload);
   const answer = payload.answers.find((item) => item.questionId === questionId) ?? {
     questionId,
     answerText: "",
@@ -233,6 +258,13 @@ export async function regenerateQuestionReport(
     durationSec: 0,
     sttStatus: "idle" as const
   };
+  if (!hasRealAnswer(answer)) {
+    return buildUnansweredQuestionReport(questionId);
+  }
+  if (shouldForceDemoFallback(request) || !isLlmConfigured()) {
+    return buildFallbackReport(payload.questions, payload.answers).questionReports.find((item) => item.questionId === questionId)!;
+  }
+  const promptOverrides = await resolvePromptOverrides(payload);
   return (await generateOneQuestionReport(payload, question, answer, promptOverrides, request?.signal)).report;
 }
 

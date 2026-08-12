@@ -24,7 +24,7 @@ test("TokenHub/NVIDIA LLM chain and Tencent speech stay server-side", async () =
   assert.match(provider, /deepseek-v4-flash/);
   assert.match(provider, /kimi-k3/);
   assert.match(provider, /https:\/\/integrate\.api\.nvidia\.com\/v1/);
-  assert.match(provider, /deepseek-ai\/deepseek-v4-flash/);
+  assert.match(provider, /meta\/llama-3\.1-8b-instruct/);
   assert.match(speech, /TENCENT_SPEECH_SECRET_ID/);
   assert.match(speech, /TENCENT_SPEECH_SECRET_KEY/);
   assert.match(speech, /TextToVoice/);

@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/client";
 import type { InterviewPersistenceMode } from "@/lib/config/internalBeta";
 import { buildFallbackReport } from "@/lib/demo/fallback";
+import { enforceAnswerSemantics } from "@/lib/report/answerSemantics";
 import { demoScenario } from "@/lib/demo/scenario";
 import { INTERVIEWER_STYLES, SESSION_STEPS } from "@/lib/state/constants";
 import type {
@@ -378,9 +379,12 @@ export function InterviewCoachApp({
           )
         : snapshot.answers;
     setAnswers(restoredAnswers);
-    setReport(snapshot.report);
+    const restoredReport = snapshot.report
+      ? enforceAnswerSemantics(snapshot.report, snapshot.questions, restoredAnswers)
+      : null;
+    setReport(restoredReport);
     setStreamedQuestionReports([]);
-    if (snapshot.report) {
+    if (restoredReport) {
       setStep("report");
       setReportState({
         kind: "ready",
@@ -578,6 +582,7 @@ export function InterviewCoachApp({
     }
 
     setSetupError("");
+    if (isFigmaLikeTheme) setFigmaSetupInitialStep("jd");
     setStep("setup");
     setProfileGenerationPending(true);
     setStatus({ kind: "loading", message: "正在检查面试额度并生成候选人画像..." });
@@ -837,7 +842,7 @@ export function InterviewCoachApp({
           setReportState({ kind: "streaming", message: questionReport.message ?? "单题报告已生成。", usedFallback: false });
         }
       });
-      nextReport = generated.data;
+      nextReport = enforceAnswerSemantics(generated.data, sourceQuestions, nextAnswers);
       measurement = generated.measurement;
     } catch (error) {
       const message = error instanceof Error ? error.message : "流式报告生成失败";
@@ -845,7 +850,7 @@ export function InterviewCoachApp({
         setReport(null);
         setReportState({
           kind: "error",
-          message: "真实复盘报告生成超时或服务暂时不可用。你的题目和答案已经保存，请重新生成。",
+          message: `${message} 你的题目和答案已经保存，请重新生成。`,
           usedFallback: false
         });
         setStatus({
@@ -907,7 +912,7 @@ export function InterviewCoachApp({
       setStep("report");
       setReportState({ kind: "loading", message: "正在调用非流式报告保底...", usedFallback: false });
       const generated = await generateReport(reportPayload);
-      const nextReport = generated.data;
+      const nextReport = enforceAnswerSemantics(generated.data, reportPayload.questions, reportPayload.answers);
       try {
         const saved = await persistReportSnapshot(
           nextReport,

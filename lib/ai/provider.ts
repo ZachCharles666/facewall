@@ -27,6 +27,7 @@ interface LlmProviderCandidate {
 const TOKENHUB_BASE_URL = "https://tokenhub.tencentmaas.com/v1";
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_PROVIDER_ATTEMPT_TIMEOUT_MS = 8_000;
+const NVIDIA_PROVIDER_ATTEMPT_TIMEOUT_MS = 25_000;
 
 export class LlmUnavailableError extends Error {
   constructor(message = "LLM provider is not configured.") {
@@ -100,7 +101,10 @@ export async function generateJsonWithRetry(
       throw new DOMException("Aborted", "AbortError");
     }
     const attemptTimeout = createTimeoutSignal(
-      normalizeAttemptTimeout(options?.attemptTimeoutMs),
+      options?.attemptTimeoutMs === undefined &&
+        attemptCandidates[index].provider === "integrate.api.nvidia.com"
+        ? NVIDIA_PROVIDER_ATTEMPT_TIMEOUT_MS
+        : normalizeAttemptTimeout(options?.attemptTimeoutMs),
       options?.signal
     );
     try {
@@ -240,7 +244,7 @@ function getConfiguredLlmProviders(): LlmProviderCandidate[] {
       makeCandidate(
         nvidiaKey,
         normalizeBaseUrl(process.env.NVIDIA_BASE_URL, NVIDIA_BASE_URL),
-        process.env.NVIDIA_MODEL || "deepseek-ai/deepseek-v4-flash",
+        process.env.NVIDIA_MODEL || "meta/llama-3.1-8b-instruct",
         true
       )
     );

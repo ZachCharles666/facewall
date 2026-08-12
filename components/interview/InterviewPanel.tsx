@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getActiveSpeechSettings, getAzureSpeechStatus, requestSttTranscript, requestTtsAudio, saveActiveSpeechSettings } from "@/lib/api/client";
 import { shouldInjectClientFault } from "@/lib/dev/clientControls";
-import { demoScenario } from "@/lib/demo/scenario";
 import { azureVoiceOptions, interviewerSpeechLabels, normalizePersonaSpeechTunings, personaSpeechDefaults } from "@/lib/speech/settings";
 import { reportClientError } from "@/lib/observability/client";
 import { getSharedAudioElement, isWeChatBrowser, unlockAudioPlayback } from "@/lib/speech/audioUnlock";
@@ -440,23 +439,6 @@ export function InterviewPanel({
     const nextAnswers = getPatchedAnswers(answerPatch);
     answersRef.current = nextAnswers;
     onAnswersChange(nextAnswers);
-  }
-
-  function fillSampleAnswers() {
-    onAnswersChange(
-      questions.map((question) => {
-        const sample = demoScenario.sampleAnswers.find((answer) => answer.questionId === question.id);
-        return (
-          sample ?? {
-            questionId: question.id,
-            answerText: "",
-            inputMode: "text",
-            durationSec: 0,
-            sttStatus: "manual"
-          }
-        );
-      })
-    );
   }
 
   function estimateQuestionSpeechDuration(text: string) {
@@ -1004,20 +986,9 @@ export function InterviewPanel({
     setIsJujuAdvancing(false);
   }
 
-  function simulateStt(status: SttStatus) {
-    if (status === "failed") {
-      updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer?.answerText.trim() ? "edited" : "text" });
-      setVoiceMessage("语音识别失败，已保留当前文本，可重试或手动编辑。");
-      return;
-    }
-
-    const sample = demoScenario.sampleAnswers.find((answer) => answer.questionId === currentQuestion?.id);
-    updateCurrentAnswer({
-      answerText: sample?.answerText ?? currentAnswer?.answerText ?? "",
-      inputMode: "voice",
-      durationSec: sample?.durationSec ?? 60,
-      sttStatus: "success"
-    });
+  function simulateSttFailure() {
+    updateCurrentAnswer({ sttStatus: "failed", inputMode: currentAnswer?.answerText.trim() ? "edited" : "text" });
+    setVoiceMessage("语音识别失败，已保留当前文本，可重试或手动编辑。");
   }
 
   function updateClassicSpeechTuning(styleId: InterviewerStyleId, patch: Partial<SpeechTuning>) {
@@ -1353,7 +1324,6 @@ export function InterviewPanel({
           <h2>Interview</h2>
           <p>按 3 道题顺序作答；可跳过、编辑，报告前会提示缺失答案。</p>
         </div>
-        <button onClick={fillSampleAnswers}>填入样例答案</button>
       </div>
 
       {missingCount > 0 && <div className="status warning">当前还有 {missingCount} 道题缺少答案，仍可生成报告但会标记缺失。</div>}
@@ -1401,7 +1371,7 @@ export function InterviewPanel({
             onAuditionVoice={(styleId) => void auditionPersonaVoice(styleId)}
             onSaveSpeechSettings={saveClassicSpeechSettings}
             onSpeechTuningChange={updateSpeechTuning}
-            onSimulateSttFailure={() => simulateStt("failed")}
+            onSimulateSttFailure={simulateSttFailure}
             onStartStt={startStt}
             onStopStt={stopStt}
             onStopTts={stopTts}

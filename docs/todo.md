@@ -1,5 +1,22 @@
 # 面试嘴替教练开发 TODO
 
+## Juju PDF 与上次 CV/JD 快捷录入 - 2026-08-12
+
+- [x] 修复未作答报告被替代答案评分：空答案由服务端确定性标记为“未作答”并按 0 分计入总分，不调用 LLM，也不读取示例、Mock 或备选答案；部分未作答只对真实回答调用模型。客户端对新生成报告及数据库旧报告再次按当前真实答案校正，避免历史错误评分继续展示；同时移除答题页“填入样例答案”和模拟成功 STT 注入路径。
+- 验证：未作答行为测试覆盖全空、部分空、演示兜底和旧报告校正；定向 14/14 Pass，typecheck Pass；全量 internal-beta 113/113 Pass；`git diff --check` Pass。登录态页面需由用户刷新后复测当前会话，未登录新标签只能验证登录门禁正常。
+- [x] 恢复 Juju CV/JD 的 PDF 上传；TXT、PDF、DOCX 共用 1MB 上限。仅解析 PDF 已有可提取文字，不执行 OCR；纯图片、扫描版或无法提取文字的 PDF 返回 HTTP `422`、`PDF_TEXT_UNRECOGNIZABLE`、`retryable=false`，其他解析失败继续使用 `FILE_PARSE_FAILED`。
+- [x] 修复中文 PDF 文本层解析：改用支持 PDF 字体编码和 `ToUnicode` CMap 的服务端解析器，避免中文被错误当作 Latin-1 字节；合法中文 PDF 契约样本已覆盖“产品设计与数据分析”原文提取。
+- [x] 修复生成画像失败后的回退与“上次 CV/JD”保存竞态：提交时若账号 ID 尚未加载会先补取会话，成功保存当前完整 CV/JD 后再生成；生成或 Session 创建失败返回 JD 页并保留输入，不再回到 CV 首页。
+- [x] 修复问卷解锁额度与数据库约束不一致：有效额度提高后，在同一锁定事务内先同步 `session_limit` 再增加 `sessions_started`，避免第 4 次创建被约束误报为通用“保存失败”；真正超额继续返回稳定 `SESSION_QUOTA_EXHAUSTED`。
+- [x] 修复本地 NVIDIA 模型标识失效：元数据确认旧 `deepseek-ai/deepseek-v4-flash` 已下线，切换到当前可用、低延迟的 `meta/llama-3.1-8b-instruct`；空 `fatalIssue` 确定性规范化为“未发现致命问题”，其他报告字段继续严格校验；Juju 报告页保留服务端真实错误文案，不再把供应商拒绝统一误报为超时。
+- [x] NVIDIA 单模型链使用 25 秒有界单次等待，避免报告级 JSON 在通用 8 秒窗口内连续超时；外层画像/题目/单题报告仍保留 35 秒总超时，不允许无限等待。
+- [x] CV/JD 的 `+` 展开菜单分别增加“上次 CV”“上次 JD”；只有当前账号存在最近一次完整录入时可用。CV/JD 在校验通过并开始生成画像时原子覆盖，始终只保留最后一组。
+- [x] 根据 375×812 手动检查移除 Juju/开发环境展开菜单中的 `UseDemoCV`、`UseDemoJD`，用户菜单只保留上次录入和文件上传；Classic 主面板的演示样例能力不受影响。
+- [x] 上次录入优先保存在浏览器 `localStorage`，按当前 `user.id` 隔离；只保存文本、来源、文件名/类型和保存时间，不保存原文件 Blob，也不上传 COS/Lighthouse。存储禁用、容量不足或数据损坏时 fail-closed，但不阻断当前面试主流程。
+- [x] Juju 侧滑菜单的“简历管理”进入“上次录入详情”，展示最后一组 CV/JD 的来源、保存时间、字数和全文；支持加载中、空记录、会话不可用、返回、Escape 和遮罩关闭。owner 同步守卫避免同一浏览器切换账号时短暂展示或快捷录入上一账号数据。
+- 验证：中文 PDF、图片 PDF 422、侧栏和 store 定向测试 9/9 Pass；`npm run test:internal-beta` 107/107 Pass；`npx tsc --noEmit --incremental false` Pass；`npm run build` 34/34 Pass；`npm run security:check` 扫描 212 files Pass；真实 HTTP `npm run smoke:file-parse -- http://127.0.0.1:3000` 覆盖 TXT/DOCX/中文 PDF Pass；用户手工确认中文解析正常；`git diff --check` Pass。
+- 风险与后续：本轮按“本地优先”不新增云端简历副本，换设备/清浏览器数据后无法读取上次录入；这是隐私更小化的明确降级。仍需在本次修复后手工复测一次画像生成失败路径：应返回 JD 页、保留两份输入，并能从 CV/JD 菜单快捷录入上次内容。
+
 ## Classic/Figma Basic Auth 范围修正 - 2026-08-02
 
 - [x] 按产品最新确认将临时 HTTP Basic Auth 从全站门禁收窄到 `?theme=classic`、`?theme=figma` 与 Classic Prompt 管理 API；默认/Juju 不再要求共享凭据，只保留 OTP、邀请码和用户 Session。

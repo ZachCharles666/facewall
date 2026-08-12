@@ -1,5 +1,6 @@
 import { demoReport, demoScenario } from "@/lib/demo/scenario";
 import type { InterviewAnswer, InterviewQuestion, InterviewReport, InterviewerStyleId, QuestionReport } from "@/lib/types";
+import { enforceAnswerSemantics } from "@/lib/report/answerSemantics";
 
 const OPTIMIZED_ANSWER_CHAR_LIMIT = 300;
 const SHORT_ANSWER_CHAR_LIMIT = 30;
@@ -29,7 +30,7 @@ export function buildFallbackReport(questions: InterviewQuestion[], answers: Int
   const missingCount = questionReports.filter((report) => report.riskTags.includes("缺失答案")).length;
   const copyText = buildCopyText(questionReports, missingCount);
 
-  return {
+  return enforceAnswerSemantics({
     questionReports,
     finalReport: {
       ...demoReport.finalReport,
@@ -42,7 +43,7 @@ export function buildFallbackReport(questions: InterviewQuestion[], answers: Int
           : demoReport.finalReport.summary,
       copyText
     }
-  };
+  }, questions, answers);
 }
 
 function buildQuestionReport(base: QuestionReport, answerText: string): QuestionReport {

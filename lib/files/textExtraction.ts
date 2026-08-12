@@ -1,13 +1,26 @@
-import { inflateRawSync, inflateSync } from "node:zlib";
+import { inflateRawSync } from "node:zlib";
 
 export interface ParsedFileText {
   text: string;
   fileName: string;
-  fileType: "txt" | "docx";
+  fileType: "txt" | "pdf" | "docx";
   warnings: string[];
 }
 
 export const MAX_FILE_BYTES = 1024 * 1024;
+
+export const PDF_TEXT_UNRECOGNIZABLE_MESSAGE =
+  "无法识别该 PDF 中的可提取文字。暂不支持纯图片或扫描版 PDF，请上传含可复制文字的 PDF，或粘贴文字内容。";
+
+export class FileTextExtractionError extends Error {
+  constructor(
+    public readonly code: "PDF_TEXT_UNRECOGNIZABLE",
+    message: string
+  ) {
+    super(message);
+    this.name = "FileTextExtractionError";
+  }
+}
 
 export function validateFileSize(size: number) {
   if (size <= 0) {
@@ -25,23 +38,39 @@ export function detectSupportedFileType(fileName: string, mimeType: string) {
   // The extension is authoritative because multipart MIME values are supplied
   // by the client and can be empty or forged.
   if (normalizedName.endsWith(".txt")) return "txt" as const;
+  if (normalizedName.endsWith(".pdf")) return "pdf" as const;
   if (normalizedName.endsWith(".docx")) return "docx" as const;
 
   if (normalizedName.endsWith(".doc")) {
-    throw new Error("暂不支持旧版 .doc 二进制文档，请另存为 .docx 或 .txt 后上传。");
+    throw new Error("暂不支持旧版 .doc 二进制文档，请另存为 .docx、.pdf 或 .txt 后上传。");
   }
 
-  throw new Error("仅支持 .txt 和 .docx 文件。");
+  throw new Error("仅支持 .txt、.pdf 和 .docx 文件。");
 }
 
-export function extractTextFromFile(buffer: Buffer, fileName: string, mimeType: string): ParsedFileText {
+export async function extractTextFromFile(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string
+): Promise<ParsedFileText> {
   validateFileSize(buffer.byteLength);
   const fileType = detectSupportedFileType(fileName, mimeType);
   const warnings: string[] = [];
-  const text = fileType === "txt" ? parseTxt(buffer) : parseDocx(buffer);
+  const text =
+    fileType === "txt"
+      ? parseTxt(buffer)
+      : fileType === "docx"
+        ? parseDocx(buffer)
+        : await parsePdf(buffer);
   const normalizedText = normalizeExtractedText(text);
 
   if (normalizedText.length < 10) {
+    if (fileType === "pdf") {
+      throw new FileTextExtractionError(
+        "PDF_TEXT_UNRECOGNIZABLE",
+        PDF_TEXT_UNRECOGNIZABLE_MESSAGE
+      );
+    }
     throw new Error("未能从文件中提取到有效文本，请复制主要内容后粘贴。");
   }
 
@@ -126,120 +155,25 @@ function wordXmlToText(xml: string) {
   );
 }
 
-function parsePdf(buffer: Buffer, warnings: string[]) {
+async function parsePdf(buffer: Buffer) {
   const header = buffer.subarray(0, 5).toString("latin1");
   if (header !== "%PDF-") {
     throw new Error("PDF 文件头无效。");
   }
 
-  const chunks: string[] = [];
-  const content = buffer.toString("latin1");
-  const streamPattern = /<<([\s\S]*?)>>\s*stream\r?\n?/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = streamPattern.exec(content))) {
-    const dictionary = match[1];
-    const streamStart = match.index + match[0].length;
-    const streamEnd = content.indexOf("endstream", streamStart);
-    if (streamEnd < 0) break;
-
-    const rawStream = trimPdfStream(buffer.subarray(streamStart, streamEnd));
-    const decodedStream = decodePdfStream(rawStream, dictionary);
-    if (!decodedStream) continue;
-
-    chunks.push(...extractPdfTextOperators(decodedStream.toString("latin1")));
-  }
-
-  if (chunks.length === 0) {
-    warnings.push("PDF 未提取到文本流，可能是扫描件或使用了复杂字体编码。");
-  }
-
-  return chunks.join("\n");
-}
-
-function trimPdfStream(stream: Buffer) {
-  let start = 0;
-  let end = stream.byteLength;
-  if (stream[start] === 0x0d && stream[start + 1] === 0x0a) start += 2;
-  else if (stream[start] === 0x0a) start += 1;
-  if (stream[end - 2] === 0x0d && stream[end - 1] === 0x0a) end -= 2;
-  else if (stream[end - 1] === 0x0a) end -= 1;
-  return stream.subarray(start, end);
-}
-
-function decodePdfStream(stream: Buffer, dictionary: string) {
-  if (!dictionary.includes("/Filter")) return stream;
-  if (!dictionary.includes("/FlateDecode")) return null;
-
-  try {
-    return inflateSync(stream);
-  } catch {
-    try {
-      return inflateRawSync(stream);
-    } catch {
-      return null;
-    }
-  }
-}
-
-function extractPdfTextOperators(stream: string) {
-  const textChunks: string[] = [];
-  const textBlocks = stream.match(/BT[\s\S]*?ET/g) ?? [];
-
-  for (const block of textBlocks) {
-    const literalPattern = /\((?:\\.|[^\\)])*\)\s*Tj/g;
-    let literalMatch: RegExpExecArray | null;
-    while ((literalMatch = literalPattern.exec(block))) {
-      textChunks.push(decodePdfLiteral(literalMatch[0].replace(/\s*Tj$/, "")));
-    }
-
-    const hexPattern = /<[\da-fA-F\s]+>\s*Tj/g;
-    let hexMatch: RegExpExecArray | null;
-    while ((hexMatch = hexPattern.exec(block))) {
-      textChunks.push(decodePdfHexString(hexMatch[0].replace(/\s*Tj$/, "")));
-    }
-
-    const arrayPattern = /\[(?:[^\[\]]|\((?:\\.|[^\\)])*\))*\]\s*TJ/g;
-    let arrayMatch: RegExpExecArray | null;
-    while ((arrayMatch = arrayPattern.exec(block))) {
-      const literals = arrayMatch[0].match(/\((?:\\.|[^\\)])*\)|<[\da-fA-F\s]+>/g) ?? [];
-      const text = literals
-        .map((item) => (item.startsWith("(") ? decodePdfLiteral(item) : decodePdfHexString(item)))
-        .join("");
-      if (text) textChunks.push(text);
-    }
-  }
-
-  return textChunks.map((item) => item.trim()).filter(Boolean);
-}
-
-function decodePdfLiteral(value: string) {
-  const body = value.slice(1, -1);
-  return body.replace(/\\([nrtbf()\\]|[0-7]{1,3})/g, (_, escaped: string) => {
-    if (escaped === "n") return "\n";
-    if (escaped === "r") return "\r";
-    if (escaped === "t") return "\t";
-    if (escaped === "b") return "\b";
-    if (escaped === "f") return "\f";
-    if (/^[0-7]+$/.test(escaped)) return String.fromCharCode(Number.parseInt(escaped, 8));
-    return escaped;
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({
+    // Copy the bytes because PDF.js may transfer ownership of its Uint8Array.
+    data: new Uint8Array(buffer),
+    isEvalSupported: false,
+    useWorkerFetch: false
   });
-}
-
-function decodePdfHexString(value: string) {
-  const hex = value.slice(1, -1).replace(/\s+/g, "");
-  const bytes: number[] = [];
-  for (let index = 0; index < hex.length; index += 2) {
-    bytes.push(Number.parseInt(hex.slice(index, index + 2).padEnd(2, "0"), 16));
+  try {
+    const result = await parser.getText({ pageJoiner: "\n" });
+    return result.text;
+  } finally {
+    await parser.destroy();
   }
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
-    let result = "";
-    for (let index = 2; index + 1 < bytes.length; index += 2) {
-      result += String.fromCharCode((bytes[index] << 8) + bytes[index + 1]);
-    }
-    return result;
-  }
-  return Buffer.from(bytes).toString("latin1");
 }
 
 function decodeXmlEntities(value: string) {

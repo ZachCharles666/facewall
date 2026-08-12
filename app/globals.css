@@ -5189,6 +5189,172 @@ body[data-visual-theme="juju"] {
   transform: none;
 }
 
+.theme-juju .juju-last-input-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 20px 24px;
+  background: #ebedff;
+  color: #4d4d4d;
+}
+
+.theme-juju .juju-last-input-header {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 0 4px 20px;
+}
+
+.theme-juju .juju-last-input-header > button {
+  position: relative;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: none;
+}
+
+.theme-juju .juju-last-input-header > button:hover:not(:disabled) {
+  border: 0;
+  background: #ffffff;
+  transform: none;
+}
+
+.theme-juju .juju-last-input-header > button i {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  width: 9px;
+  height: 9px;
+  border-bottom: 1.8px solid #4d4d4d;
+  border-left: 1.8px solid #4d4d4d;
+  transform: rotate(45deg);
+}
+
+.theme-juju .juju-last-input-header h2 {
+  margin: 1px 0 0;
+  color: #1a1a1a;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 27px;
+}
+
+.theme-juju .juju-last-input-header p {
+  margin: 4px 0 0;
+  color: #737373;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.theme-juju .juju-last-input-scroll {
+  display: grid;
+  min-height: 0;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 0 4px 24px;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+.theme-juju .juju-last-input-card {
+  overflow: hidden;
+  border: 1px solid rgba(77, 77, 77, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 32px rgba(73, 72, 112, 0.08);
+}
+
+.theme-juju .juju-last-input-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.theme-juju .juju-last-input-card-heading h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.theme-juju .juju-last-input-card-heading > span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #f7efff;
+  color: #7c4cb2;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.theme-juju .juju-last-input-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 14px 0 12px;
+}
+
+.theme-juju .juju-last-input-meta > div {
+  min-width: 0;
+}
+
+.theme-juju .juju-last-input-meta dt,
+.theme-juju .juju-last-input-meta dd {
+  margin: 0;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.theme-juju .juju-last-input-meta dt {
+  color: #999999;
+}
+
+.theme-juju .juju-last-input-meta dd {
+  overflow: hidden;
+  color: #4d4d4d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-juju .juju-last-input-text {
+  max-height: 190px;
+  overflow: auto;
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(238, 239, 255, 0.78);
+  color: #3d3d3d;
+  font-size: 12px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.theme-juju .juju-last-input-card-empty,
+.theme-juju .juju-last-input-state {
+  margin: 14px 0 0;
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #737373;
+  font-size: 12px;
+  line-height: 19px;
+  text-align: center;
+}
+
+.theme-juju .juju-last-input-state.is-warning {
+  color: #b24d68;
+}
+
 .theme-juju .juju-jd-orb {
   top: 136px;
 }

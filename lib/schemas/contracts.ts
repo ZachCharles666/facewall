@@ -282,9 +282,13 @@ export function repairQuestionReport(
 
   const riskTags = coerceStringList(value.riskTags) ?? [];
 
-  for (const key of ["fatalIssue", "diagnosis", "optimizedAnswer", "oralVersion60s"]) {
+  for (const key of ["diagnosis", "optimizedAnswer", "oralVersion60s"]) {
     if (!isNonEmptyString(value[key])) return { invalidField: key };
   }
+
+  const fatalIssue = isNonEmptyString(value.fatalIssue)
+    ? String(value.fatalIssue).trim()
+    : "未发现致命问题。";
 
   return {
     report: {
@@ -293,7 +297,7 @@ export function repairQuestionReport(
       score,
       dimensionScores,
       riskTags,
-      fatalIssue: String(value.fatalIssue).trim(),
+      fatalIssue,
       diagnosis: String(value.diagnosis).trim(),
       optimizedAnswer: String(value.optimizedAnswer).trim(),
       oralVersion60s: String(value.oralVersion60s).trim()
